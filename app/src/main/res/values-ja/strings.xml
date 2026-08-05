@@ -99,4 +99,8 @@
     <string name="notif_hook_armed_title">Japanglify コピーフック ON</string>
     <string name="notif_hook_armed_text">他アプリで日本語をコピーすると結果通知が出ます。出ない場合は Japanglify のコピーフックログを確認。</string>
     <string name="status_copy_hook_log">コピーフックログ</string>
+    <string name="notif_action_translate">Google 翻訳</string>
+    <string name="overlay_action_translate">翻訳</string>
+    <string name="overlay_action_copy">コピー</string>
+    <string name="overlay_action_close">閉じる</string>
 </resources>

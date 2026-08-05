@@ -99,4 +99,8 @@
     <string name="notif_hook_armed_title">Japanglify Copy hook is on</string>
     <string name="notif_hook_armed_text">Copy Japanese text in Messages/Discord/X — you should get a result notification. If not, open Japanglify and check the copy-hook log.</string>
     <string name="status_copy_hook_log">Copy hook log</string>
+    <string name="notif_action_translate">Google Translate</string>
+    <string name="overlay_action_translate">Translate</string>
+    <string name="overlay_action_copy">Copy</string>
+    <string name="overlay_action_close">Close</string>
 </resources>

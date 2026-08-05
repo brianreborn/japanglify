@@ -92,6 +92,11 @@ object ClipboardNotifications {
         )
         val copyPi = PendingIntent.getBroadcast(context, 3, copyIntent, pendingFlags())
 
+        val translateIntent = Intent(context, ClipboardAssistReceiver::class.java).setAction(
+            ClipboardAssistReceiver.ACTION_TRANSLATE
+        )
+        val translatePi = PendingIntent.getBroadcast(context, 5, translateIntent, pendingFlags())
+
         val preview = result.replace('\n', ' ').let {
             if (it.length > 180) it.take(177) + "…" else it
         }
@@ -104,6 +109,7 @@ object ClipboardNotifications {
             .setAutoCancel(true)
             .setContentIntent(copyPi)
             .addAction(0, context.getString(R.string.notif_action_copy), copyPi)
+            .addAction(0, context.getString(R.string.notif_action_translate), translatePi)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .build()
 

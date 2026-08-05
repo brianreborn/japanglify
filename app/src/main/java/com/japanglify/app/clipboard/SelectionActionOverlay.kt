@@ -7,23 +7,32 @@ import android.os.Build
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.LayoutInflater
+import android.view.View
 import android.view.WindowManager
+import android.widget.Button
 import android.widget.FrameLayout
+import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
 import com.japanglify.app.R
 
 /**
- * Accessibility overlay chip labeled "Japanglify" — the substitute for a
- * PROCESS_TEXT menu entry in hosts (Twitter/X, …) that never show one.
+ * Accessibility overlay chip and floating result card.
+ * Uses [WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY] — granted directly to
+ * enabled AccessibilityServices without requiring root or extra permissions.
  */
 class SelectionActionOverlay(
     private val service: AccessibilityService
 ) {
     private val windowManager =
         service.getSystemService(WindowManager::class.java)
-    private var root: FrameLayout? = null
+
+    // Chip overlay
+    private var chipRoot: FrameLayout? = null
     private var pendingText: String? = null
+
+    // Floating Result Card Overlay
+    private var cardRoot: FrameLayout? = null
 
     fun show(text: String, anchorOnScreen: Rect?) {
         val trimmed = text.trim()
@@ -32,8 +41,8 @@ class SelectionActionOverlay(
             return
         }
         pendingText = trimmed
-        ensureView()
-        val view = root ?: return
+        ensureChipView()
+        val view = chipRoot ?: return
         val params = view.layoutParams as WindowManager.LayoutParams
         val density = service.resources.displayMetrics
         val margin = TypedValue.applyDimension(
@@ -46,7 +55,6 @@ class SelectionActionOverlay(
         if (anchorOnScreen != null && !anchorOnScreen.isEmpty) {
             params.gravity = Gravity.TOP or Gravity.START
             params.x = (anchorOnScreen.left).coerceAtLeast(margin)
-            // Prefer just below the selection; fall back above if near bottom
             val below = anchorOnScreen.bottom + margin
             val screenH = density.heightPixels
             params.y = if (below + approxChipH < screenH - margin) {
@@ -63,7 +71,7 @@ class SelectionActionOverlay(
         }
         try {
             windowManager.updateViewLayout(view, params)
-            view.visibility = android.view.View.VISIBLE
+            view.visibility = View.VISIBLE
         } catch (_: Exception) {
             try {
                 windowManager.addView(view, params)
@@ -75,38 +83,76 @@ class SelectionActionOverlay(
 
     fun hide() {
         pendingText = null
-        val view = root ?: return
-        view.visibility = android.view.View.GONE
+        chipRoot?.visibility = View.GONE
+    }
+
+    fun showResultCard(sourceText: String, resultText: String) {
+        hide()
+        ensureCardView()
+        val card = cardRoot ?: return
+
+        card.findViewById<TextView>(R.id.card_result_text)?.text = resultText
+
+        card.findViewById<ImageButton>(R.id.btn_dismiss)?.setOnClickListener {
+            hideResultCard()
+        }
+
+        card.findViewById<Button>(R.id.btn_copy)?.setOnClickListener {
+            LastResultStore.writeToClipboard(service, resultText)
+            Toast.makeText(service, R.string.notif_copied_ready_to_paste, Toast.LENGTH_SHORT).show()
+            hideResultCard()
+        }
+
+        card.findViewById<Button>(R.id.btn_translate)?.setOnClickListener {
+            TranslateHelper.launchGoogleTranslate(service, sourceText)
+            hideResultCard()
+        }
+
+        try {
+            card.visibility = View.VISIBLE
+        } catch (_: Exception) {
+            // ignore
+        }
+    }
+
+    fun hideResultCard() {
+        cardRoot?.visibility = View.GONE
     }
 
     fun destroy() {
-        val view = root ?: return
-        try {
-            windowManager.removeView(view)
-        } catch (_: Exception) {
-            // already removed
+        hide()
+        hideResultCard()
+        chipRoot?.let {
+            try { windowManager.removeView(it) } catch (_: Exception) {}
         }
-        root = null
+        cardRoot?.let {
+            try { windowManager.removeView(it) } catch (_: Exception) {}
+        }
+        chipRoot = null
+        cardRoot = null
         pendingText = null
     }
 
-    private fun ensureView() {
-        if (root != null) return
-        val view = LayoutInflater.from(service)
-            .inflate(R.layout.overlay_japanglify_chip, null) as FrameLayout
-        view.findViewById<TextView>(R.id.chip_label).setOnClickListener {
-            onChipClicked()
-        }
-        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+    private fun overlayWindowType(): Int {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
         } else {
             @Suppress("DEPRECATION")
             WindowManager.LayoutParams.TYPE_SYSTEM_ALERT
         }
+    }
+
+    private fun ensureChipView() {
+        if (chipRoot != null) return
+        val view = LayoutInflater.from(service)
+            .inflate(R.layout.overlay_japanglify_chip, null) as FrameLayout
+        view.findViewById<TextView>(R.id.chip_label).setOnClickListener {
+            onChipClicked()
+        }
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
-            type,
+            overlayWindowType(),
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
@@ -115,9 +161,32 @@ class SelectionActionOverlay(
         params.gravity = Gravity.TOP or Gravity.START
         try {
             windowManager.addView(view, params)
-            root = view
+            chipRoot = view
         } catch (_: Exception) {
-            root = null
+            chipRoot = null
+        }
+    }
+
+    private fun ensureCardView() {
+        if (cardRoot != null) return
+        val view = LayoutInflater.from(service)
+            .inflate(R.layout.overlay_result_card, null) as FrameLayout
+
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            overlayWindowType(),
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+            PixelFormat.TRANSLUCENT
+        )
+        params.gravity = Gravity.CENTER
+        try {
+            windowManager.addView(view, params)
+            cardRoot = view
+        } catch (_: Exception) {
+            cardRoot = null
         }
     }
 
@@ -127,11 +196,16 @@ class SelectionActionOverlay(
         if (text.isEmpty()) return
         when (ClipboardProcessor.processText(service, text)) {
             ClipboardProcessor.ProcessOutcome.SUCCESS -> {
-                Toast.makeText(
-                    service,
-                    R.string.notif_result_ready,
-                    Toast.LENGTH_SHORT
-                ).show()
+                val result = LastResultStore.load(service).orEmpty()
+                if (result.isNotEmpty()) {
+                    showResultCard(sourceText = text, resultText = result)
+                } else {
+                    Toast.makeText(
+                        service,
+                        R.string.notif_result_ready,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
             }
             ClipboardProcessor.ProcessOutcome.DISABLED -> {
                 Toast.makeText(

@@ -52,11 +52,29 @@ class ClipboardAssistReceiver : BroadcastReceiver() {
                     Toast.LENGTH_LONG
                 ).show()
             }
+
+            ACTION_TRANSLATE -> {
+                val source = LastResultStore.lastSource?.trim().orEmpty()
+                val result = LastResultStore.load(context)?.trim().orEmpty()
+                val textToTranslate = source.ifEmpty { result }
+                if (textToTranslate.isNotEmpty()) {
+                    NotificationManagerCompat.from(context)
+                        .cancel(ClipboardNotifications.ID_RESULT)
+                    TranslateHelper.launchGoogleTranslate(context, textToTranslate)
+                } else {
+                    Toast.makeText(
+                        context,
+                        R.string.clipboard_assist_no_result,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
         }
     }
 
     companion object {
         const val ACTION_STOP = "com.japanglify.app.action.STOP_CLIPBOARD_ASSIST"
         const val ACTION_COPY_RESULT = "com.japanglify.app.action.COPY_JAPANGLIFY_RESULT"
+        const val ACTION_TRANSLATE = "com.japanglify.app.action.TRANSLATE"
     }
 }
