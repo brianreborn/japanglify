@@ -209,8 +209,8 @@ class JapanglifyAccessibilityService : AccessibilityService() {
             if (start < 0 || end <= start) return null
 
             val bounds = Rect()
-            source.getBoundsInScreen(bounds)
-            val nodeText = source.text?.toString()
+            source?.getBoundsInScreen(bounds)
+            val nodeText = source?.text?.toString()
             val fromEventList = event.text
                 ?.mapNotNull { it?.toString() }
                 ?.joinToString("")
