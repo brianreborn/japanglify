@@ -50,31 +50,31 @@ object ClipboardProcessor {
 
     fun readClipboard(context: Context): String? = readClipboardSnapshot(context).text
 
-    fun processClipboardIfNew(context: Context): ProcessOutcome {
+    fun processClipboardIfNew(context: Context, force: Boolean = false): ProcessOutcome {
         if (!isAssistWanted(context)) return ProcessOutcome.DISABLED
 
-        if (LastResultStore.isSuppressing()) return ProcessOutcome.SELF_WRITE
+        if (!force && LastResultStore.isSuppressing()) return ProcessOutcome.SELF_WRITE
 
         val snap = readClipboardSnapshot(context)
-        if (LastResultStore.shouldIgnoreClipboard(context, snap.text, snap.label)) {
+        if (!force && LastResultStore.shouldIgnoreClipboard(context, snap.text, snap.label)) {
             return ProcessOutcome.SELF_WRITE
         }
 
         val raw = snap.text?.trim()
         if (raw.isNullOrEmpty()) return ProcessOutcome.EMPTY_OR_UNREADABLE
         if (raw.length > MAX_CHARS) return ProcessOutcome.TOO_LONG
-        if (raw == lastHandledRaw) return ProcessOutcome.DUPLICATE
+        if (!force && raw == lastHandledRaw) return ProcessOutcome.DUPLICATE
 
-        return processText(context, raw)
+        return processText(context, raw, force = force)
     }
 
-    fun processText(context: Context, source: String): ProcessOutcome {
+    fun processText(context: Context, source: String, force: Boolean = false): ProcessOutcome {
         if (!isAssistWanted(context)) return ProcessOutcome.DISABLED
         val text = source.trim()
         if (text.isEmpty()) return ProcessOutcome.EMPTY_OR_UNREADABLE
         if (text.length > MAX_CHARS) return ProcessOutcome.TOO_LONG
-        if (LastResultStore.isSelfWrite(text)) return ProcessOutcome.SELF_WRITE
-        if (text == lastHandledRaw) return ProcessOutcome.DUPLICATE
+        if (!force && LastResultStore.isSelfWrite(text)) return ProcessOutcome.SELF_WRITE
+        if (!force && text == lastHandledRaw) return ProcessOutcome.DUPLICATE
 
         val app = context.applicationContext as? JapanglifyApp
             ?: return ProcessOutcome.ERROR

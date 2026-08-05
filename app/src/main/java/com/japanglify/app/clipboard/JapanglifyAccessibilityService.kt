@@ -148,7 +148,7 @@ class JapanglifyAccessibilityService : AccessibilityService() {
         // 1) Selection memory — works when OS hides clipboard after Copy
         val selected = lastSelectedText?.trim().orEmpty()
         if (selected.isNotEmpty() && !LastResultStore.isSelfWrite(selected)) {
-            when (ClipboardProcessor.processText(this, selected)) {
+            when (ClipboardProcessor.processText(this, selected, force = true)) {
                 ClipboardProcessor.ProcessOutcome.SUCCESS -> {
                     CopyHookDiagnostics.log(this, "processed selection OK")
                     lastPolledClip = selected
@@ -170,7 +170,7 @@ class JapanglifyAccessibilityService : AccessibilityService() {
                 if (LastResultStore.isSuppressing()) return@postDelayed
                 if (!ClipboardProcessor.isAssistWanted(this)) return@postDelayed
 
-                when (ClipboardProcessor.processClipboardIfNew(this)) {
+                when (ClipboardProcessor.processClipboardIfNew(this, force = (delay == 0L))) {
                     ClipboardProcessor.ProcessOutcome.SUCCESS -> {
                         CopyHookDiagnostics.log(this, "processed clipboard OK @${delay}ms")
                         lastPolledClip = ClipboardProcessor.readClipboard(this)?.trim()
@@ -179,7 +179,7 @@ class JapanglifyAccessibilityService : AccessibilityService() {
                         if (delay == delays.last() && !alreadySucceeded) {
                             val sel = lastSelectedText?.trim().orEmpty()
                             if (sel.isNotEmpty()) {
-                                val o = ClipboardProcessor.processText(this, sel)
+                                val o = ClipboardProcessor.processText(this, sel, force = true)
                                 CopyHookDiagnostics.log(this, "fallback selection → $o")
                             } else {
                                 CopyHookDiagnostics.log(this, "no clip/selection — tap-to-process")
@@ -202,27 +202,29 @@ class JapanglifyAccessibilityService : AccessibilityService() {
     private data class CapturedSelection(val text: String, val bounds: Rect?)
 
     private fun captureSelection(event: AccessibilityEvent): CapturedSelection? {
-        val fromEventList = event.text
-            ?.mapNotNull { it?.toString() }
-            ?.joinToString("")
-            ?.trim()
-            .orEmpty()
         val source = event.source
         try {
-            val bounds = Rect()
-            source?.getBoundsInScreen(bounds)
-            val nodeText = source?.text?.toString()
             val start = source?.textSelectionStart ?: -1
             val end = source?.textSelectionEnd ?: -1
+            if (start < 0 || end <= start) return null
+
+            val bounds = Rect()
+            source.getBoundsInScreen(bounds)
+            val nodeText = source.text?.toString()
+            val fromEventList = event.text
+                ?.mapNotNull { it?.toString() }
+                ?.joinToString("")
+                ?.trim()
+                .orEmpty()
+
             val selected = when {
-                nodeText != null && start >= 0 && end > start && end <= nodeText.length ->
+                nodeText != null && end <= nodeText.length ->
                     nodeText.substring(start, end)
-                fromEventList.isNotEmpty() && start >= 0 && end > start &&
-                    end <= fromEventList.length ->
+                fromEventList.isNotEmpty() && end <= fromEventList.length ->
                     fromEventList.substring(start, end)
-                fromEventList.isNotEmpty() -> fromEventList
                 else -> null
             }?.trim().orEmpty()
+
             if (selected.isBlank()) return null
             return CapturedSelection(selected, if (bounds.isEmpty) null else Rect(bounds))
         } finally {
