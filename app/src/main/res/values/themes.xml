@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Japanglify" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="colorPrimary">@color/jp_red</item>
+        <item name="colorPrimaryVariant">@color/jp_red_dark</item>
+        <item name="colorOnPrimary">@android:color/white</item>
+        <item name="colorSecondary">@color/jp_red_dark</item>
+        <item name="colorOnSecondary">@android:color/white</item>
+
+        <item name="android:colorBackground">@color/jp_paper</item>
+        <item name="colorSurface">@color/jp_surface</item>
+        <item name="colorOnSurface">@color/jp_ink</item>
+        <item name="colorOnBackground">@color/jp_ink</item>
+
+        <item name="android:statusBarColor">@color/jp_red_dark</item>
+        <item name="android:navigationBarColor">@color/jp_paper</item>
+        <item name="android:windowBackground">@color/jp_paper</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">true</item>
+
+        <item name="android:textColorPrimary">@color/jp_ink</item>
+        <item name="android:textColorSecondary">@color/jp_ink_secondary</item>
+        <item name="android:textColorHint">@color/jp_ink_disabled</item>
+        <item name="android:textColorTertiary">@color/jp_ink_secondary</item>
+
+        <item name="colorControlNormal">@color/jp_ink_secondary</item>
+        <item name="colorControlActivated">@color/jp_red</item>
+        <item name="colorControlHighlight">@color/jp_red_soft</item>
+        <item name="colorAccent">@color/jp_red</item>
+
+        <item name="preferenceTheme">@style/Theme.Japanglify.Preference</item>
+        <item name="alertDialogTheme">@style/Theme.Japanglify.Dialog</item>
+    </style>
+
+    <style name="Theme.Japanglify.Preference" parent="PreferenceThemeOverlay.v14.Material">
+        <item name="android:textColorPrimary">@color/jp_ink</item>
+        <item name="android:textColorSecondary">@color/jp_ink_secondary</item>
+        <item name="android:colorBackground">@color/jp_paper</item>
+        <item name="android:windowBackground">@color/jp_paper</item>
+        <item name="colorControlActivated">@color/jp_red</item>
+        <item name="colorAccent">@color/jp_red</item>
+        <item name="android:textColor">@color/jp_ink</item>
+    </style>
+
+    <style name="Theme.Japanglify.Dialog" parent="ThemeOverlay.MaterialComponents.Dialog.Alert">
+        <item name="colorPrimary">@color/jp_red</item>
+        <item name="colorOnSurface">@color/jp_ink</item>
+        <item name="android:textColorPrimary">@color/jp_ink</item>
+        <item name="android:background">@color/jp_surface</item>
+        <item name="buttonBarPositiveButtonStyle">@style/Widget.Japanglify.DialogButton</item>
+        <item name="buttonBarNegativeButtonStyle">@style/Widget.Japanglify.DialogButton</item>
+    </style>
+
+    <style name="Widget.Japanglify.DialogButton" parent="Widget.MaterialComponents.Button.TextButton.Dialog">
+        <item name="android:textColor">@color/jp_red</item>
+    </style>
+
+    <!--
+      PROCESS_TEXT host theme: platform translucent, NOT Material floating.
+      Some hosts/OEMs mishandle windowIsFloating activities offered as process-text.
+      Theme.NoDisplay is what many working PROCESS_TEXT samples use.
+    -->
+    <style name="Theme.Japanglify.ProcessText" parent="@android:style/Theme.Translucent.NoTitleBar">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:colorBackgroundCacheHint">@null</item>
+    </style>
+
+    <!-- Kept for clipboard transparent activity -->
+    <style name="Theme.Japanglify.Transparent" parent="@android:style/Theme.Translucent.NoTitleBar">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
+</resources>

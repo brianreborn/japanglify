@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Even in system night mode we keep a light, high-contrast sheet for
+    settings so preference text never becomes light-on-light. Brand red stays.
+-->
+<resources>
+    <color name="jp_paper">#FAF7F2</color>
+    <color name="jp_surface">#FFFFFF</color>
+    <color name="jp_ink">#141414</color>
+    <color name="jp_ink_secondary">#3D3D3D</color>
+    <color name="jp_ink_disabled">#6B6B6B</color>
+    <color name="jp_divider">#C8C2B8</color>
+</resources>

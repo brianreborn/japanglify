@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Selection bubble + clipboard assist for hosts without PROCESS_TEXT (Twitter/X).
+  TYPE_ACCESSIBILITY_OVERLAY draws the Japanglify chip over any app.
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeViewTextSelectionChanged|typeViewLongClicked|typeWindowContentChanged|typeViewClicked|typeWindowStateChanged|typeAnnouncement"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagReportViewIds|flagRetrieveInteractiveWindows|flagIncludeNotImportantViews"
+    android:canRetrieveWindowContent="true"
+    android:description="@string/a11y_description"
+    android:notificationTimeout="50"
+    android:settingsActivity="com.japanglify.app.SettingsActivity"
+    android:summary="@string/a11y_summary" />

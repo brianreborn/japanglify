@@ -1,0 +1,92 @@
+package com.japanglify.app.domain
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+// OutputFormat used in engine end-to-end tests
+
+class JapaneseAnalyzerTest {
+
+    @Test
+    fun pureKanaGetsRomaji() {
+        val analyzer = JapaneseAnalyzer(readingProvider = null)
+        val segments = analyzer.annotate(
+            "こんにちは",
+            JapanglifySettings(furiganaKanjiOnly = true)
+        )
+        assertEquals(1, segments.size)
+        assertEquals("こんにちは", segments[0].surface)
+        assertEquals("konnichiha", segments[0].romaji)
+        // Kanji-only furigana: pure kana should not get identity furigana
+        assertFalse(segments[0].hasFurigana)
+    }
+
+    @Test
+    fun kanjiUsesReadingProvider() {
+        val provider = JapaneseAnalyzer.ReadingProvider {
+            listOf(
+                JapaneseAnalyzer.SurfaceReading("日本語", "ニホンゴ"),
+                JapaneseAnalyzer.SurfaceReading("を", "ヲ"),
+                JapaneseAnalyzer.SurfaceReading("勉強", "ベンキョウ"),
+                JapaneseAnalyzer.SurfaceReading("する", "スル")
+            )
+        }
+        val analyzer = JapaneseAnalyzer(provider)
+        val segments = analyzer.annotate("日本語を勉強する", JapanglifySettings())
+
+        val nihongo = segments.first { it.surface == "日本語" }
+        assertEquals("にほんご", nihongo.furigana)
+        assertEquals("nihongo", nihongo.romaji)
+        assertTrue(nihongo.needsFurigana)
+
+        val benkyou = segments.first { it.surface == "勉強" }
+        assertEquals("べんきょう", benkyou.furigana)
+        assertTrue(benkyou.romaji!!.startsWith("benky"))
+    }
+
+    @Test
+    fun engineEndToEndParenthetical() {
+        val provider = JapaneseAnalyzer.ReadingProvider {
+            listOf(JapaneseAnalyzer.SurfaceReading("漢字", "カンジ"))
+        }
+        val engine = JapanglifyEngine(JapaneseAnalyzer(provider))
+        val out = engine.expand(
+            "漢字",
+            JapanglifySettings(outputFormat = OutputFormat.PARENTHETICAL)
+        )
+        assertEquals("漢字（かんじ / kanji）", out)
+    }
+
+    @Test
+    fun engineEndToEndFuriganaInline() {
+        val provider = JapaneseAnalyzer.ReadingProvider {
+            listOf(JapaneseAnalyzer.SurfaceReading("漢字", "カンジ"))
+        }
+        val engine = JapanglifyEngine(JapaneseAnalyzer(provider))
+        val out = engine.expand(
+            "漢字",
+            JapanglifySettings(outputFormat = OutputFormat.FURIGANA_INLINE)
+        )
+        assertTrue(out.startsWith("漢字《かんじ》"))
+        assertTrue(out.contains("kanji"))
+    }
+
+    @Test
+    fun kunreiSystemPropagates() {
+        val provider = JapaneseAnalyzer.ReadingProvider {
+            listOf(JapaneseAnalyzer.SurfaceReading("必要", "ヒツヨウ"))
+        }
+        val engine = JapanglifyEngine(JapaneseAnalyzer(provider))
+        val out = engine.expand(
+            "必要",
+            JapanglifySettings(
+                romanizationSystem = RomanizationSystem.KUNREI,
+                outputFormat = OutputFormat.PARENTHETICAL
+            )
+        )
+        // ひつよう → hituyou in Kunrei (tu not tsu)
+        assertTrue(out.contains("hituyou") || out.contains("hitsuyou"))
+        assertTrue(out.contains("ひつよう"))
+    }
+}

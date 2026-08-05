@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand -->
+    <color name="jp_red">#BC002D</color>
+    <color name="jp_red_dark">#8B0021</color>
+    <color name="jp_red_soft">#E8C5CD</color>
+
+    <!-- High-contrast light surfaces (settings / preferences) -->
+    <color name="jp_paper">#FAF7F2</color>
+    <color name="jp_surface">#FFFFFF</color>
+    <color name="jp_ink">#141414</color>
+    <color name="jp_ink_secondary">#3D3D3D</color>
+    <color name="jp_ink_disabled">#6B6B6B</color>
+    <color name="jp_divider">#C8C2B8</color>
+    <color name="jp_switch_track_off">#9A948A</color>
+
+    <color name="ic_launcher_background">#BC002D</color>
+</resources>

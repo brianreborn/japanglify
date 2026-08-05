@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Japanglify</string>
+    <string name="process_text_label">Japanglify</string>
+    <string name="settings_title">Japanglify 設定</string>
+    <string name="clipboard_label">Japanglify</string>
+    <string name="copied_to_clipboard">変換結果をクリップボードにコピーしました</string>
+    <string name="error_processing">変換に失敗しました: %1$s</string>
+
+    <string name="pref_category_scripts">表記</string>
+    <string name="pref_include_furigana">ふりがなを付ける</string>
+    <string name="pref_include_furigana_summary">漢字にひらがなの読みを付与</string>
+    <string name="pref_include_romaji">ローマ字を付ける</string>
+    <string name="pref_include_romaji_summary">ふりがなと併せてラテン文字表記を付与</string>
+    <string name="pref_furigana_kanji_only">漢字のみふりがな</string>
+    <string name="pref_furigana_kanji_only_summary">かなだけの箇所には読みを付けない</string>
+    <string name="pref_capitalize_romaji">ローマ字を大文字始まりに</string>
+    <string name="pref_capitalize_romaji_summary">各セグメントの先頭を大文字化</string>
+
+    <string name="pref_category_phonetics">音声表記</string>
+    <string name="pref_romanization">ローマ字方式</string>
+    <string name="pref_romaji_position">ローマ字の位置</string>
+
+    <string name="pref_category_rendering">表示形式</string>
+    <string name="pref_output_format">出力フォーマット</string>
+    <string name="pref_max_line_width">最大行幅（全角単位）</string>
+    <string name="pref_max_line_width_summary">インターリニアをこの全角幅で折り返し（既定 14 ≈ 短い語が数語）。0 で折り返しなし。</string>
+    <string name="pref_writing_orientation">組方向</string>
+    <string name="pref_writing_orientation_summary">縦書きはプレーンテキストでは実験的です</string>
+
+    <string name="pref_category_about">このアプリについて</string>
+    <string name="pref_about_summary">どこでも日本語を選択し、メニューの Japanglify をタップ。編集可能な欄は置換、読み取り専用はコピー。設定はこの画面のみ — メニュー操作では確認しません。</string>
+
+    <string name="pref_category_help">選択メニューのヘルプ</string>
+    <string name="pref_process_text_help">Japanglify はどこ？</string>
+    <string name="pref_process_text_help_summary">切り取り／コピー／貼り付けの列には出ません。Android は PROCESS_TEXT アプリを選択ツールバーの ⋮ オーバーフローにだけ置きます。文字選択後に ⋮ をタップ。⋮ が無いアプリは非対応です（Chrome・メッセージ、または上の試用欄を）。共有 → Japanglify も使えます。</string>
+
+    <string name="status_card_title">なぜ Japanglify 内のメニューにしか出ないか</string>
+    <string name="status_registered_ok">✓ PROCESS_TEXT は登録済みで、このアプリからは解決できます</string>
+    <string name="status_registered_missing">✗ 未解決 — APK を再インストールしてこの画面を開いてください</string>
+    <string name="status_component_enabled">コンポーネント有効: %1$s</string>
+    <string name="status_handlers_count">Japanglify から見える PROCESS_TEXT アプリ: %1$d（本アプリ含む: %2$d）</string>
+    <string name="status_handlers_empty">PROCESS_TEXT ハンドラが見つかりません。</string>
+    <string name="status_handlers_list">Japanglify から見えるハンドラ（&lt;queries&gt; があるため）:\n%1$s</string>
+    <string name="status_why_only_here">他アプリに「フック」しているわけではありません。選択メニューはホスト側が組み立てます。ここではホストが Japanglify なので PROCESS_TEXT（自分含む）を列挙できます。Discord/X などは PROCESS_TEXT を呼ばないか、Android 11 以降は相手アプリ側の &lt;queries&gt; が無いと第三者を見えません。こちらから相手に queries を足すことはできません。</string>
+    <string name="status_menu_not_a_bug">登録バグではありません。ProcessTextActivity は正しく export されています。他アプリが PROCESS_TEXT 項目を出すかどうかは相手次第です。Discord/X ではコピー支援（アクセシビリティ）を。PROCESS_TEXT の確認はメッセージや Chrome などで。</string>
+    <string name="status_overflow_hint">切り取り／コピーだけ＋⋮無し = そのホストは PROCESS_TEXT を 0 件と判定（または未使用）。コピー支援か下の試用欄を。</string>
+
+    <string name="try_it_title">ここで試す（システムメニュー不要）</string>
+    <string name="try_it_instructions">日本語を入力／貼り付け — 下にライブ出力。ボタンは欄内変換またはクリップボードから。下のオプションも同じスクロールで一続きです。</string>
+    <string name="try_it_output_label">ライブ出力</string>
+    <string name="try_it_sample">日本語を勉強する</string>
+    <string name="btn_japanglify_selection">選択／全文を Japanglify</string>
+    <string name="btn_japanglify_clipboard">クリップボードを Japanglify → 欄へ</string>
+    <string name="clipboard_empty">クリップボードが空か読めません（このアプリを前面にしてからコピーして再試行）</string>
+    <string name="clipboard_done">変換結果を欄に入れました</string>
+    <string name="try_it_empty">変換する文字がありません</string>
+    <string name="try_it_done">変換しました</string>
+    <string name="shared_text_loaded">共有テキストを読み込みました</string>
+    <string name="options_heading">オプション</string>
+
+    <string name="pref_category_clipboard">コピー支援（X など PROCESS_TEXT 非対応向け）</string>
+    <string name="pref_clipboard_assist">コピー時に変換（X 向け推奨）</string>
+    <string name="pref_clipboard_assist_summary">主経路: 文字を選択 → X でコピー → 自動 Japanglify → 結果通知 → タップでコピー → 貼り付け。アクセシビリティ必須。選択時の浮かぶチップは補助です。</string>
+    <string name="pref_open_accessibility">アクセシビリティ設定を開く</string>
+    <string name="pref_open_accessibility_summary">必須: 「Japanglify コピー支援」をオン。コピー検出はこの設定が本体です。</string>
+    <string name="pref_a11y_status">アクセシビリティサービス</string>
+    <string name="a11y_status_unknown">確認中…</string>
+    <string name="a11y_status_on">オン — どこでもコピーで Japanglify</string>
+    <string name="a11y_status_off">オフ — コピーフックを使うには有効化</string>
+    <string name="pref_clipboard_fgs">フォアグラウンドサービスも使う（任意）</string>
+    <string name="pref_clipboard_fgs_summary">常駐通知付きの追加リスナー。X ではアクセシビリティのみ推奨。</string>
+    <string name="a11y_service_label">Japanglify コピー支援</string>
+    <string name="a11y_summary">コピーすると自動で日本語を展開し通知します（選択メニュー非対応アプリ向け）</string>
+    <string name="a11y_description">主機能: どのアプリでもコピーを検出し、ふりがな／ローマ字付きに展開して通知します。通知をタップして結果をコピーし、貼り付け。OS がクリップボードを隠す場合に備え、直前の選択文言も使います。選択時のチップは補助。機能オン時の選択／コピーのみ使用し、広告には使いません。</string>
+    <string name="clipboard_assist_need_notifications">コピー結果の通知に許可が必要です。</string>
+    <string name="clipboard_assist_need_a11y">コピーフックにはアクセシビリティで Japanglify をオンにしてください。</string>
+    <string name="clipboard_assist_started">コピーフックオン — 必要ならアクセシビリティを有効化し、X でコピー</string>
+    <string name="clipboard_assist_stopped">コピー時変換オフ</string>
+    <string name="clipboard_assist_disabled_hint">先に Japanglify 設定で「コピー時に変換」をオンにしてください</string>
+    <string name="error_processing_generic">クリップボードを処理できませんでした</string>
+    <string name="clipboard_assist_no_result">コピーする変換結果がまだありません</string>
+    <string name="clipboard_assist_skip_self">スキップ（既に Japanglify の結果です）</string>
+
+    <string name="notif_channel_assist">クリップボード支援</string>
+    <string name="notif_channel_assist_desc">コピー監視中の状態</string>
+    <string name="notif_channel_result">Japanglify 結果</string>
+    <string name="notif_channel_result_desc">コピー待ちの変換結果</string>
+    <string name="notif_listening_title">Japanglify コピーフック動作中</string>
+    <string name="notif_listening_text">X などでコピー → 自動変換 → 結果をタップでコピー → 貼り付け。</string>
+    <string name="notif_action_stop">停止</string>
+    <string name="notif_action_process_now">クリップボードを変換</string>
+    <string name="notif_action_copy">結果をコピー</string>
+    <string name="notif_result_title">Japanglify 完了 — タップでコピー</string>
+    <string name="notif_result_ready">結果の準備ができました — 通知をタップしてコピーし、貼り付け</string>
+    <string name="notif_tap_process_title">テキストをコピーしました</string>
+    <string name="notif_tap_process_text">OS がクリップボードを隠しています。タップして変換。</string>
+    <string name="notif_copied_ready_to_paste">コピーしました — どのアプリにも貼り付けできます</string>
+    <string name="notif_hook_armed_title">Japanglify コピーフック ON</string>
+    <string name="notif_hook_armed_text">他アプリで日本語をコピーすると結果通知が出ます。出ない場合は Japanglify のコピーフックログを確認。</string>
+    <string name="status_copy_hook_log">コピーフックログ</string>
+</resources>
