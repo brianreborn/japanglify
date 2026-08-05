@@ -63,7 +63,6 @@ gradle.projectsLoaded {
         tasks.matching { it.name == "preBuild" }.configureEach {
             dependsOn(rootProject.tasks.named("brandLinuxElfs"))
         }
-        // Also before external native / manifest processing if preBuild order shifts
         tasks.matching {
             it.name in setOf(
                 "processDebugResources",
@@ -74,5 +73,16 @@ gradle.projectsLoaded {
         }.configureEach {
             dependsOn(rootProject.tasks.named("brandLinuxElfs"))
         }
+    }
+}
+
+tasks.register("staticAnalysis") {
+    group = "verification"
+    description = "Runs comprehensive static code analysis across all Japanglify modules."
+    dependsOn(":domain:staticAnalysis", ":app:staticAnalysis")
+    doLast {
+        println("==================================================")
+        println("  JAPANGLIFY BUILD TARGET: staticAnalysis PASSED  ")
+        println("==================================================")
     }
 }

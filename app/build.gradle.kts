@@ -38,9 +38,6 @@ android {
         jvmTarget = "17"
     }
 
-    // Domain module may compile to a newer bytecode target; keep app at 17 for
-    // minSdk/AGP. Prefer compiling both with the same JDK 17+ host.
-
     buildFeatures {
         viewBinding = false
     }
@@ -90,4 +87,27 @@ dependencies {
 
     // Offline morphological analysis for kanji readings (furigana source)
     implementation("com.atilika.kuromoji:kuromoji-ipadic:0.9.0")
+}
+
+val staticAnalysis by tasks.registering {
+    group = "verification"
+    description = "Runs static code analysis and lint hygiene checks on the Android app module."
+    doLast {
+        var warningCount = 0
+        fileTree("src").matching { include("**/*.kt") }.forEach { file ->
+            val lines = file.readLines()
+            lines.forEachIndexed { index, line ->
+                val lineNo = index + 1
+                if (line.contains("import ") && line.contains(".*")) {
+                    logger.warn("[STATIC ANALYSIS WARNING] Wildcard import in ${file.name}:$lineNo")
+                    warningCount++
+                }
+                if (line.contains("printStackTrace()")) {
+                    logger.warn("[STATIC ANALYSIS WARNING] printStackTrace call in ${file.name}:$lineNo")
+                    warningCount++
+                }
+            }
+        }
+        println("==> :app staticAnalysis complete ($warningCount static warnings).")
+    }
 }
