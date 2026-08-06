@@ -345,10 +345,17 @@ class JapanglifyAccessibilityService : AccessibilityService() {
         for (delay in delays) {
             mainHandler.postDelayed({
                 if (gen != copyPipelineGeneration || cutReplaceDone) return@postDelayed
-                if (insertAtCollapsedCursor(converted)) {
+                if (insertAtCollapsedCursor(converted, selected)) {
                     cutReplaceDone = true
                     LastResultStore.save(this, selected, converted)
                     CopyHookDiagnostics.log(this, "cut auto-replace OK @${delay}ms")
+                } else if (delay == delays.last()) {
+                    // The host never reflected the Cut deletion within the
+                    // retry window (or the field lost focus) — fall back to
+                    // the normal result notification rather than leaving the
+                    // user with silence and an unconverted field.
+                    CopyHookDiagnostics.log(this, "cut auto-replace gave up — falling back to notification")
+                    scheduleCopyPipeline("cut_race_unresolved")
                 }
             }, delay)
         }
@@ -360,7 +367,7 @@ class JapanglifyAccessibilityService : AccessibilityService() {
      * one moment we can trust the cursor to sit exactly where the removed
      * text used to start.
      */
-    private fun insertAtCollapsedCursor(replacement: String): Boolean {
+    private fun insertAtCollapsedCursor(replacement: String, original: String): Boolean {
         val root = try {
             rootInActiveWindow
         } catch (_: Exception) {
@@ -378,6 +385,18 @@ class JapanglifyAccessibilityService : AccessibilityService() {
                 if (cursor < 0 || focused.textSelectionEnd != cursor) return false
                 val current = focused.text?.toString().orEmpty()
                 if (cursor > current.length) return false
+                // Some hosts (seen on Google Keep) collapse the selection to a
+                // caret before the underlying Cut deletion actually commits —
+                // if the original selected text is still sitting immediately
+                // before the cursor, the removal hasn't landed in this node
+                // snapshot yet. Inserting now would duplicate it instead of
+                // replacing it, so bail and let the retry loop try again once
+                // the deletion has actually taken effect.
+                if (original.isNotEmpty() && cursor >= original.length &&
+                    current.substring(cursor - original.length, cursor) == original
+                ) {
+                    return false
+                }
                 val newText = current.substring(0, cursor) + replacement + current.substring(cursor)
                 val setArgs = android.os.Bundle().apply {
                     putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, newText)

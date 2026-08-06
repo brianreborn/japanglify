@@ -275,12 +275,19 @@ class TripleScriptRenderer {
      */
     data class InterlinearDisplayRow(val lines: List<InterlinearDisplayLine>)
 
-    /** Structured, role-tagged alternative to the plain-text [render] output. */
+    /**
+     * Structured, role-tagged alternative to the plain-text [render] output.
+     * Used only for an in-app rich preview (see [preventLineWrap]) — this is
+     * why, unlike [render], it's safe for this path to embed Word Joiners:
+     * the result never leaves the app as copied/pasted/replaced text.
+     */
     fun buildInterlinearDisplayRows(
         segments: List<AnnotatedSegment>,
         settings: JapanglifySettings
     ): List<InterlinearDisplayRow> =
-        buildMeasuredRows(segments, settings).map { InterlinearDisplayRow(buildDisplayLines(it, settings)) }
+        buildMeasuredRows(segments, settings).map {
+            InterlinearDisplayRow(buildDisplayLines(it, settings, preventWrap = true))
+        }
 
     private fun buildRawTripleLines(row: List<MeasuredCell>): Triple<String, String, String> {
         val base = StringBuilder()
@@ -303,51 +310,49 @@ class TripleScriptRenderer {
 
     private fun buildDisplayLines(
         row: List<MeasuredCell>,
-        settings: JapanglifySettings
+        settings: JapanglifySettings,
+        preventWrap: Boolean
     ): List<InterlinearDisplayLine> {
         val (baseLine, furiLine, romaLine) = buildRawTripleLines(row)
+        fun finish(line: String): String {
+            val protectedLine = protectLineStart(line)
+            return if (preventWrap) preventLineWrap(protectedLine) else protectedLine
+        }
         val lines = mutableListOf<InterlinearDisplayLine>()
         fun addFuri() {
             if (settings.includeFurigana && hasVisibleContent(furiLine)) {
-                lines += InterlinearDisplayLine(
-                    InterlinearLineRole.FURIGANA,
-                    preventLineWrap(protectLineStart(furiLine))
-                )
+                lines += InterlinearDisplayLine(InterlinearLineRole.FURIGANA, finish(furiLine))
             }
         }
         fun addRoma() {
             if (settings.includeRomaji && hasVisibleContent(romaLine)) {
-                lines += InterlinearDisplayLine(
-                    InterlinearLineRole.ROMAJI,
-                    preventLineWrap(protectLineStart(romaLine))
-                )
+                lines += InterlinearDisplayLine(InterlinearLineRole.ROMAJI, finish(romaLine))
             }
         }
         when (settings.romajiPosition) {
             RomajiPosition.ABOVE, RomajiPosition.BEFORE -> {
                 addRoma()
                 addFuri()
-                lines += InterlinearDisplayLine(
-                    InterlinearLineRole.BASE,
-                    preventLineWrap(protectLineStart(baseLine))
-                )
+                lines += InterlinearDisplayLine(InterlinearLineRole.BASE, finish(baseLine))
             }
             RomajiPosition.BELOW, RomajiPosition.AFTER -> {
                 addFuri()
-                lines += InterlinearDisplayLine(
-                    InterlinearLineRole.BASE,
-                    preventLineWrap(protectLineStart(baseLine))
-                )
+                lines += InterlinearDisplayLine(InterlinearLineRole.BASE, finish(baseLine))
                 addRoma()
             }
         }
         return lines
     }
 
+    /**
+     * Plain-text rendering — no Word Joiners (see [preventLineWrap]'s doc):
+     * this output gets copied, pasted, and Cut-replaced into other apps and
+     * files, so it must stay exactly the visible characters, nothing added.
+     */
     private fun formatInterlinearRow(
         row: List<MeasuredCell>,
         settings: JapanglifySettings
-    ): String = buildDisplayLines(row, settings).joinToString("\n") { it.text }
+    ): String = buildDisplayLines(row, settings, preventWrap = false).joinToString("\n") { it.text }
 
     /**
      * Kana/CJK characters permit a line break between any two of them by
