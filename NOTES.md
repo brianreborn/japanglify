@@ -34,18 +34,36 @@ Working state as of 2026-08-06. This file tracks what's left before a real
   phrase with punctuation, tap "Copy image" from the result notification,
   and inspect the PNG directly.
 
-- **Task #6 — English-translation 4th line.** Not yet discussed with the
-  user beyond being listed. Would need a translation source (no network
-  calls exist in this app currently — everything is offline/on-device via
-  Kuromoji). Needs a design decision before any implementation: online
-  translation API (breaks the "offline, no network" property) vs. dropping
-  the idea vs. some on-device approach.
+- **Task #6 — English-translation 4th line. Decided + implemented this
+  session.** User chose the online-API direction, specifically the free
+  unofficial Google Translate web endpoint (`translate.googleapis.com`,
+  `client=gtx`) over the paid Cloud Translation API or a configurable
+  LibreTranslate server — no key, no setup. This is now the app's one
+  network-touching, opt-in, off-by-default feature (new `translate/`
+  package, `INTERNET` permission, `include_translation` setting in
+  Scripts). Explicitly kept off the fastpath: the setting defaults off, the
+  `Translator`/executor are lazy (never constructed if unused), and
+  `ProcessTextActivity` (the latency-sensitive `PROCESS_TEXT` path) is
+  byte-for-byte unchanged when the toggle is off. Not yet live-verified on
+  a device (no `adb` available this session) — needs a real Copy/PROCESS_TEXT/
+  try-it round trip, plus an airplane-mode check that it degrades silently.
 
 - **Task #8 — Build from Android's Linux Terminal.** Low priority, not
   started. Would mean validating the existing Gradle/FreeBSD-Linuxulator
   build path also works under Android's native Linux Terminal app (Debian
   container), which is a different environment from both the FreeBSD dev
   host and a normal Linux CI box.
+
+- **Output-format live examples in Settings.** Not started. The Rendering
+  category's output-format picker (`OutputFormat`: parenthetical /
+  interlinear / HTML ruby / compact / furigana-inline) is currently a plain
+  `ListPreference` dropdown — users pick a format by name/description alone
+  with no idea what it actually looks like until they try it. Render a short
+  sample conversion under each option (or at least under the currently
+  selected one) so people can see what they're choosing between, the same
+  way `MaxLineWidthPreference` already renders a live sample at the
+  candidate line width while dragging its slider — that's the pattern to
+  follow rather than inventing a new one.
 
 ## Known-good as of this session (verified live on Pixel 8 + Galaxy Note 9)
 

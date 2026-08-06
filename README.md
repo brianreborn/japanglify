@@ -18,7 +18,7 @@ No prompts on the menu action. All options live on a separate settings screen (a
 | Romaji position | Below (default, max visibility), above, after, before |
 | Output formats | Parenthetical, interlinear, HTML double-sided ruby, compact brackets |
 | Orientation | Horizontal default; vertical (tategaki) experimental hook for future UI |
-| Offline | Kuromoji dictionary bundled; no network required |
+| Offline | Kuromoji dictionary bundled; no network required — except the optional English-translation line below, off by default |
 | Build hosts | Linux, macOS, Windows, **FreeBSD** (Linuxulator + Linux SDK) |
 
 ### Triple-script conventions
@@ -35,6 +35,10 @@ domain/          # pure Kotlin JVM — romanizer, analyzer, renderer (no Android
 app/             # Android shell: PROCESS_TEXT + settings + Kuromoji
 scripts/         # SDK bootstrap, FreeBSD Linuxulator prep, brandelf
 ```
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for how the pieces fit together
+(the two independent entry points into the conversion engine, the
+clipboard/accessibility assist pipeline, and the build setup).
 
 ## Build without the Android SDK (domain)
 
@@ -164,6 +168,7 @@ Optional: floating chip on selection is secondary. FGS clipboard watch is a weak
 - Romaji position (default: **below** for maximum visibility)  
 - Output format (parenthetical default; interlinear / HTML ruby / compact)  
 - Writing orientation (horizontal / experimental vertical)
+- Include English translation (off by default — requires network; the only feature that does)
 
 ## Example outputs
 

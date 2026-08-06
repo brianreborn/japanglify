@@ -17,6 +17,8 @@
     <string name="pref_capitalize_romaji">Capitalize romaji</string>
     <string name="pref_capitalize_romaji_summary">Title-case the first letter of each segment</string>
     <string name="pref_furigana_punctuation_style">Furigana-row punctuation</string>
+    <string name="pref_include_translation">Include English translation</string>
+    <string name="pref_include_translation_summary">Adds a 4th line via Google Translate. Sends the selected text over the network — everything else in Japanglify stays fully offline.</string>
 
     <string name="pref_category_phonetics">Phoneticization</string>
     <string name="pref_romanization">Romanization system</string>

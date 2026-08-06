@@ -257,6 +257,15 @@ class SettingsFragment : PreferenceFragmentCompat() {
             liveRunnable?.let { liveHandler.removeCallbacks(it) }
             val app = requireContext().applicationContext as JapanglifyApp
             tryItCard.setOutput(buildPreviewOutput(app, source, app.preferences.load()))
+            // Not wired for the has-selection branch above: appending a
+            // translated line into an in-place partial-selection replace
+            // would land mid-sentence inside the surrounding field text,
+            // which isn't a safe or meaningful edit to make asynchronously.
+            appendTranslationInPlace(app, source, expanded) { enriched ->
+                if (!isAdded) return@appendTranslationInPlace
+                tryItCard.setText(enriched)
+                tryItCard.setSelectionEnd(enriched.length)
+            }
         }
         Toast.makeText(requireContext(), R.string.try_it_done, Toast.LENGTH_SHORT).show()
     }
@@ -276,15 +285,39 @@ class SettingsFragment : PreferenceFragmentCompat() {
         }
 
         val expanded = expandOrToast(text) ?: return
+        val app = requireContext().applicationContext as JapanglifyApp
         findPreference<TryItCardPreference>(KEY_TRY_IT_CARD)?.let { card ->
             card.setText(expanded)
             // Same double-conversion hazard as japanglifyTryItField() above.
             liveRunnable?.let { liveHandler.removeCallbacks(it) }
-            val app = requireContext().applicationContext as JapanglifyApp
             card.setOutput(buildPreviewOutput(app, text, app.preferences.load()))
         }
         LastResultStore.writeToClipboard(requireContext(), expanded)
         Toast.makeText(requireContext(), R.string.clipboard_done, Toast.LENGTH_SHORT).show()
+
+        appendTranslationInPlace(app, text, expanded) { enriched ->
+            if (!isAdded) return@appendTranslationInPlace
+            findPreference<TryItCardPreference>(KEY_TRY_IT_CARD)?.setText(enriched)
+            LastResultStore.writeToClipboard(requireContext(), enriched)
+        }
+    }
+
+    /**
+     * Only ever called from the two explicit convert actions above — never
+     * from [scheduleLivePreview]'s keystroke-driven debounce, which must
+     * stay offline and instant. No-ops immediately if translation is off
+     * (the default), before touching [JapanglifyApp.translator] at all.
+     */
+    private fun appendTranslationInPlace(
+        app: JapanglifyApp,
+        source: String,
+        expanded: String,
+        onEnriched: (String) -> Unit
+    ) {
+        if (!app.preferences.isTranslationEnabled()) return
+        app.translator.translateAsync(source) { translation ->
+            if (translation != null) onEnriched("$expanded\n\n$translation")
+        }
     }
 
     private fun expandOrToast(source: String): String? {

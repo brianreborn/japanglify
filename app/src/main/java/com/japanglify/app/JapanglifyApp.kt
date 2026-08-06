@@ -7,6 +7,7 @@ import com.japanglify.app.data.KuromojiReadingProvider
 import com.japanglify.app.data.PreferencesRepository
 import com.japanglify.app.domain.JapanglifyEngine
 import com.japanglify.app.domain.JapaneseAnalyzer
+import com.japanglify.app.translate.Translator
 
 class JapanglifyApp : Application() {
 
@@ -15,6 +16,14 @@ class JapanglifyApp : Application() {
 
     lateinit var engine: JapanglifyEngine
         private set
+
+    /**
+     * Lazy, not built in [onCreate] — the translation feature is off by
+     * default, and most users are expected to leave it off. Nothing here
+     * (including its background thread) is constructed unless a call site's
+     * `isTranslationEnabled()` guard actually passes.
+     */
+    val translator: Translator by lazy { Translator() }
 
     override fun onCreate() {
         super.onCreate()

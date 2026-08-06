@@ -36,6 +36,15 @@ class PreferencesRepository(context: Context) {
         maxLineWidthFullwidth = parseMaxLineWidth(prefs.getString(KEY_MAX_LINE_WIDTH, null))
     )
 
+    /**
+     * Outside [JapanglifySettings] on purpose — that snapshot feeds the pure,
+     * offline `domain` engine, and translation is the one app-layer feature
+     * that touches the network. Same precedent as
+     * [com.japanglify.app.clipboard.ClipboardProcessor.isAssistWanted] /
+     * `isCopyHookPaused` reading a flag straight off SharedPreferences.
+     */
+    fun isTranslationEnabled(): Boolean = prefs.getBoolean(KEY_INCLUDE_TRANSLATION, false)
+
     companion object {
         const val KEY_ROMANIZATION = "romanization_system"
         const val KEY_ROMAJI_POSITION = "romaji_position"
@@ -52,6 +61,7 @@ class PreferencesRepository(context: Context) {
         const val KEY_OPEN_ACCESSIBILITY = "open_accessibility"
         const val KEY_A11Y_STATUS = "a11y_status"
         const val KEY_COPY_HOOK_PAUSED = "copy_hook_paused"
+        const val KEY_INCLUDE_TRANSLATION = "include_translation"
 
         fun parseMaxLineWidth(raw: String?): Int {
             val n = raw?.toIntOrNull()
