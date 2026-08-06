@@ -3,6 +3,7 @@ package com.japanglify.app.data
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.preference.PreferenceManager
+import com.japanglify.app.domain.FuriganaPunctuationStyle
 import com.japanglify.app.domain.JapanglifySettings
 import com.japanglify.app.domain.OutputFormat
 import com.japanglify.app.domain.RomajiPosition
@@ -29,6 +30,9 @@ class PreferencesRepository(context: Context) {
         includeRomaji = prefs.getBoolean(KEY_INCLUDE_ROMAJI, true),
         furiganaKanjiOnly = prefs.getBoolean(KEY_FURIGANA_KANJI_ONLY, true),
         capitalizeRomaji = prefs.getBoolean(KEY_CAPITALIZE_ROMAJI, false),
+        furiganaPunctuationStyle = FuriganaPunctuationStyle.fromId(
+            prefs.getString(KEY_FURIGANA_PUNCTUATION_STYLE, null)
+        ),
         maxLineWidthFullwidth = parseMaxLineWidth(prefs.getString(KEY_MAX_LINE_WIDTH, null))
     )
 
@@ -41,11 +45,13 @@ class PreferencesRepository(context: Context) {
         const val KEY_INCLUDE_ROMAJI = "include_romaji"
         const val KEY_FURIGANA_KANJI_ONLY = "furigana_kanji_only"
         const val KEY_CAPITALIZE_ROMAJI = "capitalize_romaji"
+        const val KEY_FURIGANA_PUNCTUATION_STYLE = "furigana_punctuation_style"
         const val KEY_MAX_LINE_WIDTH = "max_line_width_fullwidth"
         const val KEY_CLIPBOARD_ASSIST = "clipboard_assist"
         const val KEY_CLIPBOARD_FGS_FALLBACK = "clipboard_fgs_fallback"
         const val KEY_OPEN_ACCESSIBILITY = "open_accessibility"
         const val KEY_A11Y_STATUS = "a11y_status"
+        const val KEY_COPY_HOOK_PAUSED = "copy_hook_paused"
 
         fun parseMaxLineWidth(raw: String?): Int {
             val n = raw?.toIntOrNull()
@@ -57,10 +63,4 @@ class PreferencesRepository(context: Context) {
             }
         }
     }
-
-    fun isClipboardAssistEnabled(): Boolean =
-        prefs.getBoolean(KEY_CLIPBOARD_ASSIST, false)
-
-    fun isClipboardFgsFallbackEnabled(): Boolean =
-        prefs.getBoolean(KEY_CLIPBOARD_FGS_FALLBACK, false)
 }

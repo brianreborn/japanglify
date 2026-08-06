@@ -29,6 +29,7 @@ class ProcessTextActivity : Activity() {
         }
 
         val readOnly = intent.getBooleanExtra(Intent.EXTRA_PROCESS_TEXT_READONLY, true)
+        com.japanglify.app.clipboard.LastResultStore.rememberHost(callingPackage, null)
         val app = application as JapanglifyApp
         val settings = app.preferences.load()
 

@@ -27,6 +27,16 @@ object ClipboardProcessor {
             .getBoolean(PreferencesRepository.KEY_CLIPBOARD_ASSIST, false)
     }
 
+    /**
+     * Quick per-notification pause, independent of the full Settings switch.
+     * Governs both Copy (shows result notification) and Cut (auto-replaces
+     * in place) — one switch for both, toggled from the status notification.
+     */
+    fun isCopyHookPaused(context: Context): Boolean =
+        androidx.preference.PreferenceManager
+            .getDefaultSharedPreferences(context)
+            .getBoolean(PreferencesRepository.KEY_COPY_HOOK_PAUSED, false)
+
     data class ClipSnapshot(
         val text: String?,
         val label: CharSequence?

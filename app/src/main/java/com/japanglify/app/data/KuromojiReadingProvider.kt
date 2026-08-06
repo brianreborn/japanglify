@@ -21,7 +21,11 @@ class KuromojiReadingProvider(
         return tokenizer.tokenize(text).map { token ->
             JapaneseAnalyzer.SurfaceReading(
                 surface = token.surface,
-                reading = spokenReading(token)
+                reading = spokenReading(token),
+                // 助動詞 (auxiliary verb / conjugation ending, e.g. ました, ない)
+                // completes the previous word rather than starting a new one.
+                isBoundToPrevious = token.partOfSpeechLevel1 == "助動詞",
+                isParticle = token.partOfSpeechLevel1 == "助詞"
             )
         }
     }

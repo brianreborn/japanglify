@@ -18,6 +18,8 @@ data class JapanglifySettings(
     val furiganaKanjiOnly: Boolean = true,
     /** Capitalize the first letter of each romaji word/segment. */
     val capitalizeRomaji: Boolean = false,
+    /** How punctuation is mirrored onto the furigana row (default: not at all). */
+    val furiganaPunctuationStyle: FuriganaPunctuationStyle = FuriganaPunctuationStyle.NONE,
     /**
      * Max interlinear line width in **full-width kana units** (one あ ≈ 1).
      * Columns wrap to the next triple-line block when exceeded.

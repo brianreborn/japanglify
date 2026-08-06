@@ -88,9 +88,13 @@ class TripleScriptRendererTest {
         val w0 = renderer.displayWidth(lines[0])
         assertEquals("furi/base display width", w0, renderer.displayWidth(lines[1]))
         assertEquals("base/roma display width", w0, renderer.displayWidth(lines[2]))
-        // Column gaps and padding use clean spaces with line-start pad protection
-        assertTrue(lines[1].contains(TripleScriptRenderer.PAD) || lines[1].contains(' '))
         assertTrue(!lines[1].contains('\u00A0'))
+        // Cell padding AND the word-gap must both use PAD (U+2800), never ' ' --
+        // Discord and similar chat UIs collapse/strip runs of ASCII space,
+        // desyncing column widths between the three rows.
+        for (line in lines) {
+            assertTrue("cell padding leaked ASCII space into: '$line'", !line.contains(' '))
+        }
         // Furigana-style: top line has readings, not particles "を"/"する"
         assertTrue(lines[0].contains("に") || lines[0].contains("べん") || lines[0].contains("ﾆ"))
         assertTrue(!lines[0].contains("を"))
@@ -114,12 +118,11 @@ class TripleScriptRendererTest {
         val furi = out.lines().first()
         // After Discord-style trim of whitespace, pad must remain
         val discordTrimmed = furi.trimStart { it == ' ' || it == '\u00A0' || it == '\u3000' }
-        assertTrue(
-            "expected braille blank or visible content after Discord trim, got: " +
+        assertEquals(
+            "expected the line to start with PAD (U+2800) after Discord-style trim, got: " +
                 discordTrimmed.map { it.code }.joinToString(),
-            discordTrimmed.isNotEmpty() &&
-                (discordTrimmed[0] == TripleScriptRenderer.PAD[0] ||
-                    discordTrimmed.any { it != TripleScriptRenderer.PAD[0] })
+            TripleScriptRenderer.PAD[0],
+            discordTrimmed.firstOrNull()
         )
         // Line display widths still match
         val lines = out.lines()
@@ -159,7 +162,11 @@ class TripleScriptRendererTest {
     }
 
     @Test
-    fun interlinearPunctuationOnAllRows() {
+    fun interlinearPunctuationHiddenFromFuriganaRowByDefault() {
+        // Punctuation has no reading, so by default (FuriganaPunctuationStyle.NONE)
+        // it should not appear on the furigana row at all — and since nothing
+        // else in this phrase needs furigana either, the row is fully blank
+        // and gets dropped, leaving just base + romaji.
         val segments = listOf(
             AnnotatedSegment("こんにちは", null, "konnichiha", false),
             AnnotatedSegment("。", "。", ".", false)
@@ -168,11 +175,48 @@ class TripleScriptRendererTest {
             outputFormat = OutputFormat.INTERLINEAR,
             romajiPosition = RomajiPosition.BELOW
         )
+        assertEquals(FuriganaPunctuationStyle.NONE, settings.furiganaPunctuationStyle)
+        val out = renderer.render(segments, settings)
+        val lines = out.lines()
+        assertEquals(2, lines.size)
+        assertTrue(lines[0].contains("こんにちは") && lines[0].contains("。"))
+        assertTrue(lines[1].contains("."))
+    }
+
+    @Test
+    fun interlinearPunctuationOriginalStyleOnFuriganaRow() {
+        val segments = listOf(
+            AnnotatedSegment("こんにちは", null, "konnichiha", false),
+            AnnotatedSegment("。", "。", ".", false)
+        )
+        val settings = JapanglifySettings(
+            outputFormat = OutputFormat.INTERLINEAR,
+            romajiPosition = RomajiPosition.BELOW,
+            furiganaPunctuationStyle = FuriganaPunctuationStyle.ORIGINAL
+        )
         val out = renderer.render(segments, settings)
         val lines = out.lines()
         assertEquals(3, lines.size)
-        assertTrue(lines[1].contains("。"))
+        assertTrue(lines[0].contains("。"))
         assertTrue(lines[2].contains("."))
+    }
+
+    @Test
+    fun interlinearPunctuationRomanStyleOnFuriganaRow() {
+        val segments = listOf(
+            AnnotatedSegment("こんにちは", null, "konnichiha", false),
+            AnnotatedSegment("。", "。", ".", false)
+        )
+        val settings = JapanglifySettings(
+            outputFormat = OutputFormat.INTERLINEAR,
+            romajiPosition = RomajiPosition.BELOW,
+            furiganaPunctuationStyle = FuriganaPunctuationStyle.ROMAN
+        )
+        val out = renderer.render(segments, settings)
+        val lines = out.lines()
+        assertEquals(3, lines.size)
+        assertTrue("expected Latin '.' on furigana row, got: ${lines[0]}", lines[0].contains("."))
+        assertTrue(!lines[0].contains("。"))
     }
 
     @Test

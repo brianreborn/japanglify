@@ -1,10 +1,14 @@
 package com.japanglify.app.ui
 
 import android.Manifest
+import android.content.ClipboardManager
+import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.view.View
 import android.widget.Toast
@@ -14,13 +18,20 @@ import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.SwitchPreferenceCompat
+import com.japanglify.app.JapanglifyApp
+import com.japanglify.app.ProcessTextActivity
 import com.japanglify.app.R
 import com.japanglify.app.clipboard.ClipboardAssistService
 import com.japanglify.app.clipboard.ClipboardNotifications
+import com.japanglify.app.clipboard.CopyHookDiagnostics
 import com.japanglify.app.clipboard.JapanglifyAccessibilityService
+import com.japanglify.app.clipboard.LastResultStore
 import com.japanglify.app.data.PreferencesRepository
 
 class SettingsFragment : PreferenceFragmentCompat() {
+
+    private val liveHandler = Handler(Looper.getMainLooper())
+    private var liveRunnable: Runnable? = null
 
     private val requestNotifications = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -60,6 +71,10 @@ class SettingsFragment : PreferenceFragmentCompat() {
             com.japanglify.app.domain.WritingOrientation.entries.map { it.id to it.displayName }
         )
         bindList(
+            PreferencesRepository.KEY_FURIGANA_PUNCTUATION_STYLE,
+            com.japanglify.app.domain.FuriganaPunctuationStyle.entries.map { it.id to it.displayName }
+        )
+        bindList(
             PreferencesRepository.KEY_MAX_LINE_WIDTH,
             listOf(
                 "10" to "10 fullwidth (narrow)",
@@ -71,6 +86,18 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 "0" to "No wrap (unlimited)"
             )
         )
+
+        findPreference<TryItCardPreference>(KEY_TRY_IT_CARD)?.apply {
+            onTextChanged = { scheduleLivePreview() }
+            onConvertSelectionOrAll = { japanglifyTryItField() }
+            onConvertClipboard = { japanglifyClipboard() }
+            arguments?.getString(ARG_SHARED_TEXT)?.let { shared ->
+                setText(shared)
+                Toast.makeText(requireContext(), R.string.shared_text_loaded, Toast.LENGTH_SHORT).show()
+            }
+        }
+        // Consume the shared-text arg so it isn't reapplied on config change / reuse.
+        arguments?.remove(ARG_SHARED_TEXT)
 
         findPreference<Preference>(PreferencesRepository.KEY_OPEN_ACCESSIBILITY)
             ?.setOnPreferenceClickListener {
@@ -114,6 +141,13 @@ class SettingsFragment : PreferenceFragmentCompat() {
     override fun onResume() {
         super.onResume()
         refreshA11yStatus()
+        refreshStatusCard()
+        scheduleLivePreview()
+    }
+
+    override fun onDestroyView() {
+        liveRunnable?.let { liveHandler.removeCallbacks(it) }
+        super.onDestroyView()
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -121,48 +155,167 @@ class SettingsFragment : PreferenceFragmentCompat() {
         val paper = ContextCompat.getColor(requireContext(), R.color.jp_paper)
         view.setBackgroundColor(paper)
         listView.setBackgroundColor(paper)
-        // Parent NestedScrollView owns scrolling — expand the list to full content height.
-        listView.isNestedScrollingEnabled = false
-        listView.overScrollMode = View.OVER_SCROLL_NEVER
-        listView.post { expandListToContentHeight() }
-        listView.viewTreeObserver.addOnGlobalLayoutListener {
-            expandListToContentHeight()
-        }
-        refreshA11yStatus()
     }
 
-    /**
-     * Expand the Preference [RecyclerView] to the height of all rows so the
-     * parent [androidx.core.widget.NestedScrollView] scrolls status + options as one.
-     */
-    private fun expandListToContentHeight() {
-        val rv = listView ?: return
-        if (rv.width == 0) return
-        val adapter = rv.adapter ?: return
-        var total = rv.paddingTop + rv.paddingBottom
-        val widthSpec = View.MeasureSpec.makeMeasureSpec(rv.width, View.MeasureSpec.EXACTLY)
-        val heightSpec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-        for (i in 0 until adapter.itemCount) {
-            val type = adapter.getItemViewType(i)
-            val holder = adapter.createViewHolder(rv, type)
-            adapter.onBindViewHolder(holder, i)
-            holder.itemView.measure(widthSpec, heightSpec)
-            total += holder.itemView.measuredHeight
+    // ── Try-it card ─────────────────────────────────────────────────
+
+    private fun scheduleLivePreview() {
+        liveRunnable?.let { liveHandler.removeCallbacks(it) }
+        val r = Runnable { updateLiveOutput() }
+        liveRunnable = r
+        liveHandler.postDelayed(r, 180L)
+    }
+
+    private fun updateLiveOutput() {
+        val tryItCard = findPreference<TryItCardPreference>(KEY_TRY_IT_CARD) ?: return
+        val source = tryItCard.currentText()
+        if (source.isBlank()) {
+            tryItCard.setOutput("")
+            return
         }
-        // Dividers / decorations approximate
-        total += (adapter.itemCount - 1).coerceAtLeast(0) * 2
-        val lp = rv.layoutParams
-        if (lp.height != total) {
-            lp.height = total
-            rv.layoutParams = lp
+        val app = requireContext().applicationContext as JapanglifyApp
+        val expanded = runCatching {
+            app.engine.expand(source, app.preferences.load())
+        }.getOrElse { err ->
+            tryItCard.setOutput(getString(R.string.error_processing, err.message ?: "unknown"))
+            return
         }
-        view?.layoutParams?.let { rootLp ->
-            if (rootLp.height != total) {
-                rootLp.height = total
-                view?.layoutParams = rootLp
-            }
+        tryItCard.setOutput(expanded)
+    }
+
+    private fun japanglifyTryItField() {
+        val tryItCard = findPreference<TryItCardPreference>(KEY_TRY_IT_CARD) ?: return
+        val start = tryItCard.selectionStart()
+        val end = tryItCard.selectionEnd()
+        val hasSelection = start != end
+        val source = if (hasSelection) {
+            tryItCard.substring(minOf(start, end), maxOf(start, end))
+        } else {
+            tryItCard.currentText()
+        }
+        if (source.isBlank()) {
+            Toast.makeText(requireContext(), R.string.try_it_empty, Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val expanded = expandOrToast(source) ?: return
+
+        if (hasSelection) {
+            tryItCard.replaceRange(minOf(start, end), maxOf(start, end), expanded)
+        } else {
+            tryItCard.setText(expanded)
+            tryItCard.setSelectionEnd(expanded.length)
+        }
+        updateLiveOutput()
+        Toast.makeText(requireContext(), R.string.try_it_done, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun japanglifyClipboard() {
+        val clipboard = requireContext().getSystemService(ClipboardManager::class.java)
+        val text = clipboard.primaryClip
+            ?.takeIf { it.itemCount > 0 }
+            ?.getItemAt(0)
+            ?.coerceToText(requireContext())
+            ?.toString()
+            ?.takeIf { it.isNotBlank() }
+
+        if (text == null) {
+            Toast.makeText(requireContext(), R.string.clipboard_empty, Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val expanded = expandOrToast(text) ?: return
+        findPreference<TryItCardPreference>(KEY_TRY_IT_CARD)?.setText(expanded)
+        LastResultStore.writeToClipboard(requireContext(), expanded)
+        updateLiveOutput()
+        Toast.makeText(requireContext(), R.string.clipboard_done, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun expandOrToast(source: String): String? {
+        val app = requireContext().applicationContext as JapanglifyApp
+        return runCatching {
+            app.engine.expand(source, app.preferences.load())
+        }.getOrElse { err ->
+            Toast.makeText(
+                requireContext(),
+                getString(R.string.error_processing, err.message ?: "unknown"),
+                Toast.LENGTH_SHORT
+            ).show()
+            null
         }
     }
+
+    // ── Status card ─────────────────────────────────────────────────
+
+    private fun refreshStatusCard() {
+        val statusCard = findPreference<StatusCardPreference>(KEY_STATUS_CARD) ?: return
+        val context = requireContext()
+        val packageManager = context.packageManager
+
+        val intent = Intent(Intent.ACTION_PROCESS_TEXT).setType("text/plain")
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            PackageManager.MATCH_ALL or PackageManager.MATCH_DEFAULT_ONLY
+        } else {
+            0
+        }
+        @Suppress("DEPRECATION")
+        val resolved = packageManager.queryIntentActivities(intent, flags)
+
+        val selfEntries = resolved.filter { it.activityInfo.packageName == context.packageName }
+        val labels = resolved.map { info ->
+            val label = info.loadLabel(packageManager)
+            val name = info.activityInfo.name.substringAfterLast('.')
+            "• $label ($name)"
+        }
+
+        val cn = ComponentName(context, ProcessTextActivity::class.java)
+        val enabled = try {
+            val state = packageManager.getComponentEnabledSetting(cn)
+            state == PackageManager.COMPONENT_ENABLED_STATE_ENABLED ||
+                state == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT
+        } catch (_: Exception) {
+            true
+        }
+
+        val a11y = JapanglifyAccessibilityService.isRunning()
+        val registered = selfEntries.isNotEmpty()
+        val registrationText = buildString {
+            append(if (registered) getString(R.string.status_registered_ok) else getString(R.string.status_registered_missing))
+            append('\n')
+            append(getString(R.string.status_component_enabled, if (enabled) "yes" else "NO"))
+            append('\n')
+            append(getString(R.string.status_handlers_count, resolved.size, selfEntries.size))
+            append('\n')
+            append(
+                if (a11y) "Copy hook (Accessibility): RUNNING"
+                else "Copy hook (Accessibility): OFF — enable Japanglify Copy assist in system settings"
+            )
+            append("\n\n")
+            append(getString(R.string.status_why_only_here))
+        }
+
+        val handlersText = buildString {
+            append(getString(R.string.status_menu_not_a_bug))
+            append("\n\n")
+            if (labels.isEmpty()) {
+                append(getString(R.string.status_handlers_empty))
+            } else {
+                append(getString(R.string.status_handlers_list, labels.joinToString("\n")))
+            }
+        }
+
+        statusCard.updateStatus(
+            registrationText = registrationText,
+            registrationColor = ContextCompat.getColor(
+                context,
+                if (registered) R.color.jp_ink else R.color.jp_red
+            ),
+            handlersText = handlersText,
+            hookLogText = CopyHookDiagnostics.snapshot(context)
+        )
+    }
+
+    // ── Accessibility / clipboard-assist prefs ─────────────────────
 
     private fun refreshA11yStatus() {
         val status = findPreference<Preference>(PreferencesRepository.KEY_A11Y_STATUS) ?: return
@@ -235,5 +388,11 @@ class SettingsFragment : PreferenceFragmentCompat() {
         pref.entryValues = entries.map { it.first }.toTypedArray()
         pref.entries = entries.map { it.second }.toTypedArray()
         pref.setSummaryProvider(ListPreference.SimpleSummaryProvider.getInstance())
+    }
+
+    companion object {
+        const val ARG_SHARED_TEXT = "shared_text"
+        private const val KEY_STATUS_CARD = "status_card"
+        private const val KEY_TRY_IT_CARD = "try_it_card"
     }
 }

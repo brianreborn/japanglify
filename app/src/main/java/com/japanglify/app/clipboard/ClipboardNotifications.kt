@@ -87,33 +87,85 @@ object ClipboardNotifications {
         ensureChannels(context)
         LastResultStore.save(context, LastResultStore.lastSource.orEmpty(), result)
 
-        val copyIntent = Intent(context, ClipboardAssistReceiver::class.java).setAction(
-            ClipboardAssistReceiver.ACTION_COPY_RESULT
+        val copyPi = PendingIntent.getBroadcast(
+            context, 3,
+            Intent(context, ClipboardAssistReceiver::class.java)
+                .setAction(ClipboardAssistReceiver.ACTION_COPY_RESULT),
+            pendingFlags()
         )
-        val copyPi = PendingIntent.getBroadcast(context, 3, copyIntent, pendingFlags())
-
-        val translateIntent = Intent(context, ClipboardAssistReceiver::class.java).setAction(
-            ClipboardAssistReceiver.ACTION_TRANSLATE
+        val copyImagePi = PendingIntent.getBroadcast(
+            context, 6,
+            Intent(context, ClipboardAssistReceiver::class.java)
+                .setAction(ClipboardAssistReceiver.ACTION_COPY_IMAGE),
+            pendingFlags()
         )
-        val translatePi = PendingIntent.getBroadcast(context, 5, translateIntent, pendingFlags())
+        val translatePi = PendingIntent.getBroadcast(
+            context, 5,
+            Intent(context, ClipboardAssistReceiver::class.java)
+                .setAction(ClipboardAssistReceiver.ACTION_TRANSLATE),
+            pendingFlags()
+        )
+        val replaceFieldPi = PendingIntent.getBroadcast(
+            context, 7,
+            Intent(context, ClipboardAssistReceiver::class.java)
+                .setAction(ClipboardAssistReceiver.ACTION_REPLACE_FIELD),
+            pendingFlags()
+        )
 
         val preview = result.replace('\n', ' ').let {
             if (it.length > 180) it.take(177) + "…" else it
         }
 
-        val notification = NotificationCompat.Builder(context, CHANNEL_RESULT)
+        // Hosts that mangle mixed CJK/Latin plain-text alignment get the image
+        // option prioritized; everyone else gets plain-text copy prioritized.
+        val imageFirst = LastResultStore.hostPrefersImage()
+        val fieldReplaceAvailable = LastResultStore.lastHostFieldEditable &&
+            JapanglifyAccessibilityService.isRunning()
+
+        data class Action(val label: Int, val icon: Int, val pi: PendingIntent)
+
+        // Ordered by usefulness: replacing the field (when we can) needs no
+        // manual paste at all, then whichever copy mechanism suits this host,
+        // then the alternate copy mechanism, then Translate last.
+        val actions = buildList {
+            if (fieldReplaceAvailable) {
+                add(Action(R.string.notif_action_replace_field, R.drawable.ic_action_replace_field, replaceFieldPi))
+            }
+            if (imageFirst) {
+                add(Action(R.string.notif_action_copy_image, R.drawable.ic_action_copy_image, copyImagePi))
+                add(Action(R.string.notif_action_copy, R.drawable.ic_action_copy_text, copyPi))
+            } else {
+                add(Action(R.string.notif_action_copy, R.drawable.ic_action_copy_text, copyPi))
+                add(Action(R.string.notif_action_copy_image, R.drawable.ic_action_copy_image, copyImagePi))
+            }
+            add(Action(R.string.notif_action_translate, R.drawable.ic_action_translate, translatePi))
+        }
+
+        // Tapping the notification body always does the safe, reversible thing
+        // (copy) rather than the destructive field-replace, even when that
+        // action is offered as an explicit button.
+        val defaultTapPi = if (imageFirst) copyImagePi else copyPi
+
+        val builder = NotificationCompat.Builder(context, CHANNEL_RESULT)
             .setSmallIcon(R.drawable.ic_japanglify_action)
             .setContentTitle(context.getString(R.string.notif_result_title))
             .setContentText(preview)
             .setStyle(NotificationCompat.BigTextStyle().bigText(result))
             .setAutoCancel(true)
-            .setContentIntent(copyPi)
-            .addAction(0, context.getString(R.string.notif_action_copy), copyPi)
-            .addAction(0, context.getString(R.string.notif_action_translate), translatePi)
+            .setContentIntent(defaultTapPi)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .build()
 
-        notifySafe(context, ID_RESULT, notification)
+        for (action in actions) {
+            builder.addAction(
+                NotificationCompat.Action.Builder(
+                    androidx.core.graphics.drawable.IconCompat.createWithResource(context, action.icon),
+                    context.getString(action.label),
+                    action.pi
+                ).build()
+            )
+        }
+
+        notifySafe(context, ID_RESULT, builder.build())
     }
 
     fun showTapToProcess(context: Context) {
@@ -139,27 +191,49 @@ object ClipboardNotifications {
         NotificationManagerCompat.from(context).cancel(ID_TAP_TO_PROCESS)
     }
 
-    /** One-shot proof that the Accessibility Copy hook is alive. */
+    /**
+     * Status + quick-control notification for the Accessibility Copy hook.
+     * Re-shown (same ID) whenever a toggle action fires so it always reflects
+     * current state without needing the Settings screen.
+     */
     fun showHookArmed(context: Context) {
         ensureChannels(context)
+        val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
+        val paused = prefs.getBoolean(
+            com.japanglify.app.data.PreferencesRepository.KEY_COPY_HOOK_PAUSED, false
+        )
+
         val open = PendingIntent.getActivity(
-            context,
-            10,
-            Intent(context, SettingsActivity::class.java),
-            pendingFlags()
+            context, 10, Intent(context, SettingsActivity::class.java), pendingFlags()
         )
         val processPi = PendingIntent.getActivity(
-            context,
-            11,
-            Intent(context, ProcessClipboardActivity::class.java),
+            context, 11, Intent(context, ProcessClipboardActivity::class.java), pendingFlags()
+        )
+        val togglePausePi = PendingIntent.getBroadcast(
+            context, 12,
+            Intent(context, ClipboardAssistReceiver::class.java)
+                .setAction(ClipboardAssistReceiver.ACTION_TOGGLE_COPY_PAUSE),
             pendingFlags()
         )
+
+        val title = context.getString(
+            if (paused) R.string.notif_hook_paused_title else R.string.notif_hook_armed_title
+        )
+        val text = context.getString(
+            if (paused) R.string.notif_hook_paused_text else R.string.notif_hook_armed_text
+        )
+        val pauseLabel = context.getString(
+            if (paused) R.string.notif_action_resume else R.string.notif_action_pause
+        )
+
         val notification = NotificationCompat.Builder(context, CHANNEL_ASSIST)
             .setSmallIcon(R.drawable.ic_japanglify_action)
-            .setContentTitle(context.getString(R.string.notif_hook_armed_title))
-            .setContentText(context.getString(R.string.notif_hook_armed_text))
-            .setAutoCancel(true)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setAutoCancel(false)
             .setContentIntent(open)
+            .addAction(0, pauseLabel, togglePausePi)
             .addAction(0, context.getString(R.string.notif_action_process_now), processPi)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()

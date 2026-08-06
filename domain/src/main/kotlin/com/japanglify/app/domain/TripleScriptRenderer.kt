@@ -25,8 +25,8 @@ class TripleScriptRenderer {
         const val PAD = "\u2800"
         /** @deprecated Use [PAD]; kept so older tests/callers still resolve. */
         const val NBSP = PAD
-        /** Gap between interlinear columns (two pad cells). */
-        private val COL_GAP = "  "
+        /** Visible gap between distinct words/particles (English-style word-spacing). */
+        private val WORD_GAP = PAD + PAD
     }
 
     fun render(segments: List<AnnotatedSegment>, settings: JapanglifySettings): String {
@@ -129,19 +129,71 @@ class TripleScriptRenderer {
      * One display cell in the interlinear grid (furigana-style columns).
      * Furigana is only non-empty for true readings (kanji / explicit marks),
      * never a full parallel “hiragana translation” of kana particles.
+     *
+     * [isWordStart] marks the first cell of a morphological segment (a real
+     * word or particle boundary) as opposed to a continuation cell produced
+     * by splitting one word across several kanji/okurigana columns — we gap
+     * the former like English word-spacing and butt the latter together like
+     * the original kana had no spaces at all, so word boundaries stay legible
+     * instead of reading as one long run of same-spaced syllables.
      */
     private data class InterlinearCell(
         val furigana: String,
         val base: String,
-        val romaji: String
+        val romaji: String,
+        val isWordStart: Boolean = true,
+        /**
+         * Whether a line wrap may happen right before this cell. Particles
+         * still get [isWordStart]'s visible gap (they're real word/particle
+         * boundaries) but must never dangle alone at the start of a wrapped
+         * line — matching Japanese typesetting convention (a lone は/を/の
+         * starting a line reads as a mistake). Defaults to [isWordStart].
+         */
+        val canWrapBefore: Boolean = isWordStart
     )
+
+    /** Structured (non-flattened) cell, exposed so callers can lay out pixels themselves. */
+    data class InterlinearCellData(
+        val furigana: String,
+        val base: String,
+        val romaji: String,
+        val isWordStart: Boolean
+    )
+
+    data class InterlinearRowData(val cells: List<InterlinearCellData>)
+
+    /**
+     * Structured interlinear rows for callers that want to lay out pixels
+     * themselves (e.g. rasterizing to an image) instead of trusting a host's
+     * font to honor our halfwidth/fullwidth unit assumptions — see
+     * [displayWidth]'s doc for why that assumption can quietly break down.
+     */
+    fun buildInterlinearRows(
+        segments: List<AnnotatedSegment>,
+        settings: JapanglifySettings
+    ): List<InterlinearRowData> =
+        buildMeasuredRows(segments, settings).map { row ->
+            InterlinearRowData(
+                row.map { InterlinearCellData(it.furigana, it.base, it.romaji, it.isWordStart) }
+            )
+        }
 
     private fun renderInterlinear(
         segments: List<AnnotatedSegment>,
         settings: JapanglifySettings
     ): String {
+        val rows = buildMeasuredRows(segments, settings)
+        return rows.joinToString("\n\n") { row ->
+            formatInterlinearRow(row, settings)
+        }
+    }
+
+    private fun buildMeasuredRows(
+        segments: List<AnnotatedSegment>,
+        settings: JapanglifySettings
+    ): List<List<MeasuredCell>> {
         val cells = expandToFuriganaCells(segments, settings)
-        if (cells.isEmpty()) return ""
+        if (cells.isEmpty()) return emptyList()
 
         // Measure each cell (halfwidth units: fullwidth kana ≈ 2).
         val measured = cells.map { cell ->
@@ -151,23 +203,21 @@ class TripleScriptRenderer {
                 displayWidth(furiCompact),
                 displayWidth(cell.romaji)
             ).coerceAtLeast(1)
-            MeasuredCell(furiCompact, cell.base, cell.romaji, width)
+            MeasuredCell(furiCompact, cell.base, cell.romaji, width, cell.isWordStart, cell.canWrapBefore)
         }
 
         // Wrap into rows by full-width capacity (1 fullwidth unit = 2 half units).
         val maxHalf = fullwidthToHalfUnits(settings.maxLineWidthFullwidth)
-        val rows = packCellsIntoRows(measured, maxHalf, gapHalf = COL_GAP_WIDTH)
-
-        return rows.joinToString("\n\n") { row ->
-            formatInterlinearRow(row, settings)
-        }
+        return packCellsIntoRows(measured, maxHalf, wordGapHalf = WORD_GAP_WIDTH)
     }
 
     private data class MeasuredCell(
         val furigana: String,
         val base: String,
         val romaji: String,
-        val width: Int
+        val width: Int,
+        val isWordStart: Boolean,
+        val canWrapBefore: Boolean
     )
 
     private fun compactFurigana(furigana: String): String = furigana
@@ -176,21 +226,28 @@ class TripleScriptRenderer {
     private fun fullwidthToHalfUnits(fullwidth: Int): Int =
         if (fullwidth <= 0) Int.MAX_VALUE else fullwidth * 2
 
-    private val COL_GAP_WIDTH = 2 // PAD+PAD
+    /** Gap between distinct words/particles — visible, like English word-spacing. */
+    private val WORD_GAP_WIDTH = 2 // PAD+PAD
 
     private fun packCellsIntoRows(
         cells: List<MeasuredCell>,
         maxHalfWidth: Int,
-        gapHalf: Int
+        wordGapHalf: Int
     ): List<List<MeasuredCell>> {
         if (cells.isEmpty()) return emptyList()
         val rows = ArrayList<List<MeasuredCell>>()
         var row = ArrayList<MeasuredCell>()
         var used = 0
         for (cell in cells) {
-            val need = cell.width + if (row.isEmpty()) 0 else gapHalf
-            // Always place at least one cell even if a single cell exceeds max
-            if (row.isNotEmpty() && used + need > maxHalfWidth) {
+            // No gap between sub-cells of the same word (e.g. split kanji/okurigana) —
+            // only before a new word/particle, and only once one is already on the row.
+            val gap = if (row.isEmpty() || !cell.isWordStart) 0 else wordGapHalf
+            val need = cell.width + gap
+            // Only ever wrap-break where explicitly allowed. Bound-to-previous
+            // cells (trailing punctuation, split kanji/okurigana) and particles
+            // never start a new line — a line slightly over budget reads better
+            // than a lonely "！" or a dangling "は".
+            if (row.isNotEmpty() && cell.canWrapBefore && used + need > maxHalfWidth) {
                 rows += row
                 row = ArrayList()
                 used = 0
@@ -210,14 +267,16 @@ class TripleScriptRenderer {
         val furi = StringBuilder()
         val roma = StringBuilder()
         row.forEachIndexed { index, cell ->
+            // Gap only before a new word/particle, never between sub-cells of the
+            // same word (split kanji/okurigana) — see [InterlinearCell.isWordStart].
+            if (index > 0 && cell.isWordStart) {
+                base.append(WORD_GAP)
+                furi.append(WORD_GAP)
+                roma.append(WORD_GAP)
+            }
             base.append(padCenterDisplay(cell.base, cell.width))
             furi.append(padCenterDisplay(cell.furigana, cell.width))
             roma.append(padCenterDisplay(cell.romaji, cell.width))
-            if (index < row.lastIndex) {
-                base.append(COL_GAP)
-                furi.append(COL_GAP)
-                roma.append(COL_GAP)
-            }
         }
         val baseLine = base.toString()
         val furiLine = furi.toString()
@@ -282,17 +341,36 @@ class TripleScriptRenderer {
             val furi = if (settings.includeFurigana) seg.furigana else null
             val roma = if (settings.includeRomaji) seg.romaji.orEmpty() else ""
 
+            val isWordStart = !seg.isBoundToPrevious
+            // Particles get their word-gap but can never be a wrap point —
+            // see [InterlinearCell.canWrapBefore].
+            val canWrapBefore = isWordStart && !seg.isParticle
             when {
-                // Punctuation: same mark on all rows (romaji may be Latin form)
+                // Punctuation: same mark on the base row always; the furigana
+                // row's copy is optional — punctuation has no reading, so a
+                // bare 、 up there is visual noise by default (see
+                // FuriganaPunctuationStyle). Always bound to the previous
+                // word — punctuation getting its own word-gap (or worse,
+                // stranded alone on a wrapped line) reads as a typo, not a
+                // sentence ending.
                 KanaConverter.isMostlyPunctuation(surface) -> {
+                    val punctuationFurigana = if (!settings.includeFurigana) {
+                        ""
+                    } else when (settings.furiganaPunctuationStyle) {
+                        FuriganaPunctuationStyle.NONE -> ""
+                        FuriganaPunctuationStyle.ORIGINAL -> surface
+                        FuriganaPunctuationStyle.ROMAN ->
+                            KanaConverter.punctuationToRomaji(surface).ifBlank { surface }
+                    }
                     out += InterlinearCell(
-                        furigana = if (settings.includeFurigana) surface else "",
+                        furigana = punctuationFurigana,
                         base = surface,
                         romaji = roma.ifEmpty {
                             if (settings.includeRomaji) {
                                 KanaConverter.punctuationToRomaji(surface)
                             } else ""
-                        }
+                        },
+                        isWordStart = false
                     )
                 }
 
@@ -303,10 +381,12 @@ class TripleScriptRenderer {
                         out += InterlinearCell(
                             furigana = if (settings.includeFurigana) furi else "",
                             base = surface,
-                            romaji = roma
+                            romaji = roma,
+                            isWordStart = isWordStart,
+                            canWrapBefore = canWrapBefore
                         )
                     } else {
-                        out += splitKanjiFurigana(surface, furi, roma, settings)
+                        out += splitKanjiFurigana(surface, furi, roma, settings, isWordStart, canWrapBefore)
                     }
                 }
 
@@ -319,7 +399,9 @@ class TripleScriptRenderer {
                             !furi.isNullOrBlank()
                         ) furi else "",
                         base = surface,
-                        romaji = roma
+                        romaji = roma,
+                        isWordStart = isWordStart,
+                        canWrapBefore = canWrapBefore
                     )
                 }
             }
@@ -336,7 +418,9 @@ class TripleScriptRenderer {
         surface: String,
         reading: String,
         romaji: String,
-        settings: JapanglifySettings
+        settings: JapanglifySettings,
+        isWordStart: Boolean,
+        canWrapBefore: Boolean
     ): List<InterlinearCell> {
         // Peel trailing okurigana that match the end of the reading
         var sEnd = surface.length
@@ -362,7 +446,9 @@ class TripleScriptRenderer {
             cells += InterlinearCell(
                 furigana = if (settings.includeFurigana) reading else "",
                 base = surface,
-                romaji = romaji
+                romaji = romaji,
+                isWordStart = isWordStart,
+                canWrapBefore = canWrapBefore
             )
             return cells
         }
@@ -375,7 +461,11 @@ class TripleScriptRenderer {
                 furigana = if (settings.includeFurigana) parts.getOrElse(i) { "" } else "",
                 base = ch.toString(),
                 // Put full romaji only under the first kanji of the token
-                romaji = if (i == 0) romaji else ""
+                romaji = if (i == 0) romaji else "",
+                // Only the token's very first cell is a real word boundary —
+                // the rest are sub-cells of the same word, butted together.
+                isWordStart = i == 0 && isWordStart,
+                canWrapBefore = i == 0 && canWrapBefore
             )
         }
         if (okuri.isNotEmpty()) {
@@ -384,7 +474,8 @@ class TripleScriptRenderer {
             cells += InterlinearCell(
                 furigana = if (showOkuriFuri) okuriReading.ifEmpty { okuri } else "",
                 base = okuri,
-                romaji = ""
+                romaji = "",
+                isWordStart = false
             )
         }
         return cells
@@ -451,7 +542,10 @@ class TripleScriptRenderer {
         val diff = targetWidth - w
         val left = diff / 2
         val right = diff - left
-        return " ".repeat(left) + text + " ".repeat(right)
+        // Discord (and similar chat UIs) strip plain U+0020 spaces, which
+        // silently destroys column alignment — pad with PAD (U+2800) instead,
+        // same as padEndDisplay.
+        return PAD.repeat(left) + text + PAD.repeat(right)
     }
 
     private val PAD_CHAR: Char get() = PAD[0]

@@ -30,6 +30,7 @@ class JapanglifyAccessibilityService : AccessibilityService() {
     private var lastPolledClip: String? = null
     private var copyPipelineGeneration = 0
     private var pendingSelection: CapturedSelection? = null
+    private var cutReplaceDone = false
 
     private val clipListener = ClipboardManager.OnPrimaryClipChangedListener {
         if (LastResultStore.isSuppressing()) return@OnPrimaryClipChangedListener
@@ -113,6 +114,17 @@ class JapanglifyAccessibilityService : AccessibilityService() {
         }
         if (LastResultStore.isSuppressing()) return
 
+        // Selecting/tapping inside Japanglify's own UI (e.g. the Try-it field)
+        // never needs the "convert this" chip or the Copy/Cut hook — both only
+        // make sense as a convenience layer for *other* apps. Without this, a
+        // stray selection in our own screens (e.g. the diagnostics text) can
+        // leave the accessibility-overlay chip stuck on-screen indefinitely,
+        // since it only auto-hides on a window *switch*.
+        if (event.packageName?.toString() == packageName) {
+            overlay?.hide()
+            return
+        }
+
         when (event.eventType) {
             AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED,
             AccessibilityEvent.TYPE_VIEW_LONG_CLICKED -> {
@@ -125,11 +137,21 @@ class JapanglifyAccessibilityService : AccessibilityService() {
                 }
             }
             AccessibilityEvent.TYPE_VIEW_CLICKED -> {
-                if (looksLikeCopyAction(event)) {
-                    CopyHookDiagnostics.log(this, "Copy click detected")
-                    scheduleCopyPipeline("copy_click")
-                } else if (!looksLikeOurChip(event)) {
-                    mainHandler.postDelayed(hideOverlayRunnable, 250L)
+                when {
+                    looksLikeCutAction(event) -> {
+                        // Paused ⇒ leave Cut as plain system Cut, no auto-replace.
+                        if (!ClipboardProcessor.isCopyHookPaused(this)) {
+                            CopyHookDiagnostics.log(this, "Cut click detected — auto-replace")
+                            scheduleCutAutoReplace()
+                        }
+                    }
+                    looksLikeCopyAction(event) -> {
+                        CopyHookDiagnostics.log(this, "Copy click detected")
+                        scheduleCopyPipeline("copy_click")
+                    }
+                    !looksLikeOurChip(event) -> {
+                        mainHandler.postDelayed(hideOverlayRunnable, 250L)
+                    }
                 }
             }
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> overlay?.hide()
@@ -137,9 +159,96 @@ class JapanglifyAccessibilityService : AccessibilityService() {
         }
     }
 
+    private data class HostContext(
+        val packageName: String?,
+        val fieldWidthPx: Int?,
+        val fieldEditable: Boolean
+    )
+
+    /** Best-effort host package + on-screen input width, for sizing/prioritizing "Copy Image". */
+    private fun captureHostContext(): HostContext {
+        val root = try {
+            rootInActiveWindow
+        } catch (_: Exception) {
+            null
+        } ?: return HostContext(null, null, false)
+        return try {
+            val pkg = root.packageName?.toString()
+            val rect = Rect()
+            val focused = try {
+                root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+            } catch (_: Exception) {
+                null
+            }
+            val focusedWidth = focused?.let {
+                try {
+                    it.getBoundsInScreen(rect)
+                    rect.width().takeIf { w -> w > 0 }
+                } finally {
+                    recycleSafely(it)
+                }
+            }
+            val width = focusedWidth ?: run {
+                root.getBoundsInScreen(rect)
+                rect.width().takeIf { w -> w > 0 }
+            }
+            HostContext(pkg, width, focused?.isEditable == true)
+        } finally {
+            recycleSafely(root)
+        }
+    }
+
+    /**
+     * Replace the currently-focused editable field's entire contents with
+     * [text] via [AccessibilityNodeInfo.ACTION_SET_TEXT]. Re-queries the live
+     * focused node rather than reusing anything captured at Copy time — by
+     * the time a notification action fires, the user may have scrolled or
+     * refocused, so only the node that is *actually* focused right now is
+     * ever written to.
+     */
+    fun replaceFocusedField(text: String): Boolean {
+        val root = try {
+            rootInActiveWindow
+        } catch (_: Exception) {
+            null
+        } ?: return false
+        try {
+            val focused = try {
+                root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+            } catch (_: Exception) {
+                null
+            } ?: return false
+            return try {
+                if (!focused.isEditable) return false
+                val args = android.os.Bundle().apply {
+                    putCharSequence(
+                        AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
+                        text
+                    )
+                }
+                focused.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+            } finally {
+                recycleSafely(focused)
+            }
+        } finally {
+            recycleSafely(root)
+        }
+    }
+
     private fun scheduleCopyPipeline(reason: String) {
         if (!ClipboardProcessor.isAssistWanted(this)) return
         if (LastResultStore.isSuppressing()) return
+        if (ClipboardProcessor.isCopyHookPaused(this)) {
+            CopyHookDiagnostics.log(this, "copy hook paused — skipping ($reason)")
+            return
+        }
+
+        val hostContext = captureHostContext()
+        LastResultStore.rememberHost(
+            hostContext.packageName,
+            hostContext.fieldWidthPx,
+            hostContext.fieldEditable
+        )
 
         val gen = ++copyPipelineGeneration
         overlay?.hide()
@@ -170,7 +279,8 @@ class JapanglifyAccessibilityService : AccessibilityService() {
                 if (LastResultStore.isSuppressing()) return@postDelayed
                 if (!ClipboardProcessor.isAssistWanted(this)) return@postDelayed
 
-                when (ClipboardProcessor.processClipboardIfNew(this, force = (delay == 0L))) {
+                val forceThisAttempt = delay == 0L && !alreadySucceeded
+                when (ClipboardProcessor.processClipboardIfNew(this, force = forceThisAttempt)) {
                     ClipboardProcessor.ProcessOutcome.SUCCESS -> {
                         CopyHookDiagnostics.log(this, "processed clipboard OK @${delay}ms")
                         lastPolledClip = ClipboardProcessor.readClipboard(this)?.trim()
@@ -199,23 +309,139 @@ class JapanglifyAccessibilityService : AccessibilityService() {
         }
     }
 
+    /**
+     * Cut removes the selected span instead of leaving it in place, so it
+     * can't reuse [replaceFocusedField]'s wholesale [AccessibilityNodeInfo
+     * .ACTION_SET_TEXT] — that would blow away the rest of the field.
+     * Instead: convert the text captured just before Cut fired, then insert
+     * it at the field's cursor, which Cut collapses to exactly where the
+     * removed span used to be. Retries briefly because the field's own text
+     * update from the Cut may not have landed yet when the click event fires.
+     */
+    private fun scheduleCutAutoReplace() {
+        val selected = lastSelectedText?.trim().orEmpty()
+        if (selected.isBlank() || LastResultStore.isSelfWrite(selected)) {
+            scheduleCopyPipeline("cut_no_selection")
+            return
+        }
+        val app = applicationContext as? com.japanglify.app.JapanglifyApp ?: return
+        val converted = runCatching {
+            app.engine.expand(selected, app.preferences.load())
+        }.getOrNull()
+        if (converted.isNullOrEmpty()) {
+            scheduleCopyPipeline("cut_engine_error")
+            return
+        }
+
+        val gen = ++copyPipelineGeneration
+        cutReplaceDone = false
+        val delays = longArrayOf(0L, 40L, 90L, 180L, 350L)
+        for (delay in delays) {
+            mainHandler.postDelayed({
+                if (gen != copyPipelineGeneration || cutReplaceDone) return@postDelayed
+                if (insertAtCollapsedCursor(converted)) {
+                    cutReplaceDone = true
+                    LastResultStore.save(this, selected, converted)
+                    CopyHookDiagnostics.log(this, "cut auto-replace OK @${delay}ms")
+                }
+            }, delay)
+        }
+    }
+
+    /**
+     * Inserts [replacement] at the focused field's current (collapsed)
+     * cursor position. Re-queries the node fresh — right after Cut is the
+     * one moment we can trust the cursor to sit exactly where the removed
+     * text used to start.
+     */
+    private fun insertAtCollapsedCursor(replacement: String): Boolean {
+        val root = try {
+            rootInActiveWindow
+        } catch (_: Exception) {
+            null
+        } ?: return false
+        try {
+            val focused = try {
+                root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+            } catch (_: Exception) {
+                null
+            } ?: return false
+            try {
+                if (!focused.isEditable) return false
+                val cursor = focused.textSelectionStart
+                if (cursor < 0 || focused.textSelectionEnd != cursor) return false
+                val current = focused.text?.toString().orEmpty()
+                if (cursor > current.length) return false
+                val newText = current.substring(0, cursor) + replacement + current.substring(cursor)
+                val setArgs = android.os.Bundle().apply {
+                    putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, newText)
+                }
+                val ok = focused.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, setArgs)
+                if (ok) moveCursorAfterInsert(cursor + replacement.length)
+                return ok
+            } finally {
+                recycleSafely(focused)
+            }
+        } finally {
+            recycleSafely(root)
+        }
+    }
+
+    private fun moveCursorAfterInsert(position: Int) {
+        val root = try {
+            rootInActiveWindow
+        } catch (_: Exception) {
+            null
+        } ?: return
+        try {
+            val focused = try {
+                root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+            } catch (_: Exception) {
+                null
+            } ?: return
+            try {
+                val selArgs = android.os.Bundle().apply {
+                    putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, position)
+                    putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, position)
+                }
+                focused.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, selArgs)
+            } finally {
+                recycleSafely(focused)
+            }
+        } finally {
+            recycleSafely(root)
+        }
+    }
+
     private data class CapturedSelection(val text: String, val bounds: Rect?)
 
     private fun captureSelection(event: AccessibilityEvent): CapturedSelection? {
         val source = event.source
         try {
-            val start = source?.textSelectionStart ?: -1
-            val end = source?.textSelectionEnd ?: -1
-            if (start < 0 || end <= start) return null
-
-            val bounds = Rect()
-            source?.getBoundsInScreen(bounds)
-            val nodeText = source?.text?.toString()
             val fromEventList = event.text
                 ?.mapNotNull { it?.toString() }
                 ?.joinToString("")
                 ?.trim()
                 .orEmpty()
+
+            if (source == null) {
+                // No node info at all (e.g. WebView-rendered selection) — the
+                // event's own text list is the only signal we get.
+                val selected = fromEventList
+                if (selected.isBlank()) return null
+                return CapturedSelection(selected, null)
+            }
+
+            val start = source.textSelectionStart
+            val end = source.textSelectionEnd
+            // Node exists but reports no real range (e.g. plain cursor move) —
+            // do NOT fall back to fromEventList here, or every cursor tap in a
+            // populated field re-triggers the chip.
+            if (start < 0 || end <= start) return null
+
+            val bounds = Rect()
+            source.getBoundsInScreen(bounds)
+            val nodeText = source.text?.toString()
 
             val selected = when {
                 nodeText != null && end <= nodeText.length ->
@@ -250,6 +476,24 @@ class JapanglifyAccessibilityService : AccessibilityService() {
     private fun looksLikeOurChip(event: AccessibilityEvent): Boolean {
         val t = eventLabel(event)
         return t.contains("japanglify")
+    }
+
+    private fun looksLikeCutAction(event: AccessibilityEvent): Boolean {
+        val text = eventLabel(event)
+        if (text.contains("japanglify")) return false
+        val cutHints = listOf("cut", "切り取り", "cut text", "cut all")
+        if (cutHints.any { text.contains(it) }) return true
+        val source = event.source ?: return false
+        return try {
+            val label = buildString {
+                source.text?.let { append(it) }
+                source.contentDescription?.let { append(it) }
+                source.viewIdResourceName?.let { append(it) }
+            }.lowercase()
+            !label.contains("japanglify") && cutHints.any { label.contains(it) }
+        } finally {
+            recycleSafely(source)
+        }
     }
 
     private fun looksLikeCopyAction(event: AccessibilityEvent): Boolean {

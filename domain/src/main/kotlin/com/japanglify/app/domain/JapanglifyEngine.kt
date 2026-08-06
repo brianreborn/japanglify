@@ -12,4 +12,13 @@ class JapanglifyEngine(
         val segments = analyzer.annotate(text, settings)
         return renderer.render(segments, settings)
     }
+
+    /** Structured interlinear cells for callers laying out pixels themselves (e.g. an image). */
+    fun buildInterlinearRows(
+        text: String,
+        settings: JapanglifySettings
+    ): List<TripleScriptRenderer.InterlinearRowData> {
+        val segments = analyzer.annotate(text, settings)
+        return renderer.buildInterlinearRows(segments, settings)
+    }
 }

@@ -16,6 +16,7 @@
     <string name="pref_furigana_kanji_only_summary">Skip identity readings on pure kana</string>
     <string name="pref_capitalize_romaji">Capitalize romaji</string>
     <string name="pref_capitalize_romaji_summary">Title-case the first letter of each segment</string>
+    <string name="pref_furigana_punctuation_style">Furigana-row punctuation</string>
 
     <string name="pref_category_phonetics">Phoneticization</string>
     <string name="pref_romanization">Romanization system</string>
@@ -33,7 +34,7 @@
 
     <string name="pref_category_help">Selection menu help</string>
     <string name="pref_process_text_help">Where is Japanglify?</string>
-    <string name="pref_process_text_help_summary">Cut/Copy/Paste are the main row — Japanglify is never there. Android only adds PROCESS_TEXT apps under ⋮, and only if the host found any. No ⋮ at all = empty list (host does not query PROCESS_TEXT, or Japanglify is not installed). Fallbacks: Try it button, Clipboard button, or Share → Japanglify. Chrome/Messages often work; many apps never will.</string>
+    <string name="pref_process_text_help_summary">Cut/Copy/Paste are the main row — Japanglify is never there. Android only adds PROCESS_TEXT apps under ⋮, and only if the host found any. No ⋮ at all = empty list (host does not query PROCESS_TEXT, or Japanglify is not installed). Fallbacks: Try it button, Clipboard button, or Share → Japanglify. Support varies by app — some show it, others never will.</string>
 
     <string name="status_card_title">Why the menu only works inside Japanglify</string>
     <string name="status_registered_ok">✓ Our PROCESS_TEXT activity is registered and this app can resolve it</string>
@@ -42,8 +43,8 @@
     <string name="status_handlers_count">PROCESS_TEXT apps visible to Japanglify: %1$d (including us: %2$d)</string>
     <string name="status_handlers_empty">No PROCESS_TEXT handlers visible (unexpected).</string>
     <string name="status_handlers_list">Handlers Japanglify can see (because we declare &lt;queries&gt;):\n%1$s</string>
-    <string name="status_why_only_here">Japanglify is not “hooking” other apps. The host app builds the selection menu. When you select text here, Japanglify is the host, so it can list PROCESS_TEXT activities (including itself). Discord/X/etc. either never call PROCESS_TEXT, or (Android 11+) cannot see third-party PROCESS_TEXT apps without their own &lt;queries&gt; — we cannot add that for them.</string>
-    <string name="status_menu_not_a_bug">Not a Japanglify registration bug: the APK correctly exports ProcessTextActivity. Other apps choose whether to offer process-text items. For Discord/X use Copy assist (Accessibility). Test PROCESS_TEXT in Messages or Chrome if available — those hosts often support it.</string>
+    <string name="status_why_only_here">Japanglify is not “hooking” other apps. The host app builds the selection menu. When you select text here, Japanglify is the host, so it can list PROCESS_TEXT activities (including itself). Other apps either never call PROCESS_TEXT, or (Android 11+) cannot see third-party PROCESS_TEXT apps without their own &lt;queries&gt; — we cannot add that for them.</string>
+    <string name="status_menu_not_a_bug">Not a Japanglify registration bug: the APK correctly exports ProcessTextActivity. Other apps choose whether to offer process-text items. If an app never offers it, use Copy assist (Accessibility) instead — selection-menu support varies by app.</string>
     <string name="status_overflow_hint">Cut/Copy/Paste only + no ⋮ = that host found zero PROCESS_TEXT apps (or never queries them). Use Copy assist or the live field below.</string>
 
     <string name="try_it_title">Try it here (does not need the system menu)</string>
@@ -59,9 +60,9 @@
     <string name="shared_text_loaded">Shared text loaded — tap Japanglify below</string>
     <string name="options_heading">Options</string>
 
-    <string name="pref_category_clipboard">Copy assist (for X / apps without PROCESS_TEXT)</string>
-    <string name="pref_clipboard_assist">Process on Copy (recommended for X)</string>
-    <string name="pref_clipboard_assist_summary">Main path: select text → tap Copy in X → Japanglify runs automatically → result notification → tap to copy → Paste. Uses Accessibility (required). Optional floating chip on selection is extra.</string>
+    <string name="pref_category_clipboard">Copy assist (for apps without PROCESS_TEXT)</string>
+    <string name="pref_clipboard_assist">Process on Copy (recommended)</string>
+    <string name="pref_clipboard_assist_summary">Main path: select text → tap Copy → Japanglify runs automatically → result notification → tap to copy → Paste. Uses Accessibility (required). Optional floating chip on selection is extra.</string>
     <string name="pref_open_accessibility">Open Accessibility settings</string>
     <string name="pref_open_accessibility_summary">Required: enable “Japanglify Copy assist”. Copy detection will not work without this.</string>
     <string name="pref_a11y_status">Accessibility service</string>
@@ -69,13 +70,13 @@
     <string name="a11y_status_on">On — Copy in any app triggers Japanglify</string>
     <string name="a11y_status_off">Off — enable this for the Copy hook</string>
     <string name="pref_clipboard_fgs">Also use foreground service (optional)</string>
-    <string name="pref_clipboard_fgs_summary">Extra clipboard listener with a persistent notification. Prefer Accessibility alone for X.</string>
+    <string name="pref_clipboard_fgs_summary">Extra clipboard listener with a persistent notification. Prefer Accessibility alone when possible.</string>
     <string name="a11y_service_label">Japanglify Copy assist</string>
     <string name="a11y_summary">When you Copy text, Japanglify expands it and notifies you (for apps without a process-text menu)</string>
-    <string name="a11y_description">Primary feature: detect Copy in any app (e.g. Twitter/X), expand Japanese with furigana/romaji, and show a notification. Tap the notification to copy the result for Paste. Also remembers the current selection so processing works even when Android hides clipboard contents. Optional floating chip on selection. Only selected/copied text is used while enabled; not for advertising.</string>
+    <string name="a11y_description">Primary feature: detect Copy in any app, expand Japanese with furigana/romaji, and show a notification. Tap the notification to copy the result for Paste. Also remembers the current selection so processing works even when Android hides clipboard contents. Optional floating chip on selection. Only selected/copied text is used while enabled; not for advertising.</string>
     <string name="clipboard_assist_need_notifications">Notification permission is required so Copy results can be shown.</string>
     <string name="clipboard_assist_need_a11y">Enable Japanglify in Accessibility settings — that is what hooks Copy.</string>
-    <string name="clipboard_assist_started">Copy hook on — enable Accessibility if prompted, then Copy text in X</string>
+    <string name="clipboard_assist_started">Copy hook on — enable Accessibility if prompted, then copy text in any app</string>
     <string name="clipboard_assist_stopped">Process on Copy disabled</string>
     <string name="clipboard_assist_disabled_hint">Enable Process on Copy in Japanglify settings first</string>
     <string name="error_processing_generic">Could not process clipboard text</string>
@@ -87,19 +88,28 @@
     <string name="notif_channel_result">Japanglify results</string>
     <string name="notif_channel_result_desc">Processed text ready to copy</string>
     <string name="notif_listening_title">Japanglify Copy hook active</string>
-    <string name="notif_listening_text">Copy text in X or any app → auto Japanglify → tap result to copy → Paste.</string>
+    <string name="notif_listening_text">Copy text in any app → auto Japanglify → tap result to copy → Paste.</string>
     <string name="notif_action_stop">Stop</string>
     <string name="notif_action_process_now">Process clipboard</string>
-    <string name="notif_action_copy">Copy result</string>
+    <string name="notif_action_copy">Copy text</string>
     <string name="notif_result_title">Japanglify ready — tap to copy</string>
     <string name="notif_result_ready">Result ready — tap the notification to copy, then paste</string>
     <string name="notif_tap_process_title">Text copied</string>
     <string name="notif_tap_process_text">Android hid the clipboard. Tap to Japanglify it.</string>
     <string name="notif_copied_ready_to_paste">Copied — paste into any app</string>
-    <string name="notif_hook_armed_title">Japanglify Copy hook is on</string>
-    <string name="notif_hook_armed_text">Copy Japanese text in Messages/Discord/X — you should get a result notification. If not, open Japanglify and check the copy-hook log.</string>
+    <string name="notif_hook_armed_title">Copy = auto-convert</string>
+    <string name="notif_hook_armed_text">Copy converts Japanese text and shows a result to paste. Cut replaces it in place automatically.</string>
+    <string name="notif_hook_paused_title">Copy hook paused</string>
+    <string name="notif_hook_paused_text">Copy and Cut work normally for now. Tap Resume to turn auto-convert back on.</string>
+    <string name="notif_action_pause">Pause</string>
+    <string name="notif_action_resume">Resume</string>
     <string name="status_copy_hook_log">Copy hook log</string>
-    <string name="notif_action_translate">Google Translate</string>
+    <string name="notif_action_translate">Translate</string>
+    <string name="notif_action_copy_image">Copy image</string>
+    <string name="notif_copied_image_ready">Image copied — paste into any app</string>
+    <string name="notif_action_replace_field">Replace field</string>
+    <string name="notif_field_replaced">Field replaced</string>
+    <string name="notif_field_replace_failed">Could not replace the field — try Copy text instead</string>
     <string name="overlay_action_translate">Translate</string>
     <string name="overlay_action_copy">Copy</string>
     <string name="overlay_action_close">Close</string>

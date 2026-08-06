@@ -32,6 +32,36 @@ object LastResultStore {
     var lastSource: String? = null
         private set
 
+    /** Package that triggered the Copy this result came from, when known. */
+    @Volatile
+    var lastHostPackage: String? = null
+        private set
+
+    /** On-screen width (px) of the host's input field/window at Copy time, when known. */
+    @Volatile
+    var lastHostFieldWidthPx: Int? = null
+        private set
+
+    /** Whether the focused node at Copy time was an editable text field we can write into. */
+    @Volatile
+    var lastHostFieldEditable: Boolean = false
+        private set
+
+    fun rememberHost(packageName: String?, fieldWidthPx: Int?, fieldEditable: Boolean = false) {
+        lastHostPackage = packageName
+        lastHostFieldWidthPx = fieldWidthPx
+        lastHostFieldEditable = fieldEditable
+    }
+
+    /** Hosts known to widen every glyph on a line (even plain Latin) once it contains CJK. */
+    private val IMAGE_PREFERRED_HOSTS = setOf(
+        "com.discord",
+        "com.twitter.android",
+        "com.instagram.android"
+    )
+
+    fun hostPrefersImage(): Boolean = lastHostPackage in IMAGE_PREFERRED_HOSTS
+
     /** Exact texts we placed on the clipboard (ring buffer). */
     private val selfWrittenClips = ArrayDeque<String>()
 

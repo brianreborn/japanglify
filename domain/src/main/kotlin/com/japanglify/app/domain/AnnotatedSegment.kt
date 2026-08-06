@@ -10,12 +10,23 @@ package com.japanglify.app.domain
  *   when it is already kana), or null when disabled / unavailable.
  * @property needsFurigana True when the surface contains kanji (or mixed
  *   forms) that benefit from a reading annotation.
+ * @property isBoundToPrevious True for a conjugation ending / auxiliary verb
+ *   (e.g. ました, ない) that completes the previous token's inflected word
+ *   rather than being its own word or particle — these render flush against
+ *   the previous cell instead of getting a word-gap.
+ * @property isParticle True for a grammatical particle (は/を/の/に/…). These
+ *   still get their own word-gap (they mark a real word boundary), but — like
+ *   real Japanese typesetting convention — must never be the first thing on a
+ *   wrapped line: a lone は dangling at a line start reads as a mistake, not
+ *   a sentence continuing.
  */
 data class AnnotatedSegment(
     val surface: String,
     val furigana: String? = null,
     val romaji: String? = null,
-    val needsFurigana: Boolean = false
+    val needsFurigana: Boolean = false,
+    val isBoundToPrevious: Boolean = false,
+    val isParticle: Boolean = false
 ) {
     val hasFurigana: Boolean get() = !furigana.isNullOrBlank()
     val hasRomaji: Boolean get() = !romaji.isNullOrBlank()

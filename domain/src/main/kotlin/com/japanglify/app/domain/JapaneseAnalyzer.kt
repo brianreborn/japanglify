@@ -22,7 +22,11 @@ class JapaneseAnalyzer(
 
     data class SurfaceReading(
         val surface: String,
-        val reading: String?
+        val reading: String?,
+        /** True for an auxiliary-verb/conjugation-ending token (e.g. ました, ない). */
+        val isBoundToPrevious: Boolean = false,
+        /** True for a grammatical particle (は/を/の/に/…). */
+        val isParticle: Boolean = false
     )
 
     fun annotate(text: String, settings: JapanglifySettings): List<AnnotatedSegment> {
@@ -53,7 +57,9 @@ class JapaneseAnalyzer(
                 surface = surface,
                 furigana = furi,
                 romaji = roma,
-                needsFurigana = false
+                needsFurigana = false,
+                isBoundToPrevious = token.isBoundToPrevious,
+                isParticle = token.isParticle
             )
         }
 
@@ -111,7 +117,9 @@ class JapaneseAnalyzer(
             surface = surface,
             furigana = furigana,
             romaji = romaji,
-            needsFurigana = needsFurigana
+            needsFurigana = needsFurigana,
+            isBoundToPrevious = token.isBoundToPrevious,
+            isParticle = token.isParticle
         )
     }
 
