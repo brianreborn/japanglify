@@ -18,12 +18,16 @@ class Romanizer(
     }
 
     /**
-     * Same romanization, with a hyphen inserted at each mora boundary (e.g.
-     * "nihongo" -> "ni-hon-go"). Used only for the interlinear romaji row,
-     * where one solid run under a multi-kanji word hides which part of the
-     * reading corresponds to which kana/kanji; [romanize] (used everywhere
-     * else — clipboard text, notifications, PROCESS_TEXT replacement) stays
-     * a natural unbroken word.
+     * Same romanization, with a tiny marker (·, U+00B7 MIDDLE DOT) inserted
+     * at every mora boundary (e.g. "nihongo" -> "ni·hon·go"). Used only for
+     * the interlinear romaji row, where one solid run under a multi-kanji
+     * word hides which part of the reading corresponds to which kana/kanji;
+     * [romanize] (used everywhere else — clipboard text, notifications,
+     * PROCESS_TEXT replacement) stays a natural unbroken word. A middle dot
+     * rather than a hyphen: it stays visually distinct from the literal "-"
+     * [applyChoonpu] sometimes emits for a long vowel (a different meaning —
+     * "vowel extends" vs. "mora boundary"), and reads as a subtle tick mark
+     * rather than a real hyphenated compound.
      */
     fun romanizeSyllables(kana: String): String {
         if (kana.isEmpty()) return ""
@@ -34,14 +38,11 @@ class Romanizer(
     private fun romanizeHiragana(text: String, separated: Boolean): String {
         val out = StringBuilder(text.length * 2)
         var i = 0
-        // True right after a sokuon: the doubled consonant it produced binds
-        // to the next mora as one unit (っち -> "tchi", not "t-chi"), so skip
-        // the separator just this once.
-        var glueNext = false
         while (i < text.length) {
             val c = text[i]
 
-            // Sokuon (促音): double the following consonant
+            // Sokuon (促音): double the following consonant. Still its own
+            // mora — gets a marker before AND after, same as any other.
             if (c == 'っ' || c == 'ッ') {
                 if (separated && out.isNotEmpty()) out.append(MORA_SEP)
                 val next = peekMora(text, i + 1)
@@ -51,14 +52,13 @@ class Romanizer(
                 } else {
                     out.append(if (system == RomanizationSystem.WAPURO) "xtu" else "t")
                 }
-                glueNext = true
                 i++
                 continue
             }
 
             // Prolonged sound mark — modifies the previous letter in place
             // (macron/doubled vowel) or appends its own dash; never gets an
-            // extra mora separator of its own.
+            // extra mora marker of its own.
             if (c == 'ー') {
                 applyChoonpu(out)
                 i++
@@ -67,25 +67,22 @@ class Romanizer(
 
             // Syllabic ん — system-specific nasal rules need the following mora
             if (c == 'ん') {
-                if (separated && out.isNotEmpty() && !glueNext) out.append(MORA_SEP)
+                if (separated && out.isNotEmpty()) out.append(MORA_SEP)
                 out.append(romanizeN(text, i + 1))
-                glueNext = false
                 i++
                 continue
             }
 
             val mora = peekMora(text, i)
             if (mora != null) {
-                if (separated && out.isNotEmpty() && !glueNext) out.append(MORA_SEP)
+                if (separated && out.isNotEmpty()) out.append(MORA_SEP)
                 out.append(romanizeMora(mora))
-                glueNext = false
                 i += mora.length
                 continue
             }
 
             // Pass through non-kana (numbers, Latin, punctuation)
             out.append(c)
-            glueNext = false
             i++
         }
 
@@ -221,7 +218,8 @@ class Romanizer(
     )
 
     companion object {
-        private const val MORA_SEP = "-"
+        /** Tiny mora-boundary marker — see [romanizeSyllables]'s doc for why not a hyphen. */
+        private const val MORA_SEP = "·"
 
         private val monographs: Map<String, MoraRomaji> = mapOf(
             // Vowels
