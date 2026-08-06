@@ -4,6 +4,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import com.japanglify.app.JapanglifyApp
 import com.japanglify.app.data.PreferencesRepository
+import com.japanglify.app.domain.KanaConverter
 
 /**
  * Shared “read clipboard → Japanglify → result notification” pipeline.
@@ -36,6 +37,15 @@ object ClipboardProcessor {
         androidx.preference.PreferenceManager
             .getDefaultSharedPreferences(context)
             .getBoolean(PreferencesRepository.KEY_COPY_HOOK_PAUSED, false)
+
+    /**
+     * Nothing for Japanglify to do to plain Latin/number/punctuation text —
+     * Copy and Cut should behave like the OS default (no notification, no
+     * auto-replace) instead of firing the pipeline for content that would
+     * come back unchanged.
+     */
+    fun containsJapanese(text: String): Boolean =
+        text.any { KanaConverter.isKana(it) || KanaConverter.isKanji(it) }
 
     data class ClipSnapshot(
         val text: String?,
@@ -85,6 +95,7 @@ object ClipboardProcessor {
         if (text.length > MAX_CHARS) return ProcessOutcome.TOO_LONG
         if (!force && LastResultStore.isSelfWrite(text)) return ProcessOutcome.SELF_WRITE
         if (!force && text == lastHandledRaw) return ProcessOutcome.DUPLICATE
+        if (!containsJapanese(text)) return ProcessOutcome.NO_JAPANESE
 
         val app = context.applicationContext as? JapanglifyApp
             ?: return ProcessOutcome.ERROR
@@ -108,6 +119,7 @@ object ClipboardProcessor {
         TOO_LONG,
         SELF_WRITE,
         DUPLICATE,
+        NO_JAPANESE,
         ERROR
     }
 }

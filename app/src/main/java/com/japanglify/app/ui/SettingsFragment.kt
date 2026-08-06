@@ -5,11 +5,15 @@ import android.content.ClipboardManager
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.text.Spannable
+import android.text.SpannableStringBuilder
+import android.text.style.RelativeSizeSpan
 import android.view.View
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -27,6 +31,9 @@ import com.japanglify.app.clipboard.CopyHookDiagnostics
 import com.japanglify.app.clipboard.JapanglifyAccessibilityService
 import com.japanglify.app.clipboard.LastResultStore
 import com.japanglify.app.data.PreferencesRepository
+import com.japanglify.app.domain.JapanglifySettings
+import com.japanglify.app.domain.OutputFormat
+import com.japanglify.app.domain.TripleScriptRenderer
 
 class SettingsFragment : PreferenceFragmentCompat() {
 
@@ -74,18 +81,17 @@ class SettingsFragment : PreferenceFragmentCompat() {
             PreferencesRepository.KEY_FURIGANA_PUNCTUATION_STYLE,
             com.japanglify.app.domain.FuriganaPunctuationStyle.entries.map { it.id to it.displayName }
         )
-        bindList(
-            PreferencesRepository.KEY_MAX_LINE_WIDTH,
-            listOf(
-                "10" to "10 fullwidth (narrow)",
-                "12" to "12 fullwidth",
-                "14" to "14 fullwidth (default)",
-                "16" to "16 fullwidth",
-                "20" to "20 fullwidth",
-                "24" to "24 fullwidth (wide)",
-                "0" to "No wrap (unlimited)"
-            )
-        )
+        findPreference<Preference>(KEY_ABOUT_CONTACT)?.setOnPreferenceClickListener {
+            val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$CONTACT_EMAIL"))
+            runCatching { startActivity(intent) }
+            true
+        }
+
+        findPreference<Preference>(KEY_ABOUT_PROFILE)?.setOnPreferenceClickListener {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(PROFILE_URL))
+            runCatching { startActivity(intent) }
+            true
+        }
 
         findPreference<TryItCardPreference>(KEY_TRY_IT_CARD)?.apply {
             onTextChanged = { scheduleLivePreview() }
@@ -174,13 +180,50 @@ class SettingsFragment : PreferenceFragmentCompat() {
             return
         }
         val app = requireContext().applicationContext as JapanglifyApp
-        val expanded = runCatching {
-            app.engine.expand(source, app.preferences.load())
+        val output = runCatching {
+            buildPreviewOutput(app, source, app.preferences.load())
         }.getOrElse { err ->
             tryItCard.setOutput(getString(R.string.error_processing, err.message ?: "unknown"))
             return
         }
-        tryItCard.setOutput(expanded)
+        tryItCard.setOutput(output)
+    }
+
+    /**
+     * For INTERLINEAR, renders via the structured/role-tagged rows instead of
+     * the plain-text renderer so the furigana row can be shown visibly
+     * smaller — real furigana is a small reading annotation, not a same-size
+     * third line, and losing that distinction was the whole complaint. Only
+     * this in-app preview is richly styled; the plain-text output copied
+     * elsewhere (clipboard/PROCESS_TEXT) is unchanged.
+     */
+    private fun buildPreviewOutput(
+        app: JapanglifyApp,
+        source: String,
+        settings: JapanglifySettings
+    ): CharSequence {
+        if (settings.outputFormat != OutputFormat.INTERLINEAR) {
+            return app.engine.expand(source, settings)
+        }
+        val rows = app.engine.buildInterlinearDisplayRows(source, settings)
+        return SpannableStringBuilder().apply {
+            rows.forEachIndexed { rowIndex, row ->
+                if (rowIndex > 0) append("\n\n")
+                row.lines.forEachIndexed { lineIndex, line ->
+                    if (lineIndex > 0) append("\n")
+                    val start = length
+                    append(line.text)
+                    if (line.role == TripleScriptRenderer.InterlinearLineRole.FURIGANA) {
+                        setSpan(
+                            RelativeSizeSpan(FURIGANA_RELATIVE_SIZE),
+                            start,
+                            length,
+                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                        )
+                    }
+                }
+            }
+        }
     }
 
     private fun japanglifyTryItField() {
@@ -202,11 +245,19 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
         if (hasSelection) {
             tryItCard.replaceRange(minOf(start, end), maxOf(start, end), expanded)
+            updateLiveOutput()
         } else {
+            // Whole-field convert replaces the input with `expanded` itself —
+            // the TextWatcher this triggers would otherwise re-run engine.expand
+            // on that already-converted text 180ms later (scheduleLivePreview's
+            // debounce), producing a garbled double-conversion. We already know
+            // the correct output, so cancel that reschedule and set it directly.
             tryItCard.setText(expanded)
             tryItCard.setSelectionEnd(expanded.length)
+            liveRunnable?.let { liveHandler.removeCallbacks(it) }
+            val app = requireContext().applicationContext as JapanglifyApp
+            tryItCard.setOutput(buildPreviewOutput(app, source, app.preferences.load()))
         }
-        updateLiveOutput()
         Toast.makeText(requireContext(), R.string.try_it_done, Toast.LENGTH_SHORT).show()
     }
 
@@ -225,9 +276,14 @@ class SettingsFragment : PreferenceFragmentCompat() {
         }
 
         val expanded = expandOrToast(text) ?: return
-        findPreference<TryItCardPreference>(KEY_TRY_IT_CARD)?.setText(expanded)
+        findPreference<TryItCardPreference>(KEY_TRY_IT_CARD)?.let { card ->
+            card.setText(expanded)
+            // Same double-conversion hazard as japanglifyTryItField() above.
+            liveRunnable?.let { liveHandler.removeCallbacks(it) }
+            val app = requireContext().applicationContext as JapanglifyApp
+            card.setOutput(buildPreviewOutput(app, text, app.preferences.load()))
+        }
         LastResultStore.writeToClipboard(requireContext(), expanded)
-        updateLiveOutput()
         Toast.makeText(requireContext(), R.string.clipboard_done, Toast.LENGTH_SHORT).show()
     }
 
@@ -394,5 +450,11 @@ class SettingsFragment : PreferenceFragmentCompat() {
         const val ARG_SHARED_TEXT = "shared_text"
         private const val KEY_STATUS_CARD = "status_card"
         private const val KEY_TRY_IT_CARD = "try_it_card"
+        private const val KEY_ABOUT_CONTACT = "about_contact"
+        private const val CONTACT_EMAIL = "brianfundakowskifeldman@gmail.com"
+        private const val KEY_ABOUT_PROFILE = "about_profile"
+        private const val PROFILE_URL = "https://x.com/born_brian85001"
+        /** Real furigana is a small reading annotation, not a same-size third line. */
+        private const val FURIGANA_RELATIVE_SIZE = 0.62f
     }
 }

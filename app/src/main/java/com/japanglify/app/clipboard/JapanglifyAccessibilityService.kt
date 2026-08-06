@@ -324,6 +324,12 @@ class JapanglifyAccessibilityService : AccessibilityService() {
             scheduleCopyPipeline("cut_no_selection")
             return
         }
+        if (!ClipboardProcessor.containsJapanese(selected)) {
+            // Plain Latin/number text: leave Cut as an ordinary system Cut —
+            // nothing for Japanglify to convert, so no auto-replace either.
+            CopyHookDiagnostics.log(this, "Cut ignored — no kana/kanji in selection")
+            return
+        }
         val app = applicationContext as? com.japanglify.app.JapanglifyApp ?: return
         val converted = runCatching {
             app.engine.expand(selected, app.preferences.load())

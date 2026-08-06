@@ -124,14 +124,22 @@ object ClipboardNotifications {
 
         data class Action(val label: Int, val icon: Int, val pi: PendingIntent)
 
+        // Android's default (collapsed) notification view only reliably shows
+        // 3 actions — a 4th is silently dropped rather than pushed into an
+        // overflow menu, so we must pick 3, not just order by preference.
         // Ordered by usefulness: replacing the field (when we can) needs no
         // manual paste at all, then whichever copy mechanism suits this host,
-        // then the alternate copy mechanism, then Translate last.
+        // then Translate. The *other* copy format is dropped once field-replace
+        // is offered — rarely needed once there's a one-tap in-place option,
+        // and keeping it would be what silently bumps Translate off the list.
         val actions = buildList {
             if (fieldReplaceAvailable) {
                 add(Action(R.string.notif_action_replace_field, R.drawable.ic_action_replace_field, replaceFieldPi))
-            }
-            if (imageFirst) {
+                add(
+                    if (imageFirst) Action(R.string.notif_action_copy_image, R.drawable.ic_action_copy_image, copyImagePi)
+                    else Action(R.string.notif_action_copy, R.drawable.ic_action_copy_text, copyPi)
+                )
+            } else if (imageFirst) {
                 add(Action(R.string.notif_action_copy_image, R.drawable.ic_action_copy_image, copyImagePi))
                 add(Action(R.string.notif_action_copy, R.drawable.ic_action_copy_text, copyPi))
             } else {
@@ -139,7 +147,7 @@ object ClipboardNotifications {
                 add(Action(R.string.notif_action_copy_image, R.drawable.ic_action_copy_image, copyImagePi))
             }
             add(Action(R.string.notif_action_translate, R.drawable.ic_action_translate, translatePi))
-        }
+        }.take(3)
 
         // Tapping the notification body always does the safe, reversible thing
         // (copy) rather than the destructive field-replace, even when that

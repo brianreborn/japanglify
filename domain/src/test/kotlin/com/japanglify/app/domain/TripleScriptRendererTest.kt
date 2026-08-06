@@ -8,6 +8,14 @@ class TripleScriptRendererTest {
 
     private val renderer = TripleScriptRenderer()
 
+    /**
+     * Interlinear output embeds U+2060 (Word Joiner) between characters to
+     * stop hosts from line-wrapping mid-cell (see [TripleScriptRenderer]'s
+     * preventLineWrap). It's zero-width/invisible, so content assertions
+     * strip it first rather than caring about its exact placement.
+     */
+    private fun String.stripWordJoiner() = replace("⁠", "")
+
     private val nihongo = listOf(
         AnnotatedSegment(
             surface = "日本語",
@@ -57,15 +65,18 @@ class TripleScriptRendererTest {
         val lines = out.lines()
         assertEquals(3, lines.size)
         // Readings over kanji (hiragana / compact readings)
-        assertTrue(lines[0].contains("に") || lines[0].contains("ほん") || lines[0].contains("ご") || lines[0].contains("ﾆ"))
-        assertTrue(lines[1].contains("日") && lines[1].contains("本") && lines[1].contains("語"))
-        assertTrue(lines[2].contains("nihongo"))
+        val furiText = lines[0].stripWordJoiner()
+        val baseText = lines[1].stripWordJoiner()
+        val romaText = lines[2].stripWordJoiner()
+        assertTrue(furiText.contains("に") || furiText.contains("ほん") || furiText.contains("ご") || furiText.contains("ﾆ"))
+        assertTrue(baseText.contains("日") && baseText.contains("本") && baseText.contains("語"))
+        assertTrue(romaText.contains("nihongo"))
         // All three lines must share the same display width (aligned columns)
         val w = renderer.displayWidth(lines[0])
         assertEquals(w, renderer.displayWidth(lines[1]))
         assertEquals(w, renderer.displayWidth(lines[2]))
-        assertTrue(lines[1].contains("日"))
-        assertTrue(lines[2].contains("nihongo"))
+        assertTrue(baseText.contains("日"))
+        assertTrue(romaText.contains("nihongo"))
     }
 
     @Test
@@ -179,7 +190,7 @@ class TripleScriptRendererTest {
         val out = renderer.render(segments, settings)
         val lines = out.lines()
         assertEquals(2, lines.size)
-        assertTrue(lines[0].contains("こんにちは") && lines[0].contains("。"))
+        assertTrue(lines[0].stripWordJoiner().contains("こんにちは") && lines[0].contains("。"))
         assertTrue(lines[1].contains("."))
     }
 

@@ -108,6 +108,11 @@ class JapaneseAnalyzer(
                     capitalizeIf(settings, r)
                 } else if (surface.any { KanaConverter.isPunctuation(it) }) {
                     KanaConverter.punctuationToRomaji(surface)
+                } else if (surface.isNotBlank()) {
+                    // Non-Japanese passthrough (e.g. "Wi-Fi", a brand name, a
+                    // fullwidth-typed number): the romaji line should still
+                    // carry it rather than leave a blank hole under it.
+                    KanaConverter.fullwidthToHalfwidth(surface)
                 } else null
             }
             else -> capitalizeIf(settings, romanizer.romanize(romajiSource))

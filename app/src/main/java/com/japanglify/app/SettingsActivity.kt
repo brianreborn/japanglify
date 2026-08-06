@@ -4,8 +4,12 @@ import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.os.bundleOf
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 import com.japanglify.app.ui.SettingsFragment
 
 /**
@@ -27,6 +31,17 @@ class SettingsActivity : AppCompatActivity() {
         setContentView(R.layout.activity_settings)
         setSupportActionBar(findViewById(R.id.toolbar))
         supportActionBar?.setTitle(R.string.settings_title)
+
+        // targetSdk 35 enforces edge-to-edge, so content (including the
+        // toolbar's title) draws behind the status/navigation bars unless we
+        // pad for them ourselves — without this the title overlaps the
+        // status bar icons and the last list row hides under the nav bar.
+        val root = findViewById<View>(R.id.settings_root)
+        ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            view.updatePadding(top = bars.top, bottom = bars.bottom)
+            insets
+        }
 
         ensureProcessTextEnabled()
 

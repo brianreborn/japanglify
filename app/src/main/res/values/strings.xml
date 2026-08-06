@@ -26,11 +26,23 @@
     <string name="pref_output_format">Output format</string>
     <string name="pref_max_line_width">Max line width (fullwidth chars)</string>
     <string name="pref_max_line_width_summary">Wrap interlinear columns so each row fits this many あ-width cells (default 14 ≈ a couple of short words). 0 = no wrap.</string>
+    <string name="max_line_width_preview_heading">Preview — actual wrap depends on the host\'s font/size</string>
+    <string name="max_line_width_preview_small">Small (sans-serif, 12sp)</string>
+    <string name="max_line_width_preview_default">Default (sans-serif, 16sp)</string>
+    <string name="max_line_width_preview_monospace">Monospace, 14sp</string>
     <string name="pref_writing_orientation">Writing orientation</string>
     <string name="pref_writing_orientation_summary">Vertical (tategaki) is experimental for plain-text hosts</string>
 
     <string name="pref_category_about">About</string>
     <string name="pref_about_summary">Select Japanese text anywhere, tap Japanglify in the selection menu. Editable fields are replaced; read-only selections are copied. Change options here — the menu action never prompts.</string>
+    <string name="pref_about_team">Team</string>
+    <string name="pref_about_team_summary">Brian Fundakowski Feldman — Project Lead, Lead Developer, Tester\nClaude Sonnet 5 — Test Lead\ngrok-build — Head Designer, Lead Developer\nagy — Developer</string>
+    <string name="pref_about_contact">Contact</string>
+    <string name="pref_about_contact_summary">brianfundakowskifeldman@gmail.com</string>
+    <string name="pref_about_profile">Profile</string>
+    <string name="pref_about_profile_summary">x.com/born_brian85001</string>
+    <string name="pref_about_credits">Third-party</string>
+    <string name="pref_about_credits_summary">Kanji readings via Kuromoji/IPADIC (Apache License 2.0)</string>
 
     <string name="pref_category_help">Selection menu help</string>
     <string name="pref_process_text_help">Where is Japanglify?</string>
@@ -81,6 +93,7 @@
     <string name="clipboard_assist_disabled_hint">Enable Process on Copy in Japanglify settings first</string>
     <string name="error_processing_generic">Could not process clipboard text</string>
     <string name="clipboard_assist_no_result">No Japanglify result to copy yet</string>
+    <string name="clipboard_no_japanese">No Japanese text found to convert</string>
     <string name="clipboard_assist_skip_self">Skipped (that was already a Japanglify result)</string>
 
     <string name="notif_channel_assist">Clipboard assist</string>

@@ -21,4 +21,13 @@ class JapanglifyEngine(
         val segments = analyzer.annotate(text, settings)
         return renderer.buildInterlinearRows(segments, settings)
     }
+
+    /** Role-tagged interlinear lines for callers wanting rich text (e.g. a smaller furigana row). */
+    fun buildInterlinearDisplayRows(
+        text: String,
+        settings: JapanglifySettings
+    ): List<TripleScriptRenderer.InterlinearDisplayRow> {
+        val segments = analyzer.annotate(text, settings)
+        return renderer.buildInterlinearDisplayRows(segments, settings)
+    }
 }

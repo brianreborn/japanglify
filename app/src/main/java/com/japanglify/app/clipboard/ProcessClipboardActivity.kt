@@ -35,6 +35,9 @@ class ProcessClipboardActivity : Activity() {
             ClipboardProcessor.ProcessOutcome.DISABLED -> {
                 Toast.makeText(this, R.string.clipboard_assist_disabled_hint, Toast.LENGTH_LONG).show()
             }
+            ClipboardProcessor.ProcessOutcome.NO_JAPANESE -> {
+                Toast.makeText(this, R.string.clipboard_no_japanese, Toast.LENGTH_SHORT).show()
+            }
             ClipboardProcessor.ProcessOutcome.TOO_LONG,
             ClipboardProcessor.ProcessOutcome.ERROR -> {
                 Toast.makeText(this, R.string.error_processing_generic, Toast.LENGTH_SHORT).show()

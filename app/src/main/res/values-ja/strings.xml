@@ -26,11 +26,23 @@
     <string name="pref_output_format">出力フォーマット</string>
     <string name="pref_max_line_width">最大行幅（全角単位）</string>
     <string name="pref_max_line_width_summary">インターリニアをこの全角幅で折り返し（既定 14 ≈ 短い語が数語）。0 で折り返しなし。</string>
+    <string name="max_line_width_preview_heading">プレビュー — 実際の折り返しはホストのフォント／サイズ次第</string>
+    <string name="max_line_width_preview_small">小 (sans-serif, 12sp)</string>
+    <string name="max_line_width_preview_default">標準 (sans-serif, 16sp)</string>
+    <string name="max_line_width_preview_monospace">等幅, 14sp</string>
     <string name="pref_writing_orientation">組方向</string>
     <string name="pref_writing_orientation_summary">縦書きはプレーンテキストでは実験的です</string>
 
     <string name="pref_category_about">このアプリについて</string>
     <string name="pref_about_summary">どこでも日本語を選択し、メニューの Japanglify をタップ。編集可能な欄は置換、読み取り専用はコピー。設定はこの画面のみ — メニュー操作では確認しません。</string>
+    <string name="pref_about_team">開発チーム</string>
+    <string name="pref_about_team_summary">Brian Fundakowski Feldman — プロジェクトリード、リード開発者、テスター\nClaude Sonnet 5 — テストリード\ngrok-build — ヘッドデザイナー、リード開発者\nagy — 開発者</string>
+    <string name="pref_about_contact">連絡先</string>
+    <string name="pref_about_contact_summary">brianfundakowskifeldman@gmail.com</string>
+    <string name="pref_about_profile">プロフィール</string>
+    <string name="pref_about_profile_summary">x.com/born_brian85001</string>
+    <string name="pref_about_credits">サードパーティ</string>
+    <string name="pref_about_credits_summary">漢字の読みは Kuromoji/IPADIC を使用（Apache License 2.0）</string>
 
     <string name="pref_category_help">選択メニューのヘルプ</string>
     <string name="pref_process_text_help">Japanglify はどこ？</string>
@@ -81,6 +93,7 @@
     <string name="clipboard_assist_disabled_hint">先に Japanglify 設定で「コピー時に変換」をオンにしてください</string>
     <string name="error_processing_generic">クリップボードを処理できませんでした</string>
     <string name="clipboard_assist_no_result">コピーする変換結果がまだありません</string>
+    <string name="clipboard_no_japanese">変換する日本語が見つかりません</string>
     <string name="clipboard_assist_skip_self">スキップ（既に Japanglify の結果です）</string>
 
     <string name="notif_channel_assist">クリップボード支援</string>

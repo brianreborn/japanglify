@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingHorizontal="16dp"
+    android:paddingVertical="12dp">
+
+    <TextView
+        android:id="@android:id/title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="@color/jp_ink"
+        android:textSize="16sp" />
+
+    <TextView
+        android:id="@android:id/summary"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:textColor="@color/jp_ink_secondary"
+        android:textSize="12sp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <SeekBar
+            android:id="@+id/max_line_width_seekbar"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:max="32"
+            android:min="0" />
+
+        <EditText
+            android:id="@+id/max_line_width_value"
+            android:layout_width="56dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:gravity="center"
+            android:inputType="number"
+            android:maxLength="2"
+            android:minHeight="0dp"
+            android:paddingVertical="4dp"
+            android:textColor="@color/jp_ink"
+            android:textSize="16sp" />
+    </LinearLayout>
+
+    <!-- Where a row wraps depends on the host's actual font/size, which we
+         don't control — showing a few representative combos side by side
+         beats promising one true answer that only holds for our own preview. -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:text="@string/max_line_width_preview_heading"
+        android:textColor="@color/jp_ink_secondary"
+        android:textSize="11sp"
+        android:textStyle="bold" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:background="@drawable/edittext_border"
+        android:orientation="vertical"
+        android:padding="8dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/max_line_width_preview_small"
+            android:textColor="@color/jp_ink_disabled"
+            android:textSize="9sp" />
+        <TextView
+            android:id="@+id/max_line_width_preview_small"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif"
+            android:textColor="@color/jp_ink"
+            android:textSize="12sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/max_line_width_preview_default"
+            android:textColor="@color/jp_ink_disabled"
+            android:textSize="9sp" />
+        <TextView
+            android:id="@+id/max_line_width_preview_default"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif"
+            android:textColor="@color/jp_ink"
+            android:textSize="16sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/max_line_width_preview_monospace"
+            android:textColor="@color/jp_ink_disabled"
+            android:textSize="9sp" />
+        <TextView
+            android:id="@+id/max_line_width_preview_monospace"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="monospace"
+            android:textColor="@color/jp_ink"
+            android:textSize="14sp" />
+    </LinearLayout>
+</LinearLayout>

@@ -82,7 +82,7 @@ class TryItCardPreference(context: Context, attrs: AttributeSet?) : Preference(c
         inputView?.setSelection(pos)
     }
 
-    fun setOutput(text: String) {
+    fun setOutput(text: CharSequence) {
         outputView?.text = text
     }
 }

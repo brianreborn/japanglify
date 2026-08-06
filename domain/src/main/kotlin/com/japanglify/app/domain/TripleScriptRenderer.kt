@@ -23,6 +23,8 @@ class TripleScriptRenderer {
          * kept at line start and between cells.
          */
         const val PAD = "\u2800"
+        /** Zero-width, non-rendering, break-prohibiting \u2014 see [preventLineWrap]. */
+        private const val WORD_JOINER = '\u2060'
         /** @deprecated Use [PAD]; kept so older tests/callers still resolve. */
         const val NBSP = PAD
         /** Visible gap between distinct words/particles (English-style word-spacing). */
@@ -259,10 +261,28 @@ class TripleScriptRenderer {
         return rows
     }
 
-    private fun formatInterlinearRow(
-        row: List<MeasuredCell>,
+    /** Which of the three interlinear rows a display line came from. */
+    enum class InterlinearLineRole { FURIGANA, BASE, ROMAJI }
+
+    data class InterlinearDisplayLine(val role: InterlinearLineRole, val text: String)
+
+    /**
+     * One row's lines in on-screen order, role-tagged so a caller with its
+     * own rich-text renderer (e.g. a UI layer wanting real ruby-style small
+     * furigana instead of a plain third line) knows which physical line is
+     * which without having to reverse-engineer it from [RomajiPosition] and
+     * per-row visibility rules itself.
+     */
+    data class InterlinearDisplayRow(val lines: List<InterlinearDisplayLine>)
+
+    /** Structured, role-tagged alternative to the plain-text [render] output. */
+    fun buildInterlinearDisplayRows(
+        segments: List<AnnotatedSegment>,
         settings: JapanglifySettings
-    ): String {
+    ): List<InterlinearDisplayRow> =
+        buildMeasuredRows(segments, settings).map { InterlinearDisplayRow(buildDisplayLines(it, settings)) }
+
+    private fun buildRawTripleLines(row: List<MeasuredCell>): Triple<String, String, String> {
         val base = StringBuilder()
         val furi = StringBuilder()
         val roma = StringBuilder()
@@ -278,33 +298,81 @@ class TripleScriptRenderer {
             furi.append(padCenterDisplay(cell.furigana, cell.width))
             roma.append(padCenterDisplay(cell.romaji, cell.width))
         }
-        val baseLine = base.toString()
-        val furiLine = furi.toString()
-        val romaLine = roma.toString()
-        val lines = mutableListOf<String>()
+        return Triple(base.toString(), furi.toString(), roma.toString())
+    }
+
+    private fun buildDisplayLines(
+        row: List<MeasuredCell>,
+        settings: JapanglifySettings
+    ): List<InterlinearDisplayLine> {
+        val (baseLine, furiLine, romaLine) = buildRawTripleLines(row)
+        val lines = mutableListOf<InterlinearDisplayLine>()
         fun addFuri() {
             if (settings.includeFurigana && hasVisibleContent(furiLine)) {
-                lines += protectLineStart(furiLine)
+                lines += InterlinearDisplayLine(
+                    InterlinearLineRole.FURIGANA,
+                    preventLineWrap(protectLineStart(furiLine))
+                )
             }
         }
         fun addRoma() {
             if (settings.includeRomaji && hasVisibleContent(romaLine)) {
-                lines += protectLineStart(romaLine)
+                lines += InterlinearDisplayLine(
+                    InterlinearLineRole.ROMAJI,
+                    preventLineWrap(protectLineStart(romaLine))
+                )
             }
         }
         when (settings.romajiPosition) {
             RomajiPosition.ABOVE, RomajiPosition.BEFORE -> {
                 addRoma()
                 addFuri()
-                lines += protectLineStart(baseLine)
+                lines += InterlinearDisplayLine(
+                    InterlinearLineRole.BASE,
+                    preventLineWrap(protectLineStart(baseLine))
+                )
             }
             RomajiPosition.BELOW, RomajiPosition.AFTER -> {
                 addFuri()
-                lines += protectLineStart(baseLine)
+                lines += InterlinearDisplayLine(
+                    InterlinearLineRole.BASE,
+                    preventLineWrap(protectLineStart(baseLine))
+                )
                 addRoma()
             }
         }
-        return lines.joinToString("\n")
+        return lines
+    }
+
+    private fun formatInterlinearRow(
+        row: List<MeasuredCell>,
+        settings: JapanglifySettings
+    ): String = buildDisplayLines(row, settings).joinToString("\n") { it.text }
+
+    /**
+     * Kana/CJK characters permit a line break between any two of them by
+     * default (Unicode UAX #14) — unlike Latin text, which only breaks at
+     * spaces. Left unchecked, a host's own text layout can quietly wrap a
+     * row we already fit to [JapanglifySettings.maxLineWidthFullwidth] right
+     * in the middle of a furigana/base/romaji run, splitting one column's
+     * characters onto two visual lines and destroying the alignment this
+     * whole cell/padding scheme exists to produce. Word Joiner (U+2060) is a
+     * zero-width, non-rendering character whose sole effect is prohibiting a
+     * break at that point — inserting it between every character forces the
+     * line to stay, or overflow/scroll, as one unit instead of rewrapping.
+     */
+    private fun preventLineWrap(line: String): String {
+        if (line.length <= 1) return line
+        val out = StringBuilder(line.length * 2 - 1)
+        var i = 0
+        while (i < line.length) {
+            val cp = line.codePointAt(i)
+            val charCount = Character.charCount(cp)
+            if (i > 0) out.append(WORD_JOINER)
+            out.appendCodePoint(cp)
+            i += charCount
+        }
+        return out.toString()
     }
 
     /** True if the line has any non-pad, non-whitespace glyph. */
@@ -567,6 +635,8 @@ class TripleScriptRenderer {
 
     private fun codePointDisplayWidth(cp: Int): Int {
         if (cp <= 0x1F) return 0
+        // Word Joiner (see preventLineWrap) is zero-width by definition.
+        if (cp == 0x2060) return 0
         // Braille blank used as Discord-safe pad — count as 1 cell
         if (cp == 0x2800) return 1
         // Halfwidth Forms (halfwidth katakana etc.)

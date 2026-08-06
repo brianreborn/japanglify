@@ -77,18 +77,25 @@
             app:key="output_format"
             app:title="@string/pref_output_format"
             app:useSimpleSummaryProvider="true" />
-        <ListPreference
+        <com.japanglify.app.ui.MaxLineWidthPreference
             app:defaultValue="14"
             app:key="max_line_width_fullwidth"
             app:title="@string/pref_max_line_width"
-            app:summary="@string/pref_max_line_width_summary"
-            app:useSimpleSummaryProvider="true" />
+            app:summary="@string/pref_max_line_width_summary" />
         <ListPreference
             app:defaultValue="horizontal"
             app:key="writing_orientation"
             app:summary="@string/pref_writing_orientation_summary"
             app:title="@string/pref_writing_orientation" />
     </PreferenceCategory>
+
+    <com.japanglify.app.ui.StatusCardPreference
+        app:key="status_card"
+        app:selectable="false" />
+
+    <com.japanglify.app.ui.TryItCardPreference
+        app:key="try_it_card"
+        app:selectable="false" />
 
     <PreferenceCategory app:title="@string/pref_category_help">
         <Preference
@@ -104,13 +111,23 @@
             app:selectable="false"
             app:summary="@string/pref_about_summary"
             app:title="@string/app_name" />
+        <Preference
+            app:key="about_team"
+            app:selectable="false"
+            app:summary="@string/pref_about_team_summary"
+            app:title="@string/pref_about_team" />
+        <Preference
+            app:key="about_contact"
+            app:summary="@string/pref_about_contact_summary"
+            app:title="@string/pref_about_contact" />
+        <Preference
+            app:key="about_profile"
+            app:summary="@string/pref_about_profile_summary"
+            app:title="@string/pref_about_profile" />
+        <Preference
+            app:key="about_credits"
+            app:selectable="false"
+            app:summary="@string/pref_about_credits_summary"
+            app:title="@string/pref_about_credits" />
     </PreferenceCategory>
-
-    <com.japanglify.app.ui.StatusCardPreference
-        app:key="status_card"
-        app:selectable="false" />
-
-    <com.japanglify.app.ui.TryItCardPreference
-        app:key="try_it_card"
-        app:selectable="false" />
 </PreferenceScreen>

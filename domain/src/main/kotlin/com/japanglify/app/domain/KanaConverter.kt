@@ -28,7 +28,15 @@ object KanaConverter {
 
     fun isPunctuation(c: Char): Boolean = when (c) {
         in '\u3000'..'\u303F' -> true // CJK punctuation
-        in '\uFF01'..'\uFF60' -> true // fullwidth ASCII range
+        // Fullwidth ASCII range — but NOT the fullwidth digits/letters it
+        // also contains (\uFF10-\uFF19, \uFF21-\uFF3A, \uFF41-\uFF5A). Those are
+        // alphanumeric passthrough content (e.g. a fullwidth-typed "25"), not
+        // punctuation; treating them as punctuation routed them through the
+        // punctuation-only render path, which force-binds to the previous
+        // word (no gap) and can leak raw/romanized digits into the furigana
+        // (reading) row.
+        in '\uFF01'..'\uFF60' ->
+            c !in '\uFF10'..'\uFF19' && c !in '\uFF21'..'\uFF3A' && c !in '\uFF41'..'\uFF5A'
         in ".,!?;:'\"()[]{}…—–-_/\\@#$%^&*+=<>|~`".toSet() -> true
         else -> c.isWhitespace()
     }
@@ -43,6 +51,18 @@ object KanaConverter {
      * Latin / halfwidth stand-ins for common Japanese / fullwidth punctuation
      * so the romaji line stays “translated” rather than blank.
      */
+    /**
+     * Fullwidth ASCII (Ａ-Ｚ, ０-９, punctuation in U+FF01..U+FF5E) → halfwidth.
+     * Used for non-Japanese passthrough text on the romaji line (e.g. a
+     * fullwidth "２５" typed/pasted alongside Japanese) — the romaji line is
+     * Latin by convention, so it should read "25", not "２５".
+     */
+    fun fullwidthToHalfwidth(text: String): String = buildString(text.length) {
+        for (c in text) {
+            append(if (c in '！'..'～') (c.code - 0xFEE0).toChar() else c)
+        }
+    }
+
     fun punctuationToRomaji(text: String): String = buildString(text.length) {
         for (c in text) {
             append(
