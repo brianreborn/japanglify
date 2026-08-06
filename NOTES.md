@@ -14,6 +14,35 @@ Working state as of 2026-08-06. This file tracks what's left before a real
   which settings), and let that guide a targeted code fix instead of
   screenshot-chasing.
 
+- **Base row visibly indented right relative to furigana/romaji in plain-text
+  interlinear rendering — new finding this session, needs a real fix.** Live
+  on a Pixel 8 (`MaxLineWidthPreference`'s 3-font sample preview, but this is
+  plain `engine.expand()` output so it reproduces anywhere plain-text
+  interlinear is shown), converting "日本語を勉強する": the furigana row
+  ("にほんご") and romaji row ("ni·ho·n·go") both start flush at the row's
+  left edge, but the base row ("日本語") is visibly indented right of both —
+  identically in **both** the sans-serif and monospace preview boxes. That
+  monospace shows the *same* misalignment as sans-serif rules out ordinary
+  font-metric imprecision (a true monospace font would pad exactly); it
+  points at the padding math itself. Leading hypothesis, not yet confirmed
+  by a fix: `TripleScriptRenderer.codePointDisplayWidth()` hardcodes U+2800
+  (Braille Pattern Blank, used everywhere as the Discord-safe pad character —
+  see `PAD`'s doc comment) to display width 1, but most fonts don't natively
+  cover the Braille Patterns Unicode block, so real hosts likely substitute
+  a fallback glyph for it whose *actual* rendered width doesn't match that
+  assumption — and since neither the "sans-serif" nor "monospace" preview
+  font is likely to include Braille glyphs either, both would fall back to
+  the same wrong-width substitute, explaining why both show the identical
+  error instead of monospace rendering correctly. This cell's base text
+  needed the *most* padding of the three lines (widest gap between base's
+  natural width and the cell's target width), so it's the most visibly
+  thrown off; furigana needed less padding and romaji needed none, matching
+  the graduated shift in the screenshot. Not a quick one-line patch to
+  attempt blind — `TripleScriptRenderer`'s padding/measurement scheme is
+  heavily tuned (NBSP-stripping hosts, BiDi punctuation, wrap protection)
+  and worth a real live-device fix/verify loop, not a guess from this
+  session's unreliable automation.
+
 - **Re-verify the "でき" line-wrap fix live.** `TripleScriptRenderer` now
   applies the same Word-Joiner (U+2060) wrap protection to the plain-text
   interlinear output that was previously reserved for the in-app preview
@@ -53,24 +82,27 @@ Working state as of 2026-08-06. This file tracks what's left before a real
   `Translator`/executor are lazy (never constructed if unused), and
   `ProcessTextActivity` (the latency-sensitive `PROCESS_TEXT` path) is
   byte-for-byte unchanged when the toggle is off.
-  **Partially live-tested this session, inconclusive on the network leg:**
-  installed and drove the real Settings UI on a Pixel 8 (wireless-debugging,
-  paired live) — the toggle renders/persists correctly and the offline
-  triple-script conversion via the Try-It card's convert button works
-  correctly and immediately, both in `assembleDebug` and a newly-signed
-  `assembleRelease` build (R8 doesn't break it). But after enabling the
-  toggle and converting, no translated line appeared within several
-  seconds, and code review of `GoogleWebTranslator`/`Translator` didn't turn
-  up a bug (errors are swallowed by design via `runCatching`, so a silent
-  network failure is indistinguishable from a code bug without device-side
-  logs). An attempt to isolate network-vs-code by opening the translate
-  endpoint directly via an intent-launched browser was itself undermined by
-  adb shell-escaping mangling the URL. **Needs a clean re-test**: enable the
-  toggle, convert a phrase, and if no translation line appears, check
-  whether `https://translate.googleapis.com/...` is reachable at all from
-  that device/network (a corporate/home network filtering that specific
-  Google subdomain while general internet still works would produce exactly
-  this symptom) before assuming it's an app bug.
+  **Live-tested this session — root cause confirmed, not a code bug.**
+  Installed and drove the real Settings UI on a Pixel 8 (wireless-debugging,
+  paired live): toggle renders/persists correctly, offline triple-script
+  conversion via the Try-It card works correctly and immediately in both
+  `assembleDebug` and a newly-signed `assembleRelease` build (R8 doesn't
+  break it). Initial attempts showed no translated line appearing with no
+  visible error — since `GoogleWebTranslator`/`Translator` swallow failures
+  by design (`runCatching`, so the UI never shows an error for what's an
+  optional enhancement), added a `Log.w` on both the exception path and the
+  previously-silent non-200-response path. Rebuilt, re-tested on-device, and
+  logcat immediately showed `non-200 response: 429` on every subsequent
+  attempt (repeated ~5 min apart) — **the free unofficial endpoint rate-
+  limited this session's test device**, almost certainly from this same
+  session's cumulative requests to it (including an earlier botched
+  browser-intent reachability probe that also hit it). This is exactly the
+  risk already called out when this backend was chosen over the paid Cloud
+  Translation API. The logging addition is a real, permanent improvement:
+  a missing 4th line is now diagnosable from logcat instead of being a
+  total black box. **Still needs one clean confirmation once the rate limit
+  clears**: enable the toggle, convert a phrase, and confirm a translated
+  line actually appears (not just the absence of a 429 in logcat).
 
 - **Task #8 — Build from Android's Linux Terminal.** Low priority, not
   started. Would mean validating the existing Gradle/FreeBSD-Linuxulator

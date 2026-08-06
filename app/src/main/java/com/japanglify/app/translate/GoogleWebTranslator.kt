@@ -1,5 +1,6 @@
 package com.japanglify.app.translate
 
+import android.util.Log
 import org.json.JSONArray
 import java.net.HttpURLConnection
 import java.net.URI
@@ -10,7 +11,9 @@ import javax.net.ssl.HttpsURLConnection
  * Free, unofficial Google Translate web endpoint (client=gtx) — no API key,
  * no setup, matching the rest of the app's zero-configuration philosophy.
  * Undocumented and could be rate-limited or broken by Google without notice;
- * any failure here is silently swallowed (see [TranslationProvider]).
+ * any failure here is silently swallowed from the *user*'s perspective (see
+ * [TranslationProvider]) but logged at [Log.w] so a missing 4th line is
+ * still diagnosable from logcat instead of being a total black box.
  */
 class GoogleWebTranslator(
     private val sourceLang: String = "ja",
@@ -30,13 +33,17 @@ class GoogleWebTranslator(
             connection.readTimeout = TIMEOUT_MS
             connection.requestMethod = "GET"
             try {
-                if (connection.responseCode != HttpURLConnection.HTTP_OK) return null
+                val code = connection.responseCode
+                if (code != HttpURLConnection.HTTP_OK) {
+                    Log.w(TAG, "non-200 response: $code")
+                    return null
+                }
                 val body = connection.inputStream.bufferedReader().use { it.readText() }
                 parseTranslation(body)
             } finally {
                 connection.disconnect()
             }
-        }.getOrNull()?.takeIf { it.isNotBlank() }
+        }.onFailure { Log.w(TAG, "translate() threw", it) }.getOrNull()?.takeIf { it.isNotBlank() }
     }
 
     /**
@@ -54,6 +61,7 @@ class GoogleWebTranslator(
     }
 
     companion object {
+        private const val TAG = "JapanglifyTranslate"
         private const val TIMEOUT_MS = 4_000
     }
 }
