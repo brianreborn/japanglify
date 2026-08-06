@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(adb exec-out screencap*)",
+      "Bash(adb -s * exec-out screencap*)",
+      "Bash(adb shell run-as com.japanglify.app cat*)",
+      "Bash(adb -s * shell run-as com.japanglify.app cat*)",
+      "Bash(adb shell dumpsys*)",
+      "Bash(adb -s * shell dumpsys*)",
+      "Bash(adb devices*)",
+      "Bash(adb logcat*)",
+      "Bash(adb -s * logcat*)",
+      "Bash(adb shell settings get*)",
+      "Bash(adb -s * shell settings get*)",
+      "Bash(adb shell cat*)",
+      "Bash(adb -s * shell cat*)",
+      "Bash(adb pull*)",
+      "Bash(adb -s * pull*)",
+      "Bash(adb shell uiautomator dump*)",
+      "Bash(adb -s * shell uiautomator dump*)",
+      "Bash(adb shell pm list*)",
+      "Bash(adb -s * shell pm list*)",
+      "Bash(adb connect*)"
+    ]
+  }
+}
