@@ -26,6 +26,7 @@ import com.japanglify.app.JapanglifyApp
 import com.japanglify.app.ProcessTextActivity
 import com.japanglify.app.R
 import com.japanglify.app.clipboard.ClipboardAssistService
+import com.japanglify.app.clipboard.ClipboardImageRenderer
 import com.japanglify.app.clipboard.ClipboardNotifications
 import com.japanglify.app.clipboard.CopyHookDiagnostics
 import com.japanglify.app.clipboard.JapanglifyAccessibilityService
@@ -215,7 +216,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                     append(line.text)
                     if (line.role == TripleScriptRenderer.InterlinearLineRole.FURIGANA) {
                         setSpan(
-                            RelativeSizeSpan(FURIGANA_RELATIVE_SIZE),
+                            RelativeSizeSpan(ClipboardImageRenderer.FURIGANA_RELATIVE_SIZE),
                             start,
                             length,
                             Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -487,7 +488,5 @@ class SettingsFragment : PreferenceFragmentCompat() {
         private const val CONTACT_EMAIL = "brianfundakowskifeldman@gmail.com"
         private const val KEY_ABOUT_PROFILE = "about_profile"
         private const val PROFILE_URL = "https://x.com/born_brian85001"
-        /** Real furigana is a small reading annotation, not a same-size third line. */
-        private const val FURIGANA_RELATIVE_SIZE = 0.62f
     }
 }

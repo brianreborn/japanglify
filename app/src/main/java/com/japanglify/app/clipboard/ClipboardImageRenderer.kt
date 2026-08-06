@@ -37,15 +37,23 @@ object ClipboardImageRenderer {
     private const val BG_COLOR = Color.WHITE
     private const val TEXT_COLOR = Color.BLACK
 
+    /**
+     * Real furigana is a small reading annotation, not a same-size third
+     * line — shared with [com.japanglify.app.ui.SettingsFragment]'s in-app
+     * Try-It preview ([android.text.style.RelativeSizeSpan]) so both
+     * renderings of the same output agree on how much smaller.
+     */
+    const val FURIGANA_RELATIVE_SIZE = 0.62f
+
     /** One full-width kana glyph, used to size the wrap budget to a target pixel width. */
     private const val SAMPLE_FULLWIDTH_CHAR = "あ"
 
-    private fun buildPaint(context: Context): TextPaint {
+    private fun buildPaint(context: Context, sizeSp: Float = TEXT_SIZE_SP): TextPaint {
         val density = context.resources.displayMetrics.density
         return TextPaint().apply {
             isAntiAlias = true
             color = TEXT_COLOR
-            textSize = TEXT_SIZE_SP * density
+            textSize = sizeSp * density
         }
     }
 
@@ -93,6 +101,7 @@ object ClipboardImageRenderer {
         settings: JapanglifySettings
     ): Bitmap {
         val paint = buildPaint(context)
+        val furiganaPaint = buildPaint(context, TEXT_SIZE_SP * FURIGANA_RELATIVE_SIZE)
         val density = context.resources.displayMetrics.density
         val padding = paddingPx(context)
         val wordGapPx = WORD_GAP_DP * density
@@ -106,7 +115,7 @@ object ClipboardImageRenderer {
                 val roma = if (settings.includeRomaji) c.romaji else ""
                 val width = maxOf(
                     paint.measureText(c.base),
-                    paint.measureText(furi),
+                    furiganaPaint.measureText(furi),
                     paint.measureText(roma)
                 ).coerceAtLeast(1f)
                 MeasuredCell(furi, c.base, roma, c.isWordStart, width)
@@ -140,13 +149,14 @@ object ClipboardImageRenderer {
         var y = padding.toFloat()
         for (row in measuredRows) {
             for (line in rowVisibleLines(row)) {
+                val linePaint = if (line == Line.FURIGANA) furiganaPaint else paint
                 var x = padding.toFloat()
                 row.forEachIndexed { i, cell ->
                     if (i > 0 && cell.isWordStart) x += wordGapPx
                     val text = cell.text(line)
                     if (text.isNotEmpty()) {
-                        val tw = paint.measureText(text)
-                        canvas.drawText(text, x + (cell.width - tw) / 2f, y + baselineOffset, paint)
+                        val tw = linePaint.measureText(text)
+                        canvas.drawText(text, x + (cell.width - tw) / 2f, y + baselineOffset, linePaint)
                     }
                     x += cell.width
                 }

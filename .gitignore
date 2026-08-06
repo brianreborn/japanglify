@@ -20,3 +20,9 @@ out/
 sdk/
 .android-sdk/
 *.log
+
+# Release signing — local to each machine, never committed.
+/keystore.properties
+*.keystore.jks
+*.jks
+*.keystore

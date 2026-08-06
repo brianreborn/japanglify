@@ -24,15 +24,23 @@ Working state as of 2026-08-06. This file tracks what's left before a real
   place. Built and reinstalled on both test devices but not yet re-verified
   end-to-end with a fresh Copy → paste round-trip.
 
-- **"Copy Image" rendering not yet re-examined with current defaults.** A
-  stale screenshot (dated the day before this session) showed a stray "？"
-  appearing alone on a furigana row in a rasterized image result, which
-  would only make sense under `FuriganaPunctuationStyle.ORIGINAL` — not
-  today's default (`NONE`). Never reproduced against current code; the
-  image-generation path (`ClipboardImageRenderer.renderInterlinearToBitmap`)
-  hasn't been looked at closely this session. Worth a fresh test: process a
-  phrase with punctuation, tap "Copy image" from the result notification,
-  and inspect the PNG directly.
+- **"Copy Image" rendering.** Furigana now renders visibly smaller than
+  base/romaji in the rasterized PNG too (`ClipboardImageRenderer` gained a
+  second, smaller `TextPaint` for the furigana row — `FURIGANA_RELATIVE_SIZE
+  = 0.62f`, the same constant the in-app Try-It preview's `RelativeSizeSpan`
+  already used; `SettingsFragment` now references that one shared constant
+  instead of duplicating it). Builds clean, but **not live-verified this
+  session** — driving the real "Copy image" notification button requires
+  either the Accessibility copy-hook or a genuine host Copy action, and
+  every ADB-automation path tried this session to reach it artificially
+  (direct broadcast to `ClipboardAssistReceiver`, seeding `LastResultStore`
+  via `run-as`) silently no-opped without error, consistent with this
+  session's broader live-device-automation flakiness (see the UAT item
+  above). Whoever is next on a device: process a phrase, tap "Copy image"
+  from the result notification, and confirm the furigana row visibly reads
+  smaller than the base/romaji rows in the saved PNG. Also still carries the
+  older stray-"？"-under-`ORIGINAL`-style unverified report from before this
+  session.
 
 - **Task #6 — English-translation 4th line. Decided + implemented this
   session.** User chose the online-API direction, specifically the free
@@ -44,9 +52,25 @@ Working state as of 2026-08-06. This file tracks what's left before a real
   Scripts). Explicitly kept off the fastpath: the setting defaults off, the
   `Translator`/executor are lazy (never constructed if unused), and
   `ProcessTextActivity` (the latency-sensitive `PROCESS_TEXT` path) is
-  byte-for-byte unchanged when the toggle is off. Not yet live-verified on
-  a device (no `adb` available this session) — needs a real Copy/PROCESS_TEXT/
-  try-it round trip, plus an airplane-mode check that it degrades silently.
+  byte-for-byte unchanged when the toggle is off.
+  **Partially live-tested this session, inconclusive on the network leg:**
+  installed and drove the real Settings UI on a Pixel 8 (wireless-debugging,
+  paired live) — the toggle renders/persists correctly and the offline
+  triple-script conversion via the Try-It card's convert button works
+  correctly and immediately, both in `assembleDebug` and a newly-signed
+  `assembleRelease` build (R8 doesn't break it). But after enabling the
+  toggle and converting, no translated line appeared within several
+  seconds, and code review of `GoogleWebTranslator`/`Translator` didn't turn
+  up a bug (errors are swallowed by design via `runCatching`, so a silent
+  network failure is indistinguishable from a code bug without device-side
+  logs). An attempt to isolate network-vs-code by opening the translate
+  endpoint directly via an intent-launched browser was itself undermined by
+  adb shell-escaping mangling the URL. **Needs a clean re-test**: enable the
+  toggle, convert a phrase, and if no translation line appears, check
+  whether `https://translate.googleapis.com/...` is reachable at all from
+  that device/network (a corporate/home network filtering that specific
+  Google subdomain while general internet still works would produce exactly
+  this symptom) before assuming it's an app bug.
 
 - **Task #8 — Build from Android's Linux Terminal.** Low priority, not
   started. Would mean validating the existing Gradle/FreeBSD-Linuxulator
@@ -64,6 +88,56 @@ Working state as of 2026-08-06. This file tracks what's left before a real
   way `MaxLineWidthPreference` already renders a live sample at the
   candidate line width while dragging its slider — that's the pattern to
   follow rather than inventing a new one.
+
+- **Audit clipboard-event recursion safety.** For a future cleanup pass, not
+  urgent now: do a dedicated search across the clipboard-assist pipeline
+  (`LastResultStore`'s self-write suppression/ring-buffer,
+  `JapanglifyAccessibilityService`'s `clipListener` + `pollRunnable`,
+  `ClipboardAssistService`'s own listener, and the new translation
+  notification-update path in `ClipboardProcessor`) for any path where a
+  Japanglify-triggered clipboard write could re-trigger the pipeline instead
+  of being recognized as "ours." The guards (`isSuppressing`,
+  `isSelfWrite`, `shouldIgnoreClipboard`, the `CLIP_LABEL` stamp) are spread
+  across several independent listeners/pollers rather than one chokepoint,
+  and the translation feature just added a second `showResult`/
+  `LastResultStore.save` call per conversion — worth explicitly re-checking
+  that combination isn't a gap, not just assuming it's covered by the
+  existing per-listener guards.
+
+- **Performance measurement / live profiling pass.** For a future cleanup
+  pass, not urgent now: no actual profiling has been done on this app yet —
+  latency/allocation claims so far (e.g. the translation feature's
+  "fastpath" work) are reasoned about from the code, not measured on a
+  device. Worth a real pass with Android Studio's profiler or
+  `adb shell am start -W` / Perfetto/systrace: `PROCESS_TEXT` end-to-end
+  latency (with translation on and off), the accessibility service's
+  poll-loop (`JapanglifyAccessibilityService.POLL_MS`) battery/CPU cost over
+  time, `KuromojiReadingProvider`'s dictionary-load cost on first use, and
+  `TripleScriptRenderer`'s interlinear packing/measurement cost on long
+  selections.
+
+- **Named configuration profiles — post-1.0, backburner.** Not started.
+  Explicitly deprioritized past 1.0 by the user, and explicitly scoped up
+  from the original idea: not just named/saved `JapanglifySettings` presets
+  switched manually, but **automatic profile selection based on which app
+  the text was copied/cut from** — e.g. a Discord-tuned profile applies
+  automatically for `com.discord`, a study-format profile for a dictionary
+  app. That raises the real design burden beyond simple storage: an
+  easy-to-use app-binding UI (pick a profile, pick which installed apps
+  trigger it — a picker over the launchable-app list, not a raw package-name
+  text field) is called out as a hard requirement of doing this at all, not
+  an optional nice-to-have. Also still needs: a storage scheme for multiple
+  named `JapanglifySettings` snapshots (`PreferencesRepository` currently
+  reads/writes exactly one flat, unnamed set of keys — a real data-model
+  change), and a decision on how automatic per-app switching interacts with
+  the live Try-It preview and an already-running Copy-hook session (does a
+  profile change apply mid-flight or only to the next conversion?). The
+  per-app auto-binding piece has a natural home: `JapanglifyAccessibilityService`
+  /  `ClipboardProcessor` already track the source package
+  (`LastResultStore.lastHostPackage`) for the image-vs-text notification
+  choice — the same signal would drive profile auto-selection. Worth
+  scoping as its own small design pass once picked back up, not bolted on
+  ad hoc.
 
 ## Known-good as of this session (verified live on Pixel 8 + Galaxy Note 9)
 
