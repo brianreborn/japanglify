@@ -151,7 +151,17 @@ class TripleScriptRenderer {
          * line — matching Japanese typesetting convention (a lone は/を/の
          * starting a line reads as a mistake). Defaults to [isWordStart].
          */
-        val canWrapBefore: Boolean = isWordStart
+        val canWrapBefore: Boolean = isWordStart,
+        /**
+         * True for a punctuation-only cell. Punctuation glyphs (、。！？…)
+         * are conventionally drawn left-anchored in their em-square in CJK
+         * fonts, not centered — so unlike every other cell, these are laid
+         * out left-aligned rather than centered (see [padStartDisplay]),
+         * which also sidesteps [padCenterDisplay]'s odd-width rounding
+         * being an arbitrary coin-flip for the near-universal case of a
+         * halfwidth romaji mark under a fullwidth base mark.
+         */
+        val isPunctuation: Boolean = false
     )
 
     /** Structured (non-flattened) cell, exposed so callers can lay out pixels themselves. */
@@ -205,7 +215,10 @@ class TripleScriptRenderer {
                 displayWidth(furiCompact),
                 displayWidth(cell.romaji)
             ).coerceAtLeast(1)
-            MeasuredCell(furiCompact, cell.base, cell.romaji, width, cell.isWordStart, cell.canWrapBefore)
+            MeasuredCell(
+                furiCompact, cell.base, cell.romaji, width,
+                cell.isWordStart, cell.canWrapBefore, cell.isPunctuation
+            )
         }
 
         // Wrap into rows by full-width capacity (1 fullwidth unit = 2 half units).
@@ -219,7 +232,8 @@ class TripleScriptRenderer {
         val romaji: String,
         val width: Int,
         val isWordStart: Boolean,
-        val canWrapBefore: Boolean
+        val canWrapBefore: Boolean,
+        val isPunctuation: Boolean
     )
 
     private fun compactFurigana(furigana: String): String = furigana
@@ -301,9 +315,10 @@ class TripleScriptRenderer {
                 furi.append(WORD_GAP)
                 roma.append(WORD_GAP)
             }
-            base.append(padCenterDisplay(cell.base, cell.width))
-            furi.append(padCenterDisplay(cell.furigana, cell.width))
-            roma.append(padCenterDisplay(cell.romaji, cell.width))
+            val pad = if (cell.isPunctuation) ::padEndDisplay else ::padCenterDisplay
+            base.append(pad(cell.base, cell.width))
+            furi.append(pad(cell.furigana, cell.width))
+            roma.append(pad(cell.romaji, cell.width))
         }
         return Triple(base.toString(), furi.toString(), roma.toString())
     }
@@ -418,7 +433,13 @@ class TripleScriptRenderer {
         for (seg in segments) {
             val surface = seg.surface
             val furi = if (settings.includeFurigana) seg.furigana else null
-            val roma = if (settings.includeRomaji) seg.romaji.orEmpty() else ""
+            // Mora-hyphenated when available (see AnnotatedSegment.romajiSyllables)
+            // so a multi-kanji word's romaji shows which part matches which
+            // kana/kanji instead of one unbroken run; falls back to the plain
+            // form for segments that never got a hyphenated variant computed.
+            val roma = if (settings.includeRomaji) {
+                (seg.romajiSyllables ?: seg.romaji).orEmpty()
+            } else ""
 
             val isWordStart = !seg.isBoundToPrevious
             // Particles get their word-gap but can never be a wrap point —
@@ -449,7 +470,8 @@ class TripleScriptRenderer {
                                 KanaConverter.punctuationToRomaji(surface)
                             } else ""
                         },
-                        isWordStart = false
+                        isWordStart = false,
+                        isPunctuation = true
                     )
                 }
 

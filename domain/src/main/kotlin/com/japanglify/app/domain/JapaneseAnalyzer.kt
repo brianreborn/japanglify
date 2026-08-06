@@ -118,13 +118,29 @@ class JapaneseAnalyzer(
             else -> capitalizeIf(settings, romanizer.romanize(romajiSource))
         }
 
+        // Mirrors [romaji] above using the mora-hyphenated romanizer instead —
+        // see [AnnotatedSegment.romajiSyllables]. Punctuation-mapped/passthrough
+        // branches have no mora structure, so they're left null there; the
+        // renderer falls back to [romaji] whenever this is null.
+        val romajiSyllables: String? = when {
+            !settings.includeRomaji -> null
+            romajiSource.isNullOrBlank() -> {
+                val stripped = surface.filter { KanaConverter.isKana(it) || it == 'ー' }
+                if (stripped.isNotEmpty()) {
+                    capitalizeIf(settings, romanizer.romanizeSyllables(KanaConverter.toHiragana(stripped)))
+                } else null
+            }
+            else -> capitalizeIf(settings, romanizer.romanizeSyllables(romajiSource))
+        }
+
         return AnnotatedSegment(
             surface = surface,
             furigana = furigana,
             romaji = romaji,
             needsFurigana = needsFurigana,
             isBoundToPrevious = token.isBoundToPrevious,
-            isParticle = token.isParticle
+            isParticle = token.isParticle,
+            romajiSyllables = romajiSyllables
         )
     }
 
