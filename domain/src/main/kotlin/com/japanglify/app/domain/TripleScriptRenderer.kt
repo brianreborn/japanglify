@@ -345,14 +345,20 @@ class TripleScriptRenderer {
     }
 
     /**
-     * Plain-text rendering — no Word Joiners (see [preventLineWrap]'s doc):
-     * this output gets copied, pasted, and Cut-replaced into other apps and
-     * files, so it must stay exactly the visible characters, nothing added.
+     * Plain-text rendering. Word Joiners ARE embedded here too (see
+     * [preventLineWrap]) even though this output gets copied/pasted/Cut-
+     * replaced into other apps: real hosts (Discord, Keep, …) soft-wrap
+     * their own text views at the pixel width of the compose box, with no
+     * regard for [JapanglifySettings.maxLineWidthFullwidth] — without the
+     * Word Joiners a host can still break in the middle of a furigana cell
+     * (e.g. "でき" splitting into "で" / "き" on two visual lines), which is
+     * worse than a few invisible zero-width characters riding along in the
+     * pasted text.
      */
     private fun formatInterlinearRow(
         row: List<MeasuredCell>,
         settings: JapanglifySettings
-    ): String = buildDisplayLines(row, settings, preventWrap = false).joinToString("\n") { it.text }
+    ): String = buildDisplayLines(row, settings, preventWrap = true).joinToString("\n") { it.text }
 
     /**
      * Kana/CJK characters permit a line break between any two of them by
