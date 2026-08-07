@@ -1,6 +1,7 @@
 package com.japanglify.app.domain
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -311,17 +312,34 @@ class TripleScriptRendererTest {
 
     @Test
     fun htmlDoubleSidedRuby() {
-        val settings = JapanglifySettings(
+        // <rb>/<rtc> were dropped from the HTML Living Standard years ago and
+        // (confirmed via live browser testing) render as unstyled plain text,
+        // not a positioned ruby tier — so this format must not emit them.
+        // Furigana uses real <ruby><rt> (the one thing every browser gets
+        // right); romaji rides along as a plain block span, sized down to
+        // match, not a second ruby tier — ruby-position:under proved
+        // unreliable for a nested ruby's outer tier in that same testing.
+        val below = JapanglifySettings(
             outputFormat = OutputFormat.HTML_RUBY,
             romajiPosition = RomajiPosition.BELOW
         )
-        val out = renderer.render(nihongo, settings)
-        assertTrue(out.contains("<ruby>"))
-        assertTrue(out.contains("<rb>日本語</rb>"))
-        assertTrue(out.contains("<rt>にほんご</rt>"))
-        assertTrue(out.contains("<rtc"))
-        assertTrue(out.contains("nihongo"))
-        assertTrue(out.contains("ruby-position:under"))
+        val outBelow = renderer.render(nihongo, below)
+        assertTrue(outBelow.contains("<ruby>日本語<rt>にほんご</rt></ruby>"))
+        assertFalse(outBelow.contains("<rb>"))
+        assertFalse(outBelow.contains("<rtc"))
+        assertTrue(outBelow.contains("display:block"))
+        assertTrue(outBelow.contains("nihongo"))
+        // romaji block comes after the ruby element for BELOW
+        assertTrue(
+            outBelow.indexOf("</ruby>") < outBelow.indexOf("nihongo")
+        )
+
+        val above = below.copy(romajiPosition = RomajiPosition.ABOVE)
+        val outAbove = renderer.render(nihongo, above)
+        // romaji block comes before the ruby element for ABOVE
+        assertTrue(
+            outAbove.indexOf("nihongo") < outAbove.indexOf("<ruby>")
+        )
     }
 
     @Test

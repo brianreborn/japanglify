@@ -5,6 +5,35 @@ Working state as of 2026-08-06. This file tracks what's left before a real
 
 ## Open items
 
+- **HTML ruby output was fundamentally broken for every segment with both
+  furigana and romaji — found, root-caused, and fixed this session via live
+  browser testing.** Started a systematic rendering-quality pass (ruby →
+  plain text → rasterized image) and went straight to a real bug. The old
+  markup, `<ruby><rb>base</rb><rt>furigana</rt><rtc>romaji</rtc></ruby>`,
+  looked reasonable and had a passing test — but `<rb>` and `<rtc>` were
+  dropped from the HTML Living Standard years ago. Live-tested in real
+  Chrome (pushed the exact generated markup to a local HTTP server, opened
+  it on the test device): furigana rendered correctly (`<rt>` is real and
+  supported), but romaji via `<rtc>` rendered as plain unstyled inline text
+  with zero ruby positioning — `日本語nihongoを 勉 強` all smashed onto one
+  baseline, `benkyou` even wrapping to a different line than its own base.
+  Tried the standards-current fix (nested `<ruby>` for double annotation) —
+  also live-tested, and found `ruby-position:under` unreliable on a nested
+  ruby's outer `<rt>` in this browser (silently stacks on the same "over"
+  side instead of actually landing under the base, confirmed with explicit
+  `ruby-position` on both tiers and swapped nesting order — same result
+  both ways). **Final fix**: furigana via plain `<ruby><rt>` (the one thing
+  that reliably works), romaji via an ordinary `display:block` `<span>`
+  sized to `0.62em` (same ratio as `ClipboardImageRenderer
+  .FURIGANA_RELATIVE_SIZE`) inside an `inline-block` wrapper — sidesteps
+  `ruby-position` reliability entirely by not depending on it. Verified
+  against the actual generated output (not just a hand-written mockup) in
+  real Chrome: furigana/base/romaji stack correctly, multi-segment lines
+  flow correctly. `romajiPosition` still controls something real (which
+  side of the base the romaji block lands on), it just no longer claims to
+  put it literally "under" the base line the way the setting's UI text
+  ("Below base") implies — worth a documentation/wording pass on that
+  string at some point, not urgent.
 - **Pre-release stability validation.** Not scoped yet — user flagged this
   needs some real validation pass before 1.0, deliberately held open rather
   than defined on the spot. Revisit once the current bug-fixing pass settles.

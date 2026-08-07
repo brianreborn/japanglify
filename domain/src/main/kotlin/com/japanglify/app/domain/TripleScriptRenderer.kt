@@ -29,6 +29,16 @@ class TripleScriptRenderer {
         const val NBSP = PAD
         /** Visible gap between distinct words/particles (English-style word-spacing). */
         private val WORD_GAP = PAD + PAD
+        /**
+         * Romaji size relative to the base text in HTML ruby output, when
+         * rendered as a plain block span rather than a ruby tier (see
+         * [htmlSpan]). Matches [com.japanglify.app.clipboard.ClipboardImageRenderer
+         * .FURIGANA_RELATIVE_SIZE] so annotations read as consistently
+         * "smaller than the base" across every output path — domain has no
+         * dependency on the app module, so the value is duplicated, not
+         * shared, and should stay in sync if either changes.
+         */
+        private const val ROMAJI_RELATIVE_SIZE = 0.62
     }
 
     fun render(segments: List<AnnotatedSegment>, settings: JapanglifySettings): String {
@@ -769,30 +779,47 @@ class TripleScriptRenderer {
 
         if (f == null && r == null) return base
 
-        // Double-sided ruby convention:
-        //   <ruby><rb>BASE</rb><rt>furigana</rt><rtc>romaji</rtc></ruby>
-        // ruby-position controlled via inline style for hosts without stylesheets.
-        val rb = "<rb>$base</rb>"
-        val rt = f?.let { "<rt>${escapeHtml(it)}</rt>" }.orEmpty()
+        if (f != null && r == null) {
+            return "<ruby>$base<rt>${escapeHtml(f)}</rt></ruby>"
+        }
 
-        val rtc = r?.let {
-            val pos = when (settings.romajiPosition) {
-                RomajiPosition.ABOVE, RomajiPosition.BEFORE -> "over"
-                RomajiPosition.BELOW, RomajiPosition.AFTER -> "under"
-            }
-            """<rtc style="ruby-position:$pos">${escapeHtml(it)}</rtc>"""
-        }.orEmpty()
-
-        // When only romaji is present, still use ruby so position applies.
         if (f == null && r != null) {
             val pos = when (settings.romajiPosition) {
                 RomajiPosition.ABOVE, RomajiPosition.BEFORE -> "over"
                 RomajiPosition.BELOW, RomajiPosition.AFTER -> "under"
             }
-            return """<ruby style="ruby-position:$pos">$rb<rt>${escapeHtml(r)}</rt></ruby>"""
+            return """<ruby style="ruby-position:$pos">$base<rt>${escapeHtml(r)}</rt></ruby>"""
         }
 
-        return "<ruby>$rb$rt$rtc</ruby>"
+        check(f != null && r != null) // only branch left: both present
+        // Both present: furigana via plain <ruby><rt> (over the base — the
+        // one thing every browser gets right), romaji via an ordinary
+        // block-level <span>, not a second ruby tier. NOT the <rb>/<rtc>
+        // "complex ruby" markup this used to emit — <rb> and <rtc> were
+        // dropped from the HTML Living Standard years ago, and live-tested in
+        // a real browser this session, that markup left <rtc> rendering as
+        // plain unstyled inline text with zero positioning: a real rendering
+        // bug for every segment that had both furigana and romaji. A nested
+        // second <ruby> tier (also live-tested) does render as real ruby, but
+        // `ruby-position:under` proved unreliable on a nested ruby's outer
+        // <rt> in that same testing — it stacked on the same "over" side as
+        // the inner tier instead of actually landing under the base. Plain
+        // CSS sidesteps that unreliability entirely: wrapping base+furigana
+        // ruby and a smaller `display:block` romaji span in one
+        // `inline-block` container reliably puts romaji below (or, for
+        // ABOVE, above) the pair, using ordinary block layout that doesn't
+        // depend on any browser's ruby-position support. Same relative size
+        // as furigana gets elsewhere (ClipboardImageRenderer.
+        // FURIGANA_RELATIVE_SIZE) for a consistent "annotations are smaller
+        // than the base" feel across every output path.
+        val ruby = "<ruby>$base<rt>${escapeHtml(f)}</rt></ruby>"
+        val romajiBlock =
+            """<span style="display:block;font-size:${ROMAJI_RELATIVE_SIZE}em">${escapeHtml(r)}</span>"""
+        val inner = when (settings.romajiPosition) {
+            RomajiPosition.ABOVE, RomajiPosition.BEFORE -> "$romajiBlock$ruby"
+            RomajiPosition.BELOW, RomajiPosition.AFTER -> "$ruby$romajiBlock"
+        }
+        return """<span style="display:inline-block;text-align:center;vertical-align:top">$inner</span>"""
     }
 
     private fun escapeHtml(s: String): String = buildString(s.length) {
