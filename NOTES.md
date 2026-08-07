@@ -5,6 +5,10 @@ Working state as of 2026-08-06. This file tracks what's left before a real
 
 ## Open items
 
+- **Pre-release stability validation.** Not scoped yet — user flagged this
+  needs some real validation pass before 1.0, deliberately held open rather
+  than defined on the spot. Revisit once the current bug-fixing pass settles.
+
 - **Human-loop UAT on precise formatting.** Live device automation (adb
   input/uiautomator) has become unreliable for fine-grained repro this
   session — intents occasionally land in the wrong foreground app, screen

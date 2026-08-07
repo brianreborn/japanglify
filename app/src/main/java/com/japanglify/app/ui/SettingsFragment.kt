@@ -1,7 +1,6 @@
 package com.japanglify.app.ui
 
 import android.Manifest
-import android.content.ClipboardManager
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -28,6 +27,7 @@ import com.japanglify.app.R
 import com.japanglify.app.clipboard.ClipboardAssistService
 import com.japanglify.app.clipboard.ClipboardImageRenderer
 import com.japanglify.app.clipboard.ClipboardNotifications
+import com.japanglify.app.clipboard.ClipboardProcessor
 import com.japanglify.app.clipboard.CopyHookDiagnostics
 import com.japanglify.app.clipboard.JapanglifyAccessibilityService
 import com.japanglify.app.clipboard.LastResultStore
@@ -281,12 +281,13 @@ class SettingsFragment : PreferenceFragmentCompat() {
     }
 
     private fun japanglifyClipboard() {
-        val clipboard = requireContext().getSystemService(ClipboardManager::class.java)
-        val text = clipboard.primaryClip
-            ?.takeIf { it.itemCount > 0 }
-            ?.getItemAt(0)
-            ?.coerceToText(requireContext())
-            ?.toString()
+        // Shared with ClipboardProcessor's other callers rather than reading
+        // ClipboardManager directly here: readClipboardSnapshot() already
+        // catches the exception a non-text ClipData item (e.g. a URI/image
+        // clip with no read grant) can throw from coerceToText() — this call
+        // site used to skip that and could crash instead of just no-op'ing.
+        val text = ClipboardProcessor.readClipboardSnapshot(requireContext())
+            .text
             ?.takeIf { it.isNotBlank() }
 
         if (text == null) {
