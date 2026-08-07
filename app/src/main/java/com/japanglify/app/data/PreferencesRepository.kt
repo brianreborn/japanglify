@@ -33,7 +33,14 @@ class PreferencesRepository(context: Context) {
         furiganaPunctuationStyle = FuriganaPunctuationStyle.fromId(
             prefs.getString(KEY_FURIGANA_PUNCTUATION_STYLE, null)
         ),
-        maxLineWidthFullwidth = parseMaxLineWidth(prefs.getString(KEY_MAX_LINE_WIDTH, null))
+        maxLineWidthFullwidth = parseMaxLineWidth(prefs.getString(KEY_MAX_LINE_WIDTH, null)),
+        // Read side only for now — no preferences.xml entry yet (that's the
+        // Settings UI phase, alongside the dictionary-source picker this
+        // toggle is meant to sit next to). Defaults false like every other
+        // opt-in setting; wiring the read side now means the eventual UI
+        // toggle needs zero changes here, just an XML entry writing to the
+        // same key.
+        includeGlosses = prefs.getBoolean(KEY_INCLUDE_GLOSSES, false)
     )
 
     companion object {
@@ -52,6 +59,7 @@ class PreferencesRepository(context: Context) {
         const val KEY_OPEN_ACCESSIBILITY = "open_accessibility"
         const val KEY_A11Y_STATUS = "a11y_status"
         const val KEY_COPY_HOOK_PAUSED = "copy_hook_paused"
+        const val KEY_INCLUDE_GLOSSES = "include_glosses"
 
         fun parseMaxLineWidth(raw: String?): Int {
             val n = raw?.toIntOrNull()

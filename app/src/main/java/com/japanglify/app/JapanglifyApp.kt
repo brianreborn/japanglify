@@ -5,6 +5,7 @@ import android.content.ComponentName
 import android.content.pm.PackageManager
 import com.japanglify.app.data.KuromojiReadingProvider
 import com.japanglify.app.data.PreferencesRepository
+import com.japanglify.app.dictionary.DictionaryBootstrap
 import com.japanglify.app.domain.JapanglifyEngine
 import com.japanglify.app.domain.JapaneseAnalyzer
 
@@ -32,7 +33,11 @@ class JapanglifyApp : Application() {
 
         // Load dictionary once; first PROCESS_TEXT may still pay if never opened.
         val provider = runCatching { KuromojiReadingProvider() }.getOrNull()
-        val analyzer = JapaneseAnalyzer(provider)
+        // Null in production until the download pipeline exists; a debug
+        // build seeds and returns a real one instead — see
+        // DictionaryBootstrap's doc comment.
+        val glossAnnotator = runCatching { DictionaryBootstrap.createGlossAnnotator(this) }.getOrNull()
+        val analyzer = JapaneseAnalyzer(provider, glossAnnotator)
         engine = JapanglifyEngine(analyzer)
     }
 
