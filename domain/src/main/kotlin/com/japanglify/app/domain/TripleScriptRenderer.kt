@@ -101,6 +101,12 @@ class TripleScriptRenderer {
             val glossParts = segments.mapNotNull { it.gloss?.takeIf { g -> g.isNotBlank() } }
             if (glossParts.isNotEmpty()) lines += glossParts.joinToString(" ")
         }
+        if (settings.includeEmoji) {
+            // Emoji has no position setting of its own — always trails as the
+            // last line, same reasoning as gloss (meaning, not a reading).
+            val emojiParts = segments.mapNotNull { it.emoji?.takeIf { e -> e.isNotBlank() } }
+            if (emojiParts.isNotEmpty()) lines += emojiParts.joinToString(" ")
+        }
         return lines.joinToString("\n")
     }
 
@@ -119,11 +125,13 @@ class TripleScriptRenderer {
         val f = seg.furigana?.takeIf { settings.includeFurigana }
         val r = seg.romaji?.takeIf { settings.includeRomaji }
         val g = seg.gloss?.takeIf { settings.includeGlosses }
-        if (f == null && r == null && g == null) return seg.surface
+        val e = seg.emoji?.takeIf { settings.includeEmoji }
+        if (f == null && r == null && g == null && e == null) return seg.surface
 
         // Reading (furigana/romaji) order follows romajiPosition as before;
-        // gloss has no position setting of its own — it's meaning, not a
-        // phonetic reading, so it always trails the reading(s).
+        // gloss and emoji have no position setting of their own — they're
+        // meaning, not a phonetic reading, so they always trail the
+        // reading(s), emoji after gloss.
         val readingParts = when {
             f != null && r != null -> when (settings.romajiPosition) {
                 RomajiPosition.BEFORE, RomajiPosition.ABOVE -> listOf(r, f)
@@ -133,11 +141,11 @@ class TripleScriptRenderer {
             r != null -> listOf(r)
             else -> emptyList()
         }
-        val annotation = (readingParts + listOfNotNull(g)).joinToString(" / ")
+        val annotation = (readingParts + listOfNotNull(g, e)).joinToString(" / ")
 
         return when (settings.romajiPosition) {
             RomajiPosition.BEFORE ->
-                if (r != null && f == null && g == null) "（$r）${seg.surface}"
+                if (r != null && f == null && g == null && e == null) "（$r）${seg.surface}"
                 else "（$annotation）${seg.surface}"
             else -> "${seg.surface}（$annotation）"
         }
@@ -184,14 +192,24 @@ class TripleScriptRenderer {
          * English dictionary gloss, word-level not sub-cell-level: only ever
          * set on a word's first cell (mirroring how split-kanji romaji only
          * appears "under the first kanji of the token" — see
-         * [splitKanjiFurigana]), empty on every continuation cell. Left-
-         * anchored and allowed to overflow past its own cell's width rather
-         * than truncated — an accepted v1 limitation (English glosses are
-         * usually much wider than the mora-grid furigana/romaji already fit
-         * into); does not affect row-wrap packing, which is sized off
-         * furigana/base/romaji only.
+         * [splitKanjiFurigana]), empty on every continuation cell.
+         * Left-anchored ([padEndDisplay], never centered) within its cell's
+         * width, and never truncated — but unlike furigana/base/romaji, this
+         * text is usually much wider than the mora-grid those fit into, so
+         * (see [buildMeasuredRows]) its width also feeds into the cell's own
+         * measured width and therefore the row's wrap budget, so a long
+         * gloss widens its column instead of overflowing into the next
+         * word's.
          */
-        val gloss: String = ""
+        val gloss: String = "",
+        /**
+         * Optional English→emoji annotation (see
+         * [com.japanglify.app.domain.emoji.EmojiAnnotator]) — same
+         * word-level, first-cell-only, width-widening treatment as [gloss],
+         * and always rendered as the line *after* it (see
+         * [InterlinearLineRole.EMOJI]).
+         */
+        val emoji: String = ""
     )
 
     /** Structured (non-flattened) cell, exposed so callers can lay out pixels themselves. */
@@ -200,7 +218,8 @@ class TripleScriptRenderer {
         val base: String,
         val romaji: String,
         val isWordStart: Boolean,
-        val gloss: String = ""
+        val gloss: String = "",
+        val emoji: String = ""
     )
 
     data class InterlinearRowData(val cells: List<InterlinearCellData>)
@@ -217,7 +236,9 @@ class TripleScriptRenderer {
     ): List<InterlinearRowData> =
         buildMeasuredRows(segments, settings).map { row ->
             InterlinearRowData(
-                row.map { InterlinearCellData(it.furigana, it.base, it.romaji, it.isWordStart, it.gloss) }
+                row.map {
+                    InterlinearCellData(it.furigana, it.base, it.romaji, it.isWordStart, it.gloss, it.emoji)
+                }
             )
         }
 
@@ -238,24 +259,33 @@ class TripleScriptRenderer {
         val cells = expandToFuriganaCells(segments, settings)
         if (cells.isEmpty()) return emptyList()
 
-        // Measure each cell (halfwidth units: fullwidth kana ≈ 2).
+        // Measure each cell (halfwidth units: fullwidth kana ≈ 2). Gloss
+        // width is included here too (cell.gloss is already "" when glosses
+        // are off, so this is a no-op then) -- a gloss much wider than its
+        // word's furigana/base/romaji used to just overflow into whatever
+        // followed on the same line, visibly colliding with the next word's
+        // columns. Widening the cell (and therefore the whole row's wrap
+        // budget, via packCellsIntoRows below) to fit its own gloss trades
+        // that collision for short words sometimes sitting in a visually
+        // sparse, wider-than-necessary column -- an accepted tradeoff for
+        // "never overlaps," worth live-testing rather than tuning further
+        // analytically up front (matches how furigana/romaji/HTML ruby were
+        // all actually fixed this session).
         val measured = cells.map { cell ->
             val furiCompact = compactFurigana(cell.furigana)
             val width = maxOf(
                 displayWidth(cell.base),
                 displayWidth(furiCompact),
-                displayWidth(cell.romaji)
+                displayWidth(cell.romaji),
+                displayWidth(cell.gloss),
+                displayWidth(cell.emoji)
             ).coerceAtLeast(1)
             MeasuredCell(
                 furiCompact, cell.base, cell.romaji, width,
-                cell.isWordStart, cell.canWrapBefore, cell.isPunctuation, cell.gloss
+                cell.isWordStart, cell.canWrapBefore, cell.isPunctuation, cell.gloss, cell.emoji
             )
         }
 
-        // Wrap into rows by full-width capacity (1 fullwidth unit = 2 half units).
-        // Deliberately sized off furigana/base/romaji only, never gloss — see
-        // [InterlinearCell.gloss]'s doc for why gloss is allowed to overflow
-        // instead of influencing wrap decisions.
         val maxHalf = fullwidthToHalfUnits(settings.maxLineWidthFullwidth)
         return packCellsIntoRows(measured, maxHalf, wordGapHalf = WORD_GAP_WIDTH)
     }
@@ -268,7 +298,8 @@ class TripleScriptRenderer {
         val isWordStart: Boolean,
         val canWrapBefore: Boolean,
         val isPunctuation: Boolean,
-        val gloss: String = ""
+        val gloss: String = "",
+        val emoji: String = ""
     )
 
     private fun compactFurigana(furigana: String): String = furigana
@@ -311,7 +342,7 @@ class TripleScriptRenderer {
     }
 
     /** Which interlinear row a display line came from. */
-    enum class InterlinearLineRole { FURIGANA, BASE, ROMAJI, GLOSS }
+    enum class InterlinearLineRole { FURIGANA, BASE, ROMAJI, GLOSS, EMOJI }
 
     data class InterlinearDisplayLine(val role: InterlinearLineRole, val text: String)
 
@@ -360,9 +391,10 @@ class TripleScriptRenderer {
 
     /**
      * Gloss line, built separately from [buildRawTripleLines]: left-anchored
-     * ([padEndDisplay], never [padCenterDisplay]) and never truncated, so a
-     * gloss wider than its own column overflows into trailing whitespace
-     * rather than being cut — see [InterlinearCell.gloss].
+     * ([padEndDisplay], never [padCenterDisplay]) and never truncated. Each
+     * cell's width already accommodates its own gloss (see
+     * [buildMeasuredRows]), so this just pads out to that width rather than
+     * needing to overflow past it — see [InterlinearCell.gloss].
      */
     private fun buildGlossLine(row: List<MeasuredCell>): String {
         val gloss = StringBuilder()
@@ -373,6 +405,16 @@ class TripleScriptRenderer {
         return gloss.toString()
     }
 
+    /** Emoji line — same left-anchored, never-truncated shape as [buildGlossLine]. */
+    private fun buildEmojiLine(row: List<MeasuredCell>): String {
+        val emoji = StringBuilder()
+        row.forEachIndexed { index, cell ->
+            if (index > 0 && cell.isWordStart) emoji.append(WORD_GAP)
+            emoji.append(padEndDisplay(cell.emoji, cell.width))
+        }
+        return emoji.toString()
+    }
+
     private fun buildDisplayLines(
         row: List<MeasuredCell>,
         settings: JapanglifySettings,
@@ -380,6 +422,7 @@ class TripleScriptRenderer {
     ): List<InterlinearDisplayLine> {
         val (baseLine, furiLine, romaLine) = buildRawTripleLines(row)
         val glossLine = if (settings.includeGlosses) buildGlossLine(row) else ""
+        val emojiLine = if (settings.includeEmoji) buildEmojiLine(row) else ""
         fun finish(line: String): String {
             val protectedLine = protectLineStart(line)
             return if (preventWrap) preventLineWrap(protectedLine) else protectedLine
@@ -407,11 +450,15 @@ class TripleScriptRenderer {
                 addRoma()
             }
         }
-        // Gloss has no position setting of its own (it's meaning, not a
-        // phonetic reading) — it always trails as the 4th row, regardless
-        // of where romaji/furigana landed.
+        // Gloss and emoji have no position setting of their own (they're
+        // meaning, not a phonetic reading) — gloss always trails as the 4th
+        // row regardless of where romaji/furigana landed, and emoji trails
+        // after that as the last row of all.
         if (settings.includeGlosses && hasVisibleContent(glossLine)) {
             lines += InterlinearDisplayLine(InterlinearLineRole.GLOSS, finish(glossLine))
+        }
+        if (settings.includeEmoji && hasVisibleContent(emojiLine)) {
+            lines += InterlinearDisplayLine(InterlinearLineRole.EMOJI, finish(emojiLine))
         }
         return lines
     }
@@ -499,6 +546,7 @@ class TripleScriptRenderer {
             } else ""
             // Word-level, not sub-cell-level — see [InterlinearCell.gloss].
             val gloss = if (settings.includeGlosses) seg.gloss.orEmpty() else ""
+            val emoji = if (settings.includeEmoji) seg.emoji.orEmpty() else ""
 
             val isWordStart = !seg.isBoundToPrevious
             // Particles get their word-gap but can never be a wrap point —
@@ -544,10 +592,13 @@ class TripleScriptRenderer {
                             romaji = roma,
                             isWordStart = isWordStart,
                             canWrapBefore = canWrapBefore,
-                            gloss = gloss
+                            gloss = gloss,
+                            emoji = emoji
                         )
                     } else {
-                        out += splitKanjiFurigana(surface, furi, roma, gloss, settings, isWordStart, canWrapBefore)
+                        out += splitKanjiFurigana(
+                            surface, furi, roma, gloss, emoji, settings, isWordStart, canWrapBefore
+                        )
                     }
                 }
 
@@ -563,7 +614,8 @@ class TripleScriptRenderer {
                         romaji = roma,
                         isWordStart = isWordStart,
                         canWrapBefore = canWrapBefore,
-                        gloss = gloss
+                        gloss = gloss,
+                        emoji = emoji
                     )
                 }
             }
@@ -574,14 +626,15 @@ class TripleScriptRenderer {
     /**
      * Split e.g. 日本語/にほんご → (日,に)(本,ほん)(語,ご) and 食べ/たべ → (食,た)(べ,べ).
      * Romaji stays under the whole original token on the first cell only so
-     * the latin line is readable (not letter-scattered) — gloss does too,
-     * for the same reason.
+     * the latin line is readable (not letter-scattered) — gloss and emoji
+     * do too, for the same reason.
      */
     private fun splitKanjiFurigana(
         surface: String,
         reading: String,
         romaji: String,
         gloss: String,
+        emoji: String,
         settings: JapanglifySettings,
         isWordStart: Boolean,
         canWrapBefore: Boolean
@@ -613,7 +666,8 @@ class TripleScriptRenderer {
                 romaji = romaji,
                 isWordStart = isWordStart,
                 canWrapBefore = canWrapBefore,
-                gloss = gloss
+                gloss = gloss,
+                emoji = emoji
             )
             return cells
         }
@@ -632,7 +686,8 @@ class TripleScriptRenderer {
                 isWordStart = i == 0 && isWordStart,
                 canWrapBefore = i == 0 && canWrapBefore,
                 // Same "first cell only" rule as romaji, for the same reason.
-                gloss = if (i == 0) gloss else ""
+                gloss = if (i == 0) gloss else "",
+                emoji = if (i == 0) emoji else ""
             )
         }
         if (okuri.isNotEmpty()) {
@@ -832,20 +887,22 @@ class TripleScriptRenderer {
         val f = seg.furigana?.takeIf { settings.includeFurigana && it.isNotBlank() }
         val r = seg.romaji?.takeIf { settings.includeRomaji && it.isNotBlank() }
         val g = seg.gloss?.takeIf { settings.includeGlosses && it.isNotBlank() }
+        val e = seg.emoji?.takeIf { settings.includeEmoji && it.isNotBlank() }
         val base = escapeHtml(seg.surface)
 
-        if (f == null && r == null && g == null) return base
+        if (f == null && r == null && g == null && e == null) return base
 
         // Furigana-only: plain <ruby><rt>, the one thing every browser gets
         // right — no need for the block-span stack below at all.
-        if (f != null && r == null && g == null) {
+        if (f != null && r == null && g == null && e == null) {
             return "<ruby>$base<rt>${escapeHtml(f)}</rt></ruby>"
         }
 
-        // Romaji-only, no furigana, no gloss: ruby-position on <rt> IS
-        // reliable for a single (non-nested) ruby tier — see the block-span
-        // comment below for why that stops being true once anything nests.
-        if (f == null && r != null && g == null) {
+        // Romaji-only, no furigana, no gloss, no emoji: ruby-position on
+        // <rt> IS reliable for a single (non-nested) ruby tier — see the
+        // block-span comment below for why that stops being true once
+        // anything nests.
+        if (f == null && r != null && g == null && e == null) {
             val pos = when (settings.romajiPosition) {
                 RomajiPosition.ABOVE, RomajiPosition.BEFORE -> "over"
                 RomajiPosition.BELOW, RomajiPosition.AFTER -> "under"
@@ -869,8 +926,9 @@ class TripleScriptRenderer {
         // that unreliability entirely: wrapping everything in one
         // `inline-block` container with ordinary `display:block` spans
         // stacks reliably regardless of browser ruby-position support.
-        // Gloss has no position setting of its own (it's meaning, not a
-        // phonetic reading) — it always trails, after wherever romaji landed.
+        // Gloss and emoji have no position setting of their own (they're
+        // meaning, not a phonetic reading) — they always trail, after
+        // wherever romaji landed, emoji after gloss.
         val core = if (f != null) "<ruby>$base<rt>${escapeHtml(f)}</rt></ruby>" else base
         val romajiBlock = r?.let {
             """<span style="display:block;font-size:${ROMAJI_RELATIVE_SIZE}em">${escapeHtml(it)}</span>"""
@@ -878,11 +936,14 @@ class TripleScriptRenderer {
         val glossBlock = g?.let {
             """<span style="display:block;font-size:${ROMAJI_RELATIVE_SIZE}em">${escapeHtml(it)}</span>"""
         }
+        val emojiBlock = e?.let {
+            """<span style="display:block;font-size:${ROMAJI_RELATIVE_SIZE}em">${escapeHtml(it)}</span>"""
+        }
         val inner = when (settings.romajiPosition) {
             RomajiPosition.ABOVE, RomajiPosition.BEFORE ->
-                listOfNotNull(romajiBlock, core, glossBlock).joinToString("")
+                listOfNotNull(romajiBlock, core, glossBlock, emojiBlock).joinToString("")
             RomajiPosition.BELOW, RomajiPosition.AFTER ->
-                listOfNotNull(core, romajiBlock, glossBlock).joinToString("")
+                listOfNotNull(core, romajiBlock, glossBlock, emojiBlock).joinToString("")
         }
         return """<span style="display:inline-block;text-align:center;vertical-align:top">$inner</span>"""
     }
@@ -910,6 +971,7 @@ class TripleScriptRenderer {
             val f = seg.furigana?.takeIf { settings.includeFurigana && it.isNotBlank() }
             val r = seg.romaji?.takeIf { settings.includeRomaji && it.isNotBlank() }
             val g = seg.gloss?.takeIf { settings.includeGlosses && it.isNotBlank() }
+            val e = seg.emoji?.takeIf { settings.includeEmoji && it.isNotBlank() }
 
             if (r != null && settings.romajiPosition == RomajiPosition.BEFORE) {
                 append('[').append(r).append(']')
@@ -921,10 +983,15 @@ class TripleScriptRenderer {
             if (r != null && settings.romajiPosition != RomajiPosition.BEFORE) {
                 append('[').append(r).append(']')
             }
-            // Gloss has no position setting — always trails, same reasoning
-            // as PARENTHETICAL: it's meaning, not a phonetic reading.
+            // Gloss and emoji have no position setting — always trail, same
+            // reasoning as PARENTHETICAL: meaning, not a phonetic reading.
+            // Emoji rides directly after the surface/brackets, unbracketed —
+            // it's already a self-delimiting glyph, not text needing {}.
             if (g != null) {
                 append('{').append(g).append('}')
+            }
+            if (e != null) {
+                append(e)
             }
         }
     }

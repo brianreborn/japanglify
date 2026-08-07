@@ -4,12 +4,15 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.preference.PreferenceManager
 import com.japanglify.app.dictionary.DictionaryDownloadStatus
+import com.japanglify.app.domain.EmojiPrecisionTier
 import com.japanglify.app.domain.FuriganaPunctuationStyle
+import com.japanglify.app.domain.dictionary.DictionarySources
 import com.japanglify.app.domain.JapanglifySettings
 import com.japanglify.app.domain.OutputFormat
 import com.japanglify.app.domain.RomajiPosition
 import com.japanglify.app.domain.RomanizationSystem
 import com.japanglify.app.domain.WritingOrientation
+import com.japanglify.app.domain.dictionary.PartOfSpeech
 
 /**
  * Reads/writes [JapanglifySettings] via the default SharedPreferences store
@@ -41,7 +44,19 @@ class PreferencesRepository(context: Context) {
         // opt-in setting; wiring the read side now means the eventual UI
         // toggle needs zero changes here, just an XML entry writing to the
         // same key.
-        includeGlosses = prefs.getBoolean(KEY_INCLUDE_GLOSSES, false)
+        includeGlosses = prefs.getBoolean(KEY_INCLUDE_GLOSSES, false),
+        includeEmoji = prefs.getBoolean(KEY_INCLUDE_EMOJI, false),
+        emojiAlwaysShowBoth = prefs.getBoolean(KEY_EMOJI_ALWAYS_SHOW_BOTH, false),
+        // getStringSet returns null only when the key was never written (the
+        // MultiSelectListPreference has never been touched) -- default to
+        // every part of speech then, per the user's explicit choice. An
+        // empty (non-null) set means the user genuinely deselected
+        // everything, which is honored as-is, not treated as "unset".
+        emojiPosScope = prefs.getStringSet(KEY_EMOJI_POS_SCOPE, null)
+            ?.mapNotNull { name -> PartOfSpeech.entries.firstOrNull { it.name == name } }
+            ?.toSet()
+            ?: PartOfSpeech.entries.toSet(),
+        emojiPrecisionTier = EmojiPrecisionTier.fromId(prefs.getString(KEY_EMOJI_PRECISION_TIER, null))
     )
 
     /**
@@ -71,6 +86,10 @@ class PreferencesRepository(context: Context) {
     private fun keyDictionaryStatus(sourceId: String) = "${KEY_DICTIONARY_STATUS_PREFIX}$sourceId"
     private fun keyDictionaryError(sourceId: String) = "${KEY_DICTIONARY_ERROR_PREFIX}$sourceId"
 
+    /** Which [com.japanglify.app.domain.dictionary.DictionarySource] the Settings picker has selected. */
+    fun selectedDictionarySourceId(): String =
+        prefs.getString(KEY_DICTIONARY_SOURCE, null) ?: DictionarySources.JMDICT_ENGLISH.id
+
     companion object {
         const val KEY_ROMANIZATION = "romanization_system"
         const val KEY_ROMAJI_POSITION = "romaji_position"
@@ -90,6 +109,11 @@ class PreferencesRepository(context: Context) {
         const val KEY_INCLUDE_GLOSSES = "include_glosses"
         const val KEY_DICTIONARY_STATUS_PREFIX = "dictionary_status_"
         const val KEY_DICTIONARY_ERROR_PREFIX = "dictionary_error_"
+        const val KEY_DICTIONARY_SOURCE = "dictionary_source"
+        const val KEY_INCLUDE_EMOJI = "include_emoji"
+        const val KEY_EMOJI_ALWAYS_SHOW_BOTH = "emoji_always_show_both"
+        const val KEY_EMOJI_POS_SCOPE = "emoji_pos_scope"
+        const val KEY_EMOJI_PRECISION_TIER = "emoji_precision_tier"
 
         fun parseMaxLineWidth(raw: String?): Int {
             val n = raw?.toIntOrNull()

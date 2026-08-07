@@ -8,11 +8,19 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.ServiceCompat
 import com.japanglify.app.domain.dictionary.DictionarySource
+import com.japanglify.app.domain.dictionary.DictionarySourceFormat
 import com.japanglify.app.domain.dictionary.DictionarySources
 
 /**
- * Runs [DictionaryDownloadManager]'s download + import inside a foreground
- * service rather than a plain background thread.
+ * Runs the download + import for any [DictionarySource] inside a foreground
+ * service rather than a plain background thread -- dispatches to
+ * [DictionaryDownloadManager], [EmojiDownloadManager], or
+ * [WordNetDownloadManager] based on [DictionarySource.format]; they differ
+ * only in how they parse and store their source data (JMdict JSON vs CLDR
+ * XML vs WordNet Prolog facts), never in the
+ * lifecycle/notification/status-persistence ceremony this service owns, so
+ * that part stays shared across every source rather than duplicated per
+ * format.
  *
  * This isn't precautionary — it's a direct fix for a real failure observed
  * live: a bare background-thread version of this same work got killed
@@ -49,7 +57,7 @@ class DictionaryDownloadService : Service() {
         }
 
         var lastNotifiedAt = 0L
-        DictionaryDownloadManager(applicationContext).download(source) { progress ->
+        val onProgress: (DictionaryDownloadProgress) -> Unit = { progress ->
             val terminal = progress.status == DictionaryDownloadStatus.READY ||
                 progress.status == DictionaryDownloadStatus.FAILED
             val now = android.os.SystemClock.elapsedRealtime()
@@ -67,6 +75,14 @@ class DictionaryDownloadService : Service() {
                 stopForeground(STOP_FOREGROUND_DETACH)
                 stopSelf(startId)
             }
+        }
+        when (source.format) {
+            DictionarySourceFormat.JMDICT_JSON ->
+                DictionaryDownloadManager(applicationContext).download(source, onProgress)
+            DictionarySourceFormat.CLDR_EMOJI_XML ->
+                EmojiDownloadManager(applicationContext).download(source, onProgress)
+            DictionarySourceFormat.WORDNET_PROLOG ->
+                WordNetDownloadManager(applicationContext).download(source, onProgress)
         }
 
         return START_NOT_STICKY

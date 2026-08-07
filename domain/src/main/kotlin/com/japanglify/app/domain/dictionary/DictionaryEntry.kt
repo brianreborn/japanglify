@@ -21,21 +21,21 @@ data class DictionaryEntry(
  * inventing new notation, per this project's stated preference for existing
  * linguistic/lexicographic conventions wherever possible.
  */
-enum class PartOfSpeech(val abbreviation: String) {
-    NOUN("n."),
-    VERB("v."),
-    ADJECTIVE("adj."),
-    ADVERB("adv."),
-    PARTICLE("part."),
-    PRONOUN("pron."),
-    CONJUNCTION("conj."),
-    INTERJECTION("interj."),
-    AUXILIARY("aux."),
-    PREFIX("pref."),
-    SUFFIX("suf."),
-    COUNTER("ctr."),
-    EXPRESSION("expr."),
-    OTHER("");
+enum class PartOfSpeech(val abbreviation: String, val displayName: String) {
+    NOUN("n.", "Noun"),
+    VERB("v.", "Verb"),
+    ADJECTIVE("adj.", "Adjective"),
+    ADVERB("adv.", "Adverb"),
+    PARTICLE("part.", "Particle"),
+    PRONOUN("pron.", "Pronoun"),
+    CONJUNCTION("conj.", "Conjunction"),
+    INTERJECTION("interj.", "Interjection"),
+    AUXILIARY("aux.", "Auxiliary"),
+    PREFIX("pref.", "Prefix"),
+    SUFFIX("suf.", "Suffix"),
+    COUNTER("ctr.", "Counter"),
+    EXPRESSION("expr.", "Expression"),
+    OTHER("", "Other");
 
     companion object {
         /**

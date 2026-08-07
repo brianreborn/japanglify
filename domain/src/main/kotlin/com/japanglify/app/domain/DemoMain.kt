@@ -123,6 +123,45 @@ object DemoMain {
             )
             println("[${fmt.displayName}]:\n$out\n")
         }
+
+        // Optional English→emoji annotation (emoji Phase 2): a second pass
+        // layered on top of the gloss pipeline above. Fake CLDR-style
+        // provider matching "Japanese" (illustrates the default -- a precise
+        // match elides the now-redundant English word) -- real CLDR data
+        // wouldn't actually match "study"/"to do" (verb infinitives and
+        // plural/singular mismatches rarely hit CLDR's noun-skewed short
+        // names; see the plan's precision-rule note), so only 日本語 gets an
+        // emoji here, which is exactly the "fires where it makes sense"
+        // scoping this feature was designed around.
+        println("\n--- 7. Optional English→emoji annotation ---")
+        val fakeEmoji = mapOf("japanese" to "🇯🇵")
+        val emojiAnnotator = com.japanglify.app.domain.emoji.EmojiAnnotator(
+            com.japanglify.app.domain.emoji.EmojiAnnotator.EmojiProvider { word, _ -> fakeEmoji[word] }
+        )
+        val emojiAnalyzer = JapaneseAnalyzer(kuromojiProvider, glossAnnotator, emojiAnnotator)
+        println("[Default: precise match elides the English gloss word]")
+        for (seg in emojiAnalyzer.annotate(text, JapanglifySettings(includeGlosses = true, includeEmoji = true))) {
+            println("  ${seg.surface.padEnd(6)} -> gloss=${seg.gloss ?: "(none)"} emoji=${seg.emoji ?: "(none)"}")
+        }
+        println("[emojiAlwaysShowBoth = true: keeps the gloss alongside the emoji]")
+        for (seg in emojiAnalyzer.annotate(
+            text,
+            JapanglifySettings(includeGlosses = true, includeEmoji = true, emojiAlwaysShowBoth = true)
+        )) {
+            println("  ${seg.surface.padEnd(6)} -> gloss=${seg.gloss ?: "(none)"} emoji=${seg.emoji ?: "(none)"}")
+        }
+
+        // Same rendering-integration proof as section 6, now with emoji on
+        // top -- the actual markup/layout per format, not just raw lookups.
+        println("\n--- 8. Emoji annotation rendered per output format (default: elides redundant English) ---")
+        val emojiEngine = JapanglifyEngine(emojiAnalyzer)
+        for (fmt in OutputFormat.entries) {
+            val out = emojiEngine.expand(
+                text,
+                JapanglifySettings(outputFormat = fmt, includeGlosses = true, includeEmoji = true)
+            )
+            println("[${fmt.displayName}]:\n$out\n")
+        }
     }
 
     /**

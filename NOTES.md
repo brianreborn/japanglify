@@ -349,6 +349,27 @@ Working state as of 2026-08-06. This file tracks what's left before a real
   block, and escaping (LaTeX special characters in surrounding text, and in
   the rare case a translation's 4th line is included too).
 
+- **Audit the fastpath for unnecessary dynamic allocations — post-1.0.** Not
+  started; a note, not a measured finding (matches this session's own "don't
+  claim performance without measuring" lesson two bullets up). The hot path
+  (`JapaneseAnalyzer.annotate` → `TripleScriptRenderer.render`) runs on every
+  Try-It keystroke (180ms-debounced) and every real Copy-hook/PROCESS_TEXT
+  conversion, and allocates fairly liberally per call — a fresh `StringBuilder`
+  per line/cell in `TripleScriptRenderer` (worst in `INTERLINEAR`, which
+  builds a `List<MeasuredCell>` per row plus several `StringBuilder`s per row
+  in `buildRawTripleLines`/`buildGlossLine`/`buildEmojiLine`), fresh
+  `SurfaceReading`/`AnnotatedSegment`/`GlossResult` lists per token per call
+  in `JapaneseAnalyzer`, and the two dictionary importers' own per-word
+  allocations (`EmojiDownloadManager`'s `HashMap`/`HashSet` churn per
+  `<annotation>`, `DictionaryDownloadManager`'s `JSONObject`/`StringBuilder`
+  per word) — though those two only run once per download, not per keystroke,
+  so they matter far less than the render path. Worth an actual allocation
+  profile (Android Studio Profiler or `dumpsys meminfo` deltas across a
+  batch of conversions) before changing anything — most of this is probably
+  fine at real input sizes (a selection/clipboard string, not a whole novel),
+  and guessing which allocations are worth removing without measuring first
+  risks trading real readability for imaginary performance.
+
 ## Known-good as of this session (verified live on Pixel 8 + Galaxy Note 9)
 
 - Settings screen: section order (Scripts → Copy assist → Phoneticization →

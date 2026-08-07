@@ -1,6 +1,7 @@
 package com.japanglify.app.dictionary
 
 import android.content.Context
+import com.japanglify.app.domain.dictionary.PartOfSpeech
 
 /**
  * Inserts a small, fixed set of real dictionary entries the first time it's
@@ -36,15 +37,23 @@ object DebugSeedDictionary {
                 db.execSQL(
                     "INSERT INTO ${DictionaryDatabase.TABLE} (" +
                         "${DictionaryDatabase.COL_HEADWORD}, ${DictionaryDatabase.COL_READING}, " +
-                        "${DictionaryDatabase.COL_POS}, ${DictionaryDatabase.COL_GLOSS}) " +
-                        "VALUES (?, ?, ?, ?)",
-                    arrayOf(entry.headword, entry.reading, entry.pos, entry.gloss)
+                        "${DictionaryDatabase.COL_POS}, ${DictionaryDatabase.COL_GLOSS}, " +
+                        "${DictionaryDatabase.COL_POS_CLASS}) " +
+                        "VALUES (?, ?, ?, ?, ?)",
+                    arrayOf(
+                        entry.headword, entry.reading, entry.pos, entry.gloss,
+                        PartOfSpeech.fromJmdictCode(entry.pos).name
+                    )
                 )
             }
             db.setTransactionSuccessful()
         } finally {
             db.endTransaction()
         }
+        // Same POS-minimalism rule the real importer applies (see
+        // DictionaryDatabase.MARK_POS_AMBIGUOUS_SQL) -- keeps debug-seed
+        // testing representative of real downloaded-dictionary behavior.
+        db.execSQL(DictionaryDatabase.MARK_POS_AMBIGUOUS_SQL)
     }
 
     /**
@@ -55,7 +64,7 @@ object DebugSeedDictionary {
     private data class SeedEntry(val headword: String, val reading: String?, val pos: String, val gloss: String)
 
     private val ENTRIES = listOf(
-        SeedEntry("日本語", "にほんご", "n", "Japanese (language)"),
+        SeedEntry("日本語", "にほんご", "n", "Japanese"),
         SeedEntry("勉強", "べんきょう", "n", "study"),
         SeedEntry("する", "する", "vs-i", "to do"),
         SeedEntry("を", null, "prt", "object marker"),

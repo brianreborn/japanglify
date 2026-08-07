@@ -8,13 +8,21 @@ import android.widget.TextView
 import com.japanglify.app.data.PreferencesRepository
 import com.japanglify.app.dictionary.DictionaryDownloadService
 import com.japanglify.app.dictionary.DictionaryDownloadStatus
+import com.japanglify.app.dictionary.EmojiDatabase
 import com.japanglify.app.dictionary.SqliteDictionaryProvider
+import com.japanglify.app.dictionary.SqliteEmojiProvider
+import com.japanglify.app.dictionary.WordNetDatabase
+import com.japanglify.app.domain.EmojiPrecisionTier
+import com.japanglify.app.domain.dictionary.DictionarySource
+import com.japanglify.app.domain.dictionary.DictionarySourceFormat
 import com.japanglify.app.domain.dictionary.DictionarySources
 
 /**
  * Debug-build-only seam for live-testing [DictionaryDownloadService] end to
  * end before Phase 6's Settings UI exists. Launch with:
- *   adb shell am start -n com.japanglify.app/com.japanglify.app.debug.DictionaryDownloadTestActivity
+ *   adb shell am start -n com.japanglify.app/com.japanglify.app.debug.DictionaryDownloadTestActivity \
+ *     --es source_id cldr_emoji_en
+ * (omit the extra, or pass "jmdict_en", for the word dictionary)
  *
  * Deliberately stays resumed for the whole download, polling the persisted
  * status every 2s -- confirmed necessary by live testing on this device: a
@@ -22,8 +30,8 @@ import com.japanglify.app.domain.dictionary.DictionarySources
  * left the app with zero visible window, still got reaped ("Stopping
  * service due to app idle") after ~74s despite `startForeground()` having
  * been called correctly. A screen staying open during download is also
- * just what Phase 6's real Settings UI will look like (a download-status
- * card the user has open), not an artifact special-cased for this harness.
+ * just what the real Settings UI looks like (a download-status card the
+ * user has open), not an artifact special-cased for this harness.
  *
  * Never present in a release build: lives under `app/src/debug/`.
  */
@@ -32,16 +40,14 @@ class DictionaryDownloadTestActivity : Activity() {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var textView: TextView
     private lateinit var prefs: PreferencesRepository
-    private val sourceId = DictionarySources.JMDICT_ENGLISH.id
+    private lateinit var source: DictionarySource
 
     private val poll = object : Runnable {
         override fun run() {
-            val status = prefs.dictionaryStatus(sourceId)
-            textView.text = "status=$status error=${prefs.dictionaryErrorMessage(sourceId)}"
+            val status = prefs.dictionaryStatus(source.id)
+            textView.text = "status=$status error=${prefs.dictionaryErrorMessage(source.id)}"
             if (status == DictionaryDownloadStatus.READY) {
-                val provider = SqliteDictionaryProvider(applicationContext, sourceId)
-                val lookups = SPOT_CHECK_WORDS.joinToString("\n") { "lookup($it) = ${provider.lookup(it)}" }
-                textView.text = "${textView.text}\n$lookups"
+                textView.text = "${textView.text}\n${spotCheck()}"
             }
             if (status != DictionaryDownloadStatus.READY && status != DictionaryDownloadStatus.FAILED) {
                 handler.postDelayed(this, POLL_INTERVAL_MS)
@@ -49,16 +55,78 @@ class DictionaryDownloadTestActivity : Activity() {
         }
     }
 
+    private fun spotCheck(): String = when (source.format) {
+        DictionarySourceFormat.JMDICT_JSON -> {
+            val provider = SqliteDictionaryProvider(applicationContext, source.id)
+            SPOT_CHECK_WORDS_JA.joinToString("\n") { "lookup($it) = ${provider.lookup(it)}" }
+        }
+        DictionarySourceFormat.CLDR_EMOJI_XML -> {
+            val helper = EmojiDatabase(applicationContext, EmojiDatabase.fileNameFor(source.id))
+            val db = helper.readableDatabase
+            val counts = db.rawQuery(
+                "SELECT ${EmojiDatabase.COL_TIER}, COUNT(*) FROM ${EmojiDatabase.TABLE} GROUP BY ${EmojiDatabase.COL_TIER}",
+                null
+            ).use { cursor ->
+                buildString {
+                    while (cursor.moveToNext()) append("${cursor.getString(0)}=${cursor.getInt(1)} ")
+                }
+            }
+            val lookups = SPOT_CHECK_WORDS_EN.joinToString("\n") { word ->
+                db.rawQuery(
+                    "SELECT ${EmojiDatabase.COL_EMOJI}, ${EmojiDatabase.COL_TIER} FROM ${EmojiDatabase.TABLE} " +
+                        "WHERE ${EmojiDatabase.COL_WORD} = ?",
+                    arrayOf(word)
+                ).use { cursor ->
+                    val results = generateSequence { if (cursor.moveToNext()) cursor else null }
+                        .map { "${it.getString(0)}(${it.getString(1)})" }
+                        .toList()
+                    "lookup($word) = ${if (results.isEmpty()) "null" else results.joinToString(", ")}"
+                }
+            }
+            val provider = SqliteEmojiProvider(applicationContext, source.id)
+            val tiered = MEDIUM_TEST_WORDS.joinToString("\n") { word ->
+                val strict = provider.lookup(word, EmojiPrecisionTier.STRICT)
+                val medium = provider.lookup(word, EmojiPrecisionTier.MEDIUM)
+                "tiered($word) strict=$strict medium=$medium"
+            }
+            "counts: $counts\n$lookups\n$tiered"
+        }
+        DictionarySourceFormat.WORDNET_PROLOG -> {
+            val helper = WordNetDatabase(applicationContext, WordNetDatabase.fileNameFor(source.id))
+            val db = helper.readableDatabase
+            val total = db.rawQuery("SELECT COUNT(*) FROM ${WordNetDatabase.TABLE}", null).use { cursor ->
+                cursor.moveToFirst(); cursor.getInt(0)
+            }
+            val lookups = SPOT_CHECK_SYNONYM_WORDS.joinToString("\n") { word ->
+                db.rawQuery(
+                    "SELECT ${WordNetDatabase.COL_SYNONYM} FROM ${WordNetDatabase.TABLE} " +
+                        "WHERE ${WordNetDatabase.COL_WORD} = ?",
+                    arrayOf(word)
+                ).use { cursor ->
+                    val results = generateSequence { if (cursor.moveToNext()) cursor else null }
+                        .map { it.getString(0) }
+                        .toList()
+                    "synonyms($word) = ${if (results.isEmpty()) "none" else results.joinToString(", ")}"
+                }
+            }
+            "counts: pairs=$total\n$lookups"
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = PreferencesRepository(this)
+        source = DictionarySources.byId(intent?.getStringExtra(EXTRA_SOURCE_ID))
+            ?: DictionarySources.JMDICT_ENGLISH
         textView = TextView(this).apply {
             text = "starting…"
             textSize = 14f
             setPadding(32, 32, 32, 32)
         }
         setContentView(textView)
-        DictionaryDownloadService.start(this, DictionarySources.JMDICT_ENGLISH)
+        if (prefs.dictionaryStatus(source.id) != DictionaryDownloadStatus.READY) {
+            DictionaryDownloadService.start(this, source)
+        }
         handler.post(poll)
     }
 
@@ -68,7 +136,11 @@ class DictionaryDownloadTestActivity : Activity() {
     }
 
     companion object {
+        private const val EXTRA_SOURCE_ID = "source_id"
         private const val POLL_INTERVAL_MS = 2000L
-        private val SPOT_CHECK_WORDS = listOf("日本語", "勉強", "する", "食べる")
+        private val SPOT_CHECK_WORDS_JA = listOf("日本語", "勉強", "する", "食べる", "犬")
+        private val SPOT_CHECK_WORDS_EN = listOf("dog", "water", "paper", "book", "study", "animal", "hole", "mountain")
+        private val SPOT_CHECK_SYNONYM_WORDS = listOf("automobile", "car", "study", "sofa")
+        private val MEDIUM_TEST_WORDS = listOf("car", "couch", "automobile")
     }
 }

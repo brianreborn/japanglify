@@ -1,6 +1,7 @@
 package com.japanglify.app.domain
 
 import com.japanglify.app.domain.dictionary.GlossAnnotator
+import com.japanglify.app.domain.emoji.EmojiAnnotator
 
 /**
  * Turns raw selected text into a list of [AnnotatedSegment]s carrying
@@ -13,10 +14,17 @@ import com.japanglify.app.domain.dictionary.GlossAnnotator
  * [glossAnnotator] is likewise optional and degrades the same way: no
  * dictionary downloaded yet (or glosses off in settings) just means every
  * segment's `gloss` stays null, same as furigana/romaji without a provider.
+ *
+ * [emojiAnnotator] is a second, optional pass layered on top of the gloss
+ * result (see [EmojiAnnotator]'s doc) — degrades the same way again: no
+ * emoji data downloaded, or the feature off in settings, just means every
+ * segment's `emoji` stays null and `gloss` is left exactly as the gloss
+ * pass produced it.
  */
 class JapaneseAnalyzer(
     private val readingProvider: ReadingProvider? = null,
-    private val glossAnnotator: GlossAnnotator? = null
+    private val glossAnnotator: GlossAnnotator? = null,
+    private val emojiAnnotator: EmojiAnnotator? = null
 ) {
 
     fun interface ReadingProvider {
@@ -49,20 +57,38 @@ class JapaneseAnalyzer(
 
         val romanizer = Romanizer(settings.romanizationSystem)
         val tokens = readingProvider?.tokenize(text) ?: fallbackTokenize(text)
-        val glosses = if (settings.includeGlosses) {
+        val glossResults = if (settings.includeGlosses) {
             glossAnnotator?.annotate(tokens) ?: List(tokens.size) { null }
         } else {
             List(tokens.size) { null }
         }
+        // Only meaningful once glosses are actually resolved -- matches
+        // against a token's *gloss text*, never the Japanese word itself,
+        // so with glosses off glossResults is already all-null and this
+        // naturally yields all-null too via EmojiAnnotator's own null check.
+        val emojis = if (settings.includeEmoji) {
+            emojiAnnotator?.annotate(glossResults, settings.emojiPosScope, settings.emojiPrecisionTier)
+                ?: List(tokens.size) { null }
+        } else {
+            List(tokens.size) { null }
+        }
 
-        return tokens.mapIndexed { i, token -> toSegment(token, settings, romanizer, glosses[i]) }
+        return tokens.mapIndexed { i, token ->
+            val emoji = emojis[i]
+            // A precise emoji match makes the English word redundant --
+            // drop it unless the user asked to always show both.
+            val elideGloss = emoji != null && !settings.emojiAlwaysShowBoth
+            val gloss = if (elideGloss) null else glossResults[i]?.text
+            toSegment(token, settings, romanizer, gloss, emoji)
+        }
     }
 
     private fun toSegment(
         token: SurfaceReading,
         settings: JapanglifySettings,
         romanizer: Romanizer,
-        gloss: String?
+        gloss: String?,
+        emoji: String?
     ): AnnotatedSegment {
         val surface = token.surface
 
@@ -81,7 +107,8 @@ class JapaneseAnalyzer(
                 romaji = roma,
                 needsFurigana = false,
                 isBoundToPrevious = token.isBoundToPrevious,
-                isParticle = token.isParticle
+                isParticle = token.isParticle,
+                emoji = emoji
             )
         }
 
@@ -163,7 +190,8 @@ class JapaneseAnalyzer(
             isBoundToPrevious = token.isBoundToPrevious,
             isParticle = token.isParticle,
             romajiSyllables = romajiSyllables,
-            gloss = gloss
+            gloss = gloss,
+            emoji = emoji
         )
     }
 

@@ -3,6 +3,7 @@ package com.japanglify.app.domain
 import com.japanglify.app.domain.dictionary.DictionaryEntry
 import com.japanglify.app.domain.dictionary.GlossAnnotator
 import com.japanglify.app.domain.dictionary.PartOfSpeech
+import com.japanglify.app.domain.emoji.EmojiAnnotator
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -92,6 +93,76 @@ class JapaneseAnalyzerTest {
         val analyzer = JapaneseAnalyzer(provider, glossAnnotator = null)
         val segments = analyzer.annotate("紙", JapanglifySettings(includeGlosses = true))
         assertNull(segments[0].gloss)
+    }
+
+    private fun paperAnalyzer(emojiAnnotator: EmojiAnnotator?): JapaneseAnalyzer {
+        val provider = JapaneseAnalyzer.ReadingProvider {
+            listOf(JapaneseAnalyzer.SurfaceReading("紙", "かみ", baseForm = "紙"))
+        }
+        val glossAnnotator = GlossAnnotator(
+            GlossAnnotator.DictionaryProvider { DictionaryEntry("紙", "かみ", PartOfSpeech.NOUN, "paper") }
+        )
+        return JapaneseAnalyzer(provider, glossAnnotator, emojiAnnotator)
+    }
+
+    @Test
+    fun emojiOffByDefaultEvenWithAnnotatorPresent() {
+        val emojiAnnotator = EmojiAnnotator(EmojiAnnotator.EmojiProvider { _, _ -> "📄" })
+        val analyzer = paperAnalyzer(emojiAnnotator)
+        val segments = analyzer.annotate("紙", JapanglifySettings(includeGlosses = true))
+        assertNull(segments[0].emoji)
+        assertEquals("n. paper", segments[0].gloss)
+    }
+
+    @Test
+    fun preciseEmojiMatchElidesGlossByDefault() {
+        val emojiAnnotator = EmojiAnnotator(EmojiAnnotator.EmojiProvider { _, _ -> "📄" })
+        val analyzer = paperAnalyzer(emojiAnnotator)
+        val segments = analyzer.annotate(
+            "紙",
+            JapanglifySettings(includeGlosses = true, includeEmoji = true)
+        )
+        assertEquals("📄", segments[0].emoji)
+        assertNull(segments[0].gloss)
+    }
+
+    @Test
+    fun alwaysShowBothKeepsGlossAlongsideEmoji() {
+        val emojiAnnotator = EmojiAnnotator(EmojiAnnotator.EmojiProvider { _, _ -> "📄" })
+        val analyzer = paperAnalyzer(emojiAnnotator)
+        val segments = analyzer.annotate(
+            "紙",
+            JapanglifySettings(includeGlosses = true, includeEmoji = true, emojiAlwaysShowBoth = true)
+        )
+        assertEquals("📄", segments[0].emoji)
+        assertEquals("n. paper", segments[0].gloss)
+    }
+
+    @Test
+    fun posScopeExcludingNounDropsEmojiButKeepsGloss() {
+        val emojiAnnotator = EmojiAnnotator(EmojiAnnotator.EmojiProvider { _, _ -> "📄" })
+        val analyzer = paperAnalyzer(emojiAnnotator)
+        val segments = analyzer.annotate(
+            "紙",
+            JapanglifySettings(
+                includeGlosses = true,
+                includeEmoji = true,
+                emojiPosScope = setOf(PartOfSpeech.VERB)
+            )
+        )
+        assertNull(segments[0].emoji)
+        assertEquals("n. paper", segments[0].gloss)
+    }
+
+    @Test
+    fun emojiEnabledButNoAnnotatorDegradesGracefully() {
+        val analyzer = paperAnalyzer(emojiAnnotator = null)
+        val segments = analyzer.annotate(
+            "紙",
+            JapanglifySettings(includeGlosses = true, includeEmoji = true)
+        )
+        assertNull(segments[0].emoji)
+        assertEquals("n. paper", segments[0].gloss)
     }
 
     @Test

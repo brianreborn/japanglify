@@ -44,23 +44,68 @@ class DictionaryDatabase(
     }
 
     companion object {
-        const val DB_VERSION = 1
+        // v3: pos_class replaced comparing raw pos (see MARK_POS_AMBIGUOUS_SQL)
+        // -- する has both "vs-i" and "v5r" rows, which differ as raw JMdict
+        // codes but both mean VERB once mapped, so raw-code comparison alone
+        // flagged it "ambiguous" and showed a "v." that added nothing (all
+        // its senses are verbs; the real ambiguity is *which* verb sense,
+        // which v1 doesn't disambiguate at all -- see the plan's "sense
+        // disambiguation" backlog note). The DB is a disposable, rebuildable
+        // cache (onUpgrade just drops + recreates it empty), which is fine
+        // pre-release with no shipped downloads to preserve; a real schema
+        // change post-release would need this to also reset the persisted
+        // download status back to NOT_DOWNLOADED so the app doesn't think a
+        // just-emptied table is still ready.
+        const val DB_VERSION = 3
         const val TABLE = "entries"
         const val COL_HEADWORD = "headword"
         const val COL_READING = "reading"
         const val COL_POS = "pos"
         const val COL_GLOSS = "gloss"
+        const val COL_POS_AMBIGUOUS = "pos_ambiguous"
+        /**
+         * The *mapped* [com.japanglify.app.domain.dictionary.PartOfSpeech]
+         * enum name (e.g. "VERB"), not a raw JMdict code -- computed once at
+         * insert time by calling the real
+         * [com.japanglify.app.domain.dictionary.PartOfSpeech.fromJmdictCode]
+         * function (never duplicated as a parallel SQL heuristic, which
+         * would just be a second place for the mapping to drift out of
+         * sync). Exists purely to drive [MARK_POS_AMBIGUOUS_SQL]'s
+         * aggregate; [SqliteDictionaryProvider] doesn't read it back.
+         */
+        const val COL_POS_CLASS = "pos_class"
 
         const val CREATE_TABLE_SQL = """
             CREATE TABLE $TABLE (
                 $COL_HEADWORD TEXT NOT NULL,
                 $COL_READING TEXT,
                 $COL_POS TEXT,
-                $COL_GLOSS TEXT NOT NULL
+                $COL_GLOSS TEXT NOT NULL,
+                $COL_POS_AMBIGUOUS INTEGER NOT NULL DEFAULT 0,
+                $COL_POS_CLASS TEXT
             )
         """
         const val CREATE_INDEX_SQL =
             "CREATE INDEX idx_$COL_HEADWORD ON $TABLE($COL_HEADWORD)"
+
+        /**
+         * Part of speech is only worth showing when it actually disambiguates
+         * something *as displayed* -- a headword whose rows all map to the
+         * same [com.japanglify.app.domain.dictionary.PartOfSpeech] gains
+         * nothing from a "v."/"n." tag stapled onto it, even if their raw
+         * JMdict codes differ. Run once, after bulk insert *and* after the
+         * headword index exists (this aggregate scans by headword, so it
+         * benefits from that index same as any lookup would).
+         * [SqliteDictionaryProvider] reads this to decide whether to surface
+         * a part of speech at all -- null POS already means "don't show it"
+         * in the existing `GlossAnnotator.format()` plumbing, so no
+         * rendering code changes.
+         */
+        const val MARK_POS_AMBIGUOUS_SQL = """
+            UPDATE $TABLE SET $COL_POS_AMBIGUOUS = 1 WHERE $COL_HEADWORD IN (
+                SELECT $COL_HEADWORD FROM $TABLE GROUP BY $COL_HEADWORD HAVING COUNT(DISTINCT $COL_POS_CLASS) > 1
+            )
+        """
 
         /** Standard filename for a given dictionary source, e.g. "dictionary_jmdict_en.db". */
         fun fileNameFor(sourceId: String): String = "dictionary_$sourceId.db"

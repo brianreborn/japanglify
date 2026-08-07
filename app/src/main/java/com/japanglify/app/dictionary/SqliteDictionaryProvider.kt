@@ -32,7 +32,8 @@ class SqliteDictionaryProvider(
                 DictionaryDatabase.COL_HEADWORD,
                 DictionaryDatabase.COL_READING,
                 DictionaryDatabase.COL_POS,
-                DictionaryDatabase.COL_GLOSS
+                DictionaryDatabase.COL_GLOSS,
+                DictionaryDatabase.COL_POS_AMBIGUOUS
             ),
             "${DictionaryDatabase.COL_HEADWORD} = ?",
             arrayOf(baseForm),
@@ -43,10 +44,15 @@ class SqliteDictionaryProvider(
         ).use { cursor ->
             if (!cursor.moveToFirst()) return null
             val posCode = cursor.getString(2)
+            // Only surface a part-of-speech tag when it actually disambiguates
+            // something (see MARK_POS_AMBIGUOUS_SQL) -- a null here already
+            // means "don't show it" in GlossAnnotator.format()'s existing
+            // plumbing, so no rendering-side change was needed for this.
+            val ambiguous = cursor.getInt(4) != 0
             return DictionaryEntry(
                 headword = cursor.getString(0),
                 reading = cursor.getString(1),
-                partOfSpeech = posCode?.let { PartOfSpeech.fromJmdictCode(it) },
+                partOfSpeech = posCode?.takeIf { ambiguous }?.let { PartOfSpeech.fromJmdictCode(it) },
                 gloss = cursor.getString(3)
             )
         }

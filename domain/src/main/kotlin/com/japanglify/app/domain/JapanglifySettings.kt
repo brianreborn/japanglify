@@ -1,5 +1,7 @@
 package com.japanglify.app.domain
 
+import com.japanglify.app.domain.dictionary.PartOfSpeech
+
 /**
  * Immutable snapshot of user preferences that drive annotation + rendering.
  * Loaded from SharedPreferences on the settings screen; applied silently
@@ -20,6 +22,18 @@ data class JapanglifySettings(
      * default — no dictionary is bundled, this is purely opt-in.
      */
     val includeGlosses: Boolean = false,
+    /**
+     * Optional English→emoji annotation layered on top of [includeGlosses]
+     * (see [com.japanglify.app.domain.emoji.EmojiAnnotator]) — has no
+     * effect unless glosses are also on, since it matches against a
+     * token's already-resolved gloss text, not the Japanese word itself.
+     */
+    val includeEmoji: Boolean = false,
+    /** Skip eliding the English gloss word when a precise emoji match is found — show both. */
+    val emojiAlwaysShowBoth: Boolean = false,
+    /** Which parts of speech are eligible for emoji lookup. Default: all (user's explicit choice). */
+    val emojiPosScope: Set<PartOfSpeech> = PartOfSpeech.entries.toSet(),
+    val emojiPrecisionTier: EmojiPrecisionTier = EmojiPrecisionTier.STRICT,
     /** When true, attach furigana only to spans that contain kanji. */
     val furiganaKanjiOnly: Boolean = true,
     /** Capitalize the first letter of each romaji word/segment. */

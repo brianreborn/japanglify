@@ -36,6 +36,32 @@
     <string name="pref_writing_orientation">Writing orientation</string>
     <string name="pref_writing_orientation_summary">Vertical (tategaki) is experimental for plain-text hosts</string>
 
+    <string name="pref_category_dictionary">Dictionary</string>
+    <string name="pref_dictionary_source">Dictionary source</string>
+    <string name="dictionary_status_not_downloaded">%1$s — not downloaded yet</string>
+    <string name="dictionary_status_downloading">Downloading %1$s… %2$d%%</string>
+    <string name="dictionary_status_parsing">Importing %1$s… %2$d words so far</string>
+    <string name="dictionary_status_ready">%1$s ready — %2$d words</string>
+    <string name="dictionary_status_failed">%1$s download failed: %2$s</string>
+    <string name="dictionary_action_download">Download</string>
+    <string name="dictionary_action_downloading">Downloading…</string>
+    <string name="dictionary_action_delete">Delete downloaded dictionary</string>
+    <string name="dictionary_delete_confirm_title">Delete dictionary?</string>
+    <string name="dictionary_delete_confirm_message">This removes the downloaded %1$s dictionary from this device. You can download it again later.</string>
+    <string name="dictionary_delete_confirm_action">Delete</string>
+    <string name="dictionary_delete_cancel_action">Cancel</string>
+    <string name="pref_include_glosses">Word/particle glosses</string>
+    <string name="pref_include_glosses_summary">Show a brief English meaning under each word and particle. Needs a downloaded dictionary above.</string>
+
+    <string name="pref_category_emoji">Emoji</string>
+    <string name="pref_include_emoji">English→emoji annotation</string>
+    <string name="pref_include_emoji_summary">Show a precise emoji under a word\'s gloss when one exists, e.g. 紙 → paper → 📄. Needs word/particle glosses on above, and the emoji data downloaded here.</string>
+    <string name="pref_emoji_precision_tier">Match precision</string>
+    <string name="pref_emoji_always_show_both">Always show gloss and emoji</string>
+    <string name="pref_emoji_always_show_both_summary">Normally a precise emoji match replaces its now-redundant English word. Enable to keep both.</string>
+    <string name="pref_emoji_pos_scope">Word types to match</string>
+    <string name="pref_emoji_pos_scope_summary">Which parts of speech are eligible for an emoji match — default is all, though concrete nouns match far more often than verbs or particles.</string>
+
     <string name="pref_category_about">About</string>
     <string name="pref_about_summary">Select Japanese text anywhere, tap Japanglify in the selection menu. Editable fields are replaced; read-only selections are copied. Change options here — the menu action never prompts.</string>
     <string name="pref_about_team">Team</string>
@@ -45,7 +71,7 @@
     <string name="pref_about_profile">Profile</string>
     <string name="pref_about_profile_summary">x.com/born_brian85001</string>
     <string name="pref_about_credits">Third-party</string>
-    <string name="pref_about_credits_summary">Kanji readings via Kuromoji/IPADIC (Apache License 2.0)</string>
+    <string name="pref_about_credits_summary">Kanji readings via Kuromoji/IPADIC (Apache License 2.0)\nDictionary data via JMdict/EDICT (EDRDG) (CC BY-SA 4.0)\nEmoji names via Unicode CLDR (Unicode-3.0)\nSynonyms via Princeton WordNet 3.0 (WordNet License)</string>
 
     <string name="pref_category_help">Selection menu help</string>
     <string name="pref_process_text_help">Where is Japanglify?</string>

@@ -3,11 +3,13 @@ package com.japanglify.app
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.os.bundleOf
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 import com.japanglify.app.ui.SettingsFragment
@@ -41,6 +43,23 @@ class SettingsActivity : AppCompatActivity() {
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             view.updatePadding(top = bars.top, bottom = bars.bottom)
             insets
+        }
+
+        // Edge-to-edge enforcement (Android 15 / API 35+ devices specifically
+        // -- checked against the device's actual OS version, not just this
+        // app's targetSdk) makes the OS ignore this theme's
+        // android:statusBarColor entirely, so our own light window
+        // background shows through the status bar instead of the dark red
+        // that color was written for. The theme's windowLightStatusBar=false
+        // (light icons, meant to contrast against that dark red) is then
+        // wrong -- light-on-light is invisible except the battery indicator,
+        // which always draws its own colored pill regardless of icon tint
+        // (confirmed live: exactly the symptom reported). Below API 35,
+        // statusBarColor is still honored normally and the theme's default
+        // is already correct, so this only overrides it where it would
+        // otherwise be wrong.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            WindowCompat.getInsetsController(window, root).isAppearanceLightStatusBars = true
         }
 
         ensureProcessTextEnabled()

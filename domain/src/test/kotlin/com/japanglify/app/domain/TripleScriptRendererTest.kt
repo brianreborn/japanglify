@@ -516,4 +516,157 @@ class TripleScriptRendererTest {
         assertTrue(out.contains("日本語"))
         assertTrue(out.contains("n. Japanese"))
     }
+
+    // ── Emoji (English→emoji annotation) ────────────────────────────
+
+    // gloss = null here on purpose: JapaneseAnalyzer nulls it out by default
+    // once a precise emoji match is found (see JapaneseAnalyzerTest's
+    // elision tests) -- the renderer just displays whatever it's given, so
+    // this fixture exercises exactly that "elided" shape.
+    private val nihongoWithEmoji = listOf(
+        AnnotatedSegment(
+            surface = "日本語",
+            furigana = "にほんご",
+            romaji = "nihongo",
+            needsFurigana = true,
+            gloss = null,
+            emoji = "🇯🇵"
+        )
+    )
+
+    // Both gloss and emoji set -- the "always show both" shape.
+    private val nihongoWithGlossAndEmoji = listOf(
+        AnnotatedSegment(
+            surface = "日本語",
+            furigana = "にほんご",
+            romaji = "nihongo",
+            needsFurigana = true,
+            gloss = "n. Japanese",
+            emoji = "🇯🇵"
+        )
+    )
+
+    private val sentenceWithEmoji = listOf(
+        AnnotatedSegment("日本語", "にほんご", "nihongo", true, gloss = null, emoji = "🇯🇵"),
+        AnnotatedSegment("を", null, "o", false, isParticle = true, gloss = "part. object marker"),
+        AnnotatedSegment("勉強", "べんきょう", "benkyou", true, gloss = "n. study"),
+        AnnotatedSegment("する", null, "suru", false, gloss = "v. to do")
+    )
+
+    @Test
+    fun emojiOffByDefaultAcrossEveryFormat() {
+        // includeEmoji defaults to false — no format should ever emit the
+        // emoji even when a segment has one attached.
+        for (fmt in OutputFormat.entries) {
+            val settings = JapanglifySettings(outputFormat = fmt)
+            val out = renderer.render(nihongoWithEmoji, settings)
+            assertFalse("$fmt leaked emoji with includeEmoji off:\n$out", out.contains("🇯🇵"))
+        }
+    }
+
+    @Test
+    fun parentheticalAppendsEmojiAfterGloss() {
+        val settings = JapanglifySettings(
+            outputFormat = OutputFormat.PARENTHETICAL,
+            romajiPosition = RomajiPosition.BELOW,
+            includeGlosses = true,
+            includeEmoji = true
+        )
+        val out = renderer.render(nihongoWithGlossAndEmoji, settings)
+        assertEquals("日本語（にほんご / nihongo / n. Japanese / 🇯🇵）", out)
+    }
+
+    @Test
+    fun furiganaInlineAddsFourthEmojiLine() {
+        val settings = JapanglifySettings(
+            outputFormat = OutputFormat.FURIGANA_INLINE,
+            romajiPosition = RomajiPosition.BELOW,
+            includeGlosses = true,
+            includeEmoji = true
+        )
+        val out = renderer.render(nihongoWithGlossAndEmoji, settings)
+        assertEquals("日本語《にほんご》\nnihongo\nn. Japanese\n🇯🇵", out)
+    }
+
+    @Test
+    fun furiganaInlineShowsOnlyEmojiWhenGlossElided() {
+        val settings = JapanglifySettings(
+            outputFormat = OutputFormat.FURIGANA_INLINE,
+            romajiPosition = RomajiPosition.BELOW,
+            includeGlosses = true,
+            includeEmoji = true
+        )
+        val out = renderer.render(nihongoWithEmoji, settings)
+        assertEquals("日本語《にほんご》\nnihongo\n🇯🇵", out)
+    }
+
+    @Test
+    fun compactBracketsAddsEmojiAfterGlossBraces() {
+        val settings = JapanglifySettings(
+            outputFormat = OutputFormat.COMPACT,
+            includeGlosses = true,
+            includeEmoji = true
+        )
+        val out = renderer.render(nihongoWithGlossAndEmoji, settings)
+        assertEquals("日本語〔にほんご〕[nihongo]{n. Japanese}🇯🇵", out)
+    }
+
+    @Test
+    fun interlinearAddsFifthEmojiRowAfterGloss() {
+        val settings = JapanglifySettings(
+            outputFormat = OutputFormat.INTERLINEAR,
+            romajiPosition = RomajiPosition.BELOW,
+            includeGlosses = true,
+            includeEmoji = true,
+            maxLineWidthFullwidth = 0
+        )
+        val out = renderer.render(sentenceWithEmoji, settings).stripWordJoiner()
+        val lines = out.lines()
+        assertEquals(5, lines.size)
+        assertTrue(lines[3].contains("part. object marker"))
+        assertTrue(lines[4].contains("🇯🇵"))
+    }
+
+    @Test
+    fun interlinearEmojiRowOmittedWhenNoSegmentHasOne() {
+        val settings = JapanglifySettings(
+            outputFormat = OutputFormat.INTERLINEAR,
+            includeGlosses = true,
+            includeEmoji = true
+        )
+        // nihongo (no gloss/emoji attributes set) -- includeEmoji is on, but
+        // there's nothing to show, so the row must not appear as a blank line.
+        val out = renderer.render(nihongo, settings)
+        assertEquals(3, out.lines().size)
+    }
+
+    @Test
+    fun interlinearEmojiIsWordLevelNotPerCharacter() {
+        val settings = JapanglifySettings(
+            outputFormat = OutputFormat.INTERLINEAR,
+            includeRomaji = false,
+            includeGlosses = true,
+            includeEmoji = true,
+            maxLineWidthFullwidth = 0
+        )
+        val out = renderer.render(nihongoWithEmoji, settings).stripWordJoiner()
+        val emojiLine = out.lines().last()
+        assertEquals(1, Regex("🇯🇵").findAll(emojiLine).count())
+    }
+
+    @Test
+    fun htmlRubyAddsFourthBlockSpanForEmojiAfterGloss() {
+        val settings = JapanglifySettings(
+            outputFormat = OutputFormat.HTML_RUBY,
+            romajiPosition = RomajiPosition.BELOW,
+            includeGlosses = true,
+            includeEmoji = true
+        )
+        val out = renderer.render(nihongoWithGlossAndEmoji, settings)
+        assertTrue(out.contains("<ruby>日本語<rt>にほんご</rt></ruby>"))
+        assertTrue(out.contains("n. Japanese"))
+        assertTrue(out.contains("🇯🇵"))
+        // Order: romaji, then ruby, then gloss, then emoji (BELOW here).
+        assertTrue(out.indexOf("n. Japanese") < out.indexOf("🇯🇵"))
+    }
 }

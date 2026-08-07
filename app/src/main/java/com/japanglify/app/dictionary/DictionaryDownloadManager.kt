@@ -7,6 +7,7 @@ import android.os.Handler
 import android.os.Looper
 import com.japanglify.app.data.PreferencesRepository
 import com.japanglify.app.domain.dictionary.DictionarySource
+import com.japanglify.app.domain.dictionary.PartOfSpeech
 import org.json.JSONObject
 import java.io.File
 import java.io.InputStreamReader
@@ -140,6 +141,15 @@ class DictionaryDownloadManager(private val context: Context) {
     private fun importZipIntoDatabase(zipFile: File, dbFile: File, onProgress: (Int) -> Unit): Int {
         val db = SQLiteDatabase.openOrCreateDatabase(dbFile, null)
         try {
+            // Raw SQLiteDatabase.openOrCreateDatabase() never touches SQLite's
+            // `user_version` pragma. Without this, the read side
+            // (DictionaryDatabase, a SQLiteOpenHelper) sees version 0 on its
+            // first open, treats that as older than DB_VERSION, and its own
+            // onUpgrade() drops + recreates the table empty -- silently
+            // wiping a just-imported dictionary the first time it's ever
+            // read. Confirmed live: countEntries() reported 0 rows against a
+            // dictionary that had genuinely finished importing successfully.
+            db.version = DictionaryDatabase.DB_VERSION
             db.execSQL(DictionaryDatabase.CREATE_TABLE_SQL)
             var wordCount = 0
             ZipInputStream(zipFile.inputStream().buffered(1 shl 16)).use { zis ->
@@ -169,6 +179,9 @@ class DictionaryDownloadManager(private val context: Context) {
             // Built once, after the bulk insert -- indexing incrementally
             // during ~200k inserts would be far slower than indexing once.
             db.execSQL(DictionaryDatabase.CREATE_INDEX_SQL)
+            // Benefits from that same index (scans by headword), so it runs
+            // after -- see MARK_POS_AMBIGUOUS_SQL's doc comment.
+            db.execSQL(DictionaryDatabase.MARK_POS_AMBIGUOUS_SQL)
             return wordCount
         } finally {
             db.close()
@@ -207,9 +220,18 @@ class DictionaryDownloadManager(private val context: Context) {
             }
         }
         if (gloss == null) return 0
+        // JMdict often qualifies a gloss with a trailing clarifier, e.g.
+        // "Japanese (language)" -- useful when several senses need telling
+        // apart, but v1 only ever shows this one (first) sense, so within a
+        // single displayed row there's nothing left for it to disambiguate
+        // from; it just costs space. Strip it at import time, matching the
+        // "persist only what actually reaches a rendered row" policy
+        // (see insertWord's own doc comment) rather than at render time.
+        gloss = stripTrailingParenthetical(gloss)
 
         val posArr = firstSense.optJSONArray("partOfSpeech")
         val pos = if (posArr != null && posArr.length() > 0) posArr.optString(0) else null
+        val posClass = pos?.let { PartOfSpeech.fromJmdictCode(it).name }
 
         val kanaArr = word.optJSONArray("kana")
         val reading = if (kanaArr != null && kanaArr.length() > 0) {
@@ -222,7 +244,7 @@ class DictionaryDownloadManager(private val context: Context) {
         if (kanjiArr != null && kanjiArr.length() > 0) {
             for (k in 0 until kanjiArr.length()) {
                 val headword = kanjiArr.getJSONObject(k).optString("text").takeIf { it.isNotBlank() } ?: continue
-                bindAndExecute(stmt, headword, reading, pos, gloss)
+                bindAndExecute(stmt, headword, reading, pos, gloss, posClass)
                 inserted++
                 if (headword == reading) kanjiMatchesReading = true
             }
@@ -236,10 +258,45 @@ class DictionaryDownloadManager(private val context: Context) {
         // make ordinary, extremely common words unlookupable in practice.
         // Confirmed live: する returned nothing until this was added.
         if (reading != null && !kanjiMatchesReading) {
-            bindAndExecute(stmt, reading, reading, pos, gloss)
+            bindAndExecute(stmt, reading, reading, pos, gloss, posClass)
             inserted++
         }
         return inserted
+    }
+
+    /**
+     * Strips one trailing "(...)" qualifier, e.g. "Japanese (language)" ->
+     * "Japanese". Nesting-aware -- confirmed live this session that a naive
+     * non-nested regex silently fails on real JMdict glosses like
+     * "dog (Canis (lupus) familiaris)" (species entries routinely carry a
+     * taxonomic name with its own inner parens), leaving the whole
+     * qualifier in place instead of stripping it. Walks backward from the
+     * end tracking paren depth to find the *matching* opening paren for the
+     * final ')', so "(Canis (lupus) familiaris)" strips as one balanced
+     * unit -> "dog". Left unchanged if the trailing parens aren't balanced
+     * back to a matching '(' (safety fallback, same as the blank-result
+     * fallback below).
+     */
+    private fun stripTrailingParenthetical(gloss: String): String {
+        val trimmedEnd = gloss.trimEnd()
+        if (!trimmedEnd.endsWith(')')) return gloss
+        var depth = 0
+        var openIndex = -1
+        for (i in trimmedEnd.indices.reversed()) {
+            when (trimmedEnd[i]) {
+                ')' -> depth++
+                '(' -> {
+                    depth--
+                    if (depth == 0) {
+                        openIndex = i
+                        break
+                    }
+                }
+            }
+        }
+        if (openIndex < 0) return gloss
+        val stripped = trimmedEnd.substring(0, openIndex).trim()
+        return stripped.ifBlank { gloss }
     }
 
     private fun bindAndExecute(
@@ -247,13 +304,15 @@ class DictionaryDownloadManager(private val context: Context) {
         headword: String,
         reading: String?,
         pos: String?,
-        gloss: String
+        gloss: String,
+        posClass: String?
     ) {
         stmt.clearBindings()
         stmt.bindString(1, headword)
         if (reading != null) stmt.bindString(2, reading) else stmt.bindNull(2)
         if (pos != null) stmt.bindString(3, pos) else stmt.bindNull(3)
         stmt.bindString(4, gloss)
+        if (posClass != null) stmt.bindString(5, posClass) else stmt.bindNull(5)
         stmt.executeInsert()
     }
 
@@ -353,6 +412,7 @@ class DictionaryDownloadManager(private val context: Context) {
         private const val INSERT_SQL =
             "INSERT INTO ${DictionaryDatabase.TABLE} (" +
                 "${DictionaryDatabase.COL_HEADWORD}, ${DictionaryDatabase.COL_READING}, " +
-                "${DictionaryDatabase.COL_POS}, ${DictionaryDatabase.COL_GLOSS}) VALUES (?, ?, ?, ?)"
+                "${DictionaryDatabase.COL_POS}, ${DictionaryDatabase.COL_GLOSS}, " +
+                "${DictionaryDatabase.COL_POS_CLASS}) VALUES (?, ?, ?, ?, ?)"
     }
 }
