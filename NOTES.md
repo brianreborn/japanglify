@@ -300,6 +300,15 @@ Working state as of 2026-08-06. This file tracks what's left before a real
 - Furigana renders visibly smaller than base/romaji in the in-app Try-It
   preview (real ruby-style sizing via `RelativeSizeSpan`, INTERLINEAR format
   only).
+- Copy image, end-to-end via a real Discord Copy: small furigana confirmed
+  in the actual saved PNG (see the "Copy Image" entry above).
+- `RealDictionaryIntegrationTest` (new): the domain suite's first test
+  against the real Kuromoji dictionary instead of hand-crafted fixtures —
+  captured verbatim from a real, unscripted Discord message draft during
+  this session, pinned exactly for `PARENTHETICAL` and smoke-tested across
+  every `OutputFormat`/`RomanizationSystem`. Stored proof the full
+  tokenize→resolve→render pipeline holds up on organic Japanese, not just
+  curated examples.
 
 ## Environment notes (don't rediscover these)
 
@@ -327,6 +336,20 @@ Working state as of 2026-08-06. This file tracks what's left before a real
   a bug: the "selection memory" fallback (captured from accessibility
   selection-changed events, not `ClipboardManager`) is what actually carries
   the pipeline in that case.
+- After ~2.5 hours of this session's testing (many apps open simultaneously —
+  Discord, X with a live Space, Chrome, repeated Japanglify installs/builds),
+  the test device hit real resource exhaustion: `dumpsys meminfo` itself
+  timed out (`*** SERVICE 'meminfo' DUMP TIMEOUT (10000ms) EXPIRED ***`),
+  `lowmemorykiller` was actively killing background apps, and an ANR dialog
+  ("Japanglify isn't responding") appeared and recurred across app switches.
+  Given a core system service couldn't respond either, this reads as
+  device-wide memory pressure rather than a Japanglify-specific hang — but
+  it's not fully ruled out as the latter, since `JapanglifyAccessibilityService`
+  was mid-pipeline at the time. Not investigated further this session. If it
+  recurs on a *fresh* device/session (not after hours of heavy multi-app
+  use), treat it as a real bug and get an actual ANR trace
+  (`adb shell logcat -d | grep -A30 "ANR in com.japanglify"` /
+  `/data/anr/traces.txt`) rather than assuming resource exhaustion again.
 - Screenshots: `scripts/adb-shot.sh <out.png> [max_seconds] [poll_interval]`
   busy-polls until two consecutive frames match, but has been flaky this
   session over an unstable wireless-debugging connection — plain

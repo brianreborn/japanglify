@@ -15,27 +15,11 @@ object DemoMain {
         // representative of the one-time cost JapanglifyApp.onCreate() pays
         // (see NOTES.md's performance-pass item).
         val loadStart = System.nanoTime()
-        val tokenizer = com.atilika.kuromoji.ipadic.Tokenizer.Builder().build()
+        val kuromojiProvider = buildKuromojiProvider()
         val loadMs = (System.nanoTime() - loadStart) / 1_000_000.0
         println("--- 0. Performance ---")
         println("Kuromoji dictionary load: %.1f ms".format(loadMs))
 
-        val kuromojiProvider = JapaneseAnalyzer.ReadingProvider { raw ->
-            tokenizer.tokenize(raw).map { t ->
-                val pos1 = t.partOfSpeechLevel1
-                val reading = if (pos1 == "助詞") {
-                    when (t.surface) {
-                        "は" -> "ワ"
-                        "へ" -> "エ"
-                        "を" -> "オ"
-                        else -> t.reading?.takeIf { it.isNotBlank() && it != "*" }
-                    }
-                } else {
-                    t.reading?.takeIf { it.isNotBlank() && it != "*" }
-                }
-                JapaneseAnalyzer.SurfaceReading(t.surface, reading)
-            }
-        }
         val analyzer = JapaneseAnalyzer(kuromojiProvider)
 
         val engine = JapanglifyEngine(analyzer)
@@ -95,5 +79,34 @@ object DemoMain {
         val renderMs = (System.nanoTime() - renderStart) / 1_000_000.0
         println("Analyze + render: %.1f ms (%d output chars, %d rows)"
             .format(renderMs, longOut.length, longOut.split("\n\n").size))
+    }
+
+    /**
+     * Real Kuromoji/IPADIC-backed [JapaneseAnalyzer.ReadingProvider] for the
+     * plain JVM — mirrors the particle spoken-reading normalization the
+     * app's Android-side `KuromojiReadingProvider` applies (は→ワ, へ→エ,
+     * を→オ), without that class's Android-only number-token-merging
+     * behavior. Shared with [RealDictionaryIntegrationTest], which runs the
+     * full pipeline against real, organically-sourced Japanese rather than
+     * this suite's usual hand-crafted `AnnotatedSegment` fixtures.
+     */
+    fun buildKuromojiProvider(): JapaneseAnalyzer.ReadingProvider {
+        val tokenizer = com.atilika.kuromoji.ipadic.Tokenizer.Builder().build()
+        return JapaneseAnalyzer.ReadingProvider { raw ->
+            tokenizer.tokenize(raw).map { t ->
+                val pos1 = t.partOfSpeechLevel1
+                val reading = if (pos1 == "助詞") {
+                    when (t.surface) {
+                        "は" -> "ワ"
+                        "へ" -> "エ"
+                        "を" -> "オ"
+                        else -> t.reading?.takeIf { it.isNotBlank() && it != "*" }
+                    }
+                } else {
+                    t.reading?.takeIf { it.isNotBlank() && it != "*" }
+                }
+                JapaneseAnalyzer.SurfaceReading(t.surface, reading)
+            }
+        }
     }
 }
