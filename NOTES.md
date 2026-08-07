@@ -5,6 +5,31 @@ Working state as of 2026-08-06. This file tracks what's left before a real
 
 ## Open items
 
+- **Further emoji-annotation refinement — post-1.0, backburner.** Live UAT of
+  the Medium emoji-precision tier (WordNet synonym expansion) surfaced two
+  distinct outcomes worth telling apart, found by testing real words against
+  the real downloaded CLDR + WordNet data on a Pixel 8, not synthetic
+  fixtures:
+  - `car` → declined (both `strict` and `medium` null) because WordNet lists
+    `car` as a synonym of both "automobile" (→ 🚗) and "railway car" (→ 🚃) —
+    two genuinely common, unrelated senses with no signal (no Japanese-side
+    context, no frequency data) to prefer one over the other. This is the
+    ambiguity-drop rule working correctly on a real two-sense word, not a bug
+    or a borderline call — declining here is more defensible than guessing
+    would be, since either pick has a real chance of being wrong per-sentence.
+  - `jacket` → resolved to 👑 ("crown"), which is wrong for the word almost
+    anyone means by "jacket." Root cause: WordNet's synset membership for
+    "jacket" includes an obscure dental sense ("jacket crown," a real dental
+    term), and none of jacket's *common* synonyms (coat, blazer, ...) happen
+    to have their own CLDR name — so the rare technical sense wins by
+    elimination since nothing filters by word-sense frequency/commonness.
+    This is a real, if likely rare, failure mode inherent to using raw
+    WordNet synset membership with no sense disambiguation. Left as a known
+    Medium-tier limitation for now, not fixed — a synset-frequency/rarity
+    heuristic (or true sense disambiguation) is a bigger feature than this
+    session's scope, and it isn't yet clear from one example how often this
+    actually bites in practice.
+
 - **HTML ruby output was fundamentally broken for every segment with both
   furigana and romaji — found, root-caused, and fixed this session via live
   browser testing.** Started a systematic rendering-quality pass (ruby →
