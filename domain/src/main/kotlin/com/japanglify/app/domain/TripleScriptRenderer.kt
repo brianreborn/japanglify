@@ -637,16 +637,67 @@ class TripleScriptRenderer {
         return text + PAD.repeat(targetWidth - w)
     }
 
+    /**
+     * Center [text] in a field of [targetWidth] display cells, distributing
+     * the padding as gaps *around each character* — CSS Ruby's default
+     * `ruby-align: space-around` technique for annotation text shorter than
+     * the width it must fill — rather than as two lumps at the outer edges.
+     * A multi-character word that needs centering (e.g. a kanji compound
+     * kept whole because romaji is enabled, padded out to match a wider
+     * mora-hyphenated romaji line) fills its column evenly instead of
+     * clustering in the middle of empty margin.
+     *
+     * [text]'s `n` codepoints create `n + 1` gap positions (before the
+     * first character, between each adjacent pair, after the last); each
+     * gets `diff / (n + 1)` PAD units, with the `diff % (n + 1)` remainder
+     * distributed one unit at a time from the outer edges inward. This
+     * needs no special-casing for short text: at `n = 0` there's exactly
+     * one position, so all padding lands as a single block (identical to
+     * the old edge-only behavior); at `n = 1` there are exactly two edge
+     * positions, again identical to before. It also degrades gracefully
+     * when `diff` is small relative to `n` — with too little slack to give
+     * every interior gap even one whole PAD unit, the remainder-to-edges
+     * rule naturally leaves the interior gaps at zero and all padding sits
+     * at the edges, same as today, rather than doing token, uneven
+     * micro-spacing that wouldn't read as intentional.
+     */
     private fun padCenterDisplay(text: String, targetWidth: Int): String {
         val w = displayWidth(text)
         if (w >= targetWidth) return text
         val diff = targetWidth - w
-        val left = diff / 2
-        val right = diff - left
-        // Discord (and similar chat UIs) strip plain U+0020 spaces, which
-        // silently destroys column alignment — pad with PAD (U+2800) instead,
-        // same as padEndDisplay.
-        return PAD.repeat(left) + text + PAD.repeat(right)
+
+        val codePoints = ArrayList<Int>()
+        var i = 0
+        while (i < text.length) {
+            val cp = text.codePointAt(i)
+            codePoints += cp
+            i += Character.charCount(cp)
+        }
+
+        val gapCount = codePoints.size + 1
+        val base = diff / gapCount
+        var remainder = diff - base * gapCount
+        val gaps = IntArray(gapCount) { base }
+        var lo = 0
+        var hi = gapCount - 1
+        while (remainder > 0 && lo <= hi) {
+            gaps[lo] += 1
+            remainder--
+            if (lo != hi && remainder > 0) {
+                gaps[hi] += 1
+                remainder--
+            }
+            lo++
+            hi--
+        }
+
+        return buildString {
+            append(PAD.repeat(gaps[0]))
+            codePoints.forEachIndexed { idx, cp ->
+                appendCodePoint(cp)
+                append(PAD.repeat(gaps[idx + 1]))
+            }
+        }
     }
 
     private val PAD_CHAR: Char get() = PAD[0]

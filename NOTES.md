@@ -12,36 +12,52 @@ Working state as of 2026-08-06. This file tracks what's left before a real
   formatting bugs should be driven by whoever is holding the device: convert
   a phrase, report exactly what looks wrong (which row, which characters,
   which settings), and let that guide a targeted code fix instead of
-  screenshot-chasing.
+  screenshot-chasing. **Escalated this session, not just an inconvenience:**
+  a stale/dismissed text-selection toolbar plus an estimated (not
+  uiautomator-dumped) tap coordinate landed a tap inside the test device's
+  live X Space UI instead of Japanglify's Copy button — no destructive
+  action resulted (backed out via HOME immediately, confirmed via
+  `dumpsys window` before continuing), but this device is in active
+  real-world use by whoever owns it, not a dedicated throwaway test rig.
+  Automated ADB taps derived from screenshot pixel-estimates (as opposed to
+  fresh `uiautomator dump` bounds) should be treated as unsafe on this
+  device going forward — confirm the dump matches current screen state
+  immediately before tapping, every time, or don't.
 
-- **Base row visibly indented right relative to furigana/romaji in plain-text
-  interlinear rendering — new finding this session, needs a real fix.** Live
-  on a Pixel 8 (`MaxLineWidthPreference`'s 3-font sample preview, but this is
-  plain `engine.expand()` output so it reproduces anywhere plain-text
-  interlinear is shown), converting "日本語を勉強する": the furigana row
-  ("にほんご") and romaji row ("ni·ho·n·go") both start flush at the row's
-  left edge, but the base row ("日本語") is visibly indented right of both —
-  identically in **both** the sans-serif and monospace preview boxes. That
-  monospace shows the *same* misalignment as sans-serif rules out ordinary
-  font-metric imprecision (a true monospace font would pad exactly); it
-  points at the padding math itself. Leading hypothesis, not yet confirmed
-  by a fix: `TripleScriptRenderer.codePointDisplayWidth()` hardcodes U+2800
-  (Braille Pattern Blank, used everywhere as the Discord-safe pad character —
-  see `PAD`'s doc comment) to display width 1, but most fonts don't natively
-  cover the Braille Patterns Unicode block, so real hosts likely substitute
-  a fallback glyph for it whose *actual* rendered width doesn't match that
-  assumption — and since neither the "sans-serif" nor "monospace" preview
-  font is likely to include Braille glyphs either, both would fall back to
-  the same wrong-width substitute, explaining why both show the identical
-  error instead of monospace rendering correctly. This cell's base text
-  needed the *most* padding of the three lines (widest gap between base's
-  natural width and the cell's target width), so it's the most visibly
-  thrown off; furigana needed less padding and romaji needed none, matching
-  the graduated shift in the screenshot. Not a quick one-line patch to
-  attempt blind — `TripleScriptRenderer`'s padding/measurement scheme is
-  heavily tuned (NBSP-stripping hosts, BiDi punctuation, wrap protection)
-  and worth a real live-device fix/verify loop, not a guess from this
-  session's unreliable automation.
+- **Base row looked indented right relative to furigana/romaji in plain-text
+  interlinear rendering — investigated, root-caused, fixed, and live-verified
+  this session.** Live on a Pixel 8, converting "日本語を勉強する": the base
+  row ("日本語") looked oddly indented relative to furigana/romaji. A JVM
+  unit test proved the padding *arithmetic* was already correct and
+  self-consistent (all three lines share the same computed center) — so the
+  ungainly look wasn't a math bug. Root cause: `padCenterDisplay` dumped all
+  centering slack as two lumps at the outer edges of the text (e.g. "日本語"
+  needing 4 half-units against a 10-wide cell became `⠀⠀日本語⠀⠀` — the whole
+  word clustered tightly and shoved into the middle of empty margin).
+  **Fixed** by adopting CSS Ruby's `ruby-align: space-around` technique:
+  distribute the padding as gaps *around each character* (N codepoints → N+1
+  gap positions, slack divided evenly with remainder resolved symmetrically
+  from the edges inward) instead of two edge lumps. "日本語" now renders
+  `⠀日⠀本⠀語⠀` — spreads evenly to fill the column, and its leading gap now
+  matches furigana's, so 日 and に start at the same horizontal position.
+  Degenerates to the exact old behavior for 0- or 1-codepoint text (the
+  common single-kanji-per-cell case), so only multi-character cells that
+  need centering are affected. New permanent regression tests
+  (`TripleScriptRendererTest.interlinearCenterPaddingDistributesAroundCharac
+  tersNotAtEdges`, `padCenterDistributionDegeneratesToEdgesForSingleCharacte
+  rText`) pin exact expected strings. Full existing suite (16 tests) and
+  static analysis still pass unmodified — width-equality/Discord-trim
+  assertions hold by construction since total width is unchanged, only
+  redistributed. **Live-verified**: rebuilt, installed, screenshotted the
+  Settings preview across all three font/size combinations (small
+  sans-serif, default sans-serif, monospace) — the fix holds consistently
+  regardless of font, as expected from a purely character-count-driven
+  algorithm. The `勉強`/`べんきょう` cell's remaining visible offset (base
+  still noticeably indented there) was checked against the same math and
+  confirmed correct: furigana there ties romaji as the widest line (both 10
+  half-units) so it's flush already, and base's 2-unit-per-gap spread across
+  only 2 characters is exactly what real `ruby-align: space-around` would
+  also produce for that width ratio — not a residual bug.
 
 - **Re-verify the "でき" line-wrap fix live.** `TripleScriptRenderer` now
   applies the same Word-Joiner (U+2060) wrap protection to the plain-text

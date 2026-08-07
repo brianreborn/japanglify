@@ -55,6 +55,85 @@ class TripleScriptRendererTest {
         assertEquals("（nihongo / にほんご）日本語", out)
     }
 
+    /**
+     * Ground-truth pin for a real screenshot report ("日本語を勉強する" on a
+     * Pixel 8 looked like the base row was indented right of furigana/romaji
+     * — see NOTES.md). Confirms the PAD-count math itself is correct and
+     * intentional: the cell width is dominated by the mora-hyphenated
+     * romaji ("ni·ho·n·go", 10 half-units), so *center*-aligning the
+     * narrower base ("日本語", 6) and furigana ("にほんご", 8) against that
+     * width necessarily gives base more padding than furigana (2 PAD chars
+     * vs. 1 per side) — that asymmetry is by design, not a bug. Whether
+     * U+2800 (PAD)'s *real* rendered width on a given host font matches the
+     * width-1 this renderer assumes for it is a separate, unverified
+     * question this test can't answer (needs a live device/font, not a JVM
+     * unit test) — see the NOTES.md item this backs.
+     */
+    @Test
+    fun interlinearCenterPaddingDistributesAroundCharactersNotAtEdges() {
+        val segments = listOf(
+            AnnotatedSegment(
+                surface = "日本語",
+                furigana = "にほんご",
+                romaji = "nihongo",
+                romajiSyllables = "ni·ho·n·go",
+                needsFurigana = true
+            )
+        )
+        val settings = JapanglifySettings(
+            outputFormat = OutputFormat.INTERLINEAR,
+            romajiPosition = RomajiPosition.BELOW,
+            maxLineWidthFullwidth = 0
+        )
+        val lines = renderer.render(segments, settings).lines().map { it.replace("⁠", "") }
+        val (furiLine, baseLine, romaLine) = Triple(lines[0], lines[1], lines[2])
+
+        // Cell width 10 (set by "ni·ho·n·go"). Romaji needs no padding.
+        // Furigana (8-wide, 4 codepoints) has only 2 half-units of slack
+        // spread across 5 gap positions — too little for any interior gap
+        // to round up to a whole PAD unit, so it stays edge-only, same as
+        // the old algorithm would have produced.
+        assertEquals("ni·ho·n·go", romaLine)
+        assertEquals("⠀にほんご⠀", furiLine)
+        // Base (6-wide, 3 codepoints) has 4 half-units of slack spread
+        // across 4 gap positions — exactly 1 PAD unit each, so it now
+        // fills the column evenly instead of clustering as "⠀⠀日本語⠀⠀".
+        // Its first PAD-run (1 unit) now matches furigana's (1 unit), so
+        // 日 and に line up at the same horizontal start position.
+        assertEquals("⠀日⠀本⠀語⠀", baseLine)
+
+        val w = renderer.displayWidth(lines[0])
+        assertEquals(w, renderer.displayWidth(lines[1]))
+        assertEquals(w, renderer.displayWidth(lines[2]))
+    }
+
+    @Test
+    fun padCenterDistributionDegeneratesToEdgesForSingleCharacterText() {
+        // N=1 codepoint has exactly one interior-free layout (left/right
+        // edge only) — must match the pre-refinement behavior exactly,
+        // since this is the common case for the split-kanji-per-column path:
+        // includeRomaji=false routes a kanji+okurigana word through
+        // splitKanjiFurigana, giving each kanji its own single-character cell.
+        val segments = listOf(
+            AnnotatedSegment("食べる", "たべる", romaji = null, needsFurigana = true)
+        )
+        val settings = JapanglifySettings(
+            outputFormat = OutputFormat.INTERLINEAR,
+            romajiPosition = RomajiPosition.BELOW,
+            includeRomaji = false,
+            maxLineWidthFullwidth = 0
+        )
+        val lines = renderer.render(segments, settings).lines().map { it.replace("⁠", "") }
+        // "食" (base, width 2) centered against "た" (furigana for 食, width
+        // 2) — equal width, no padding needed, both flush. The follow-on
+        // okurigana cell "べる" has no furigana shown (kanji-only default)
+        // and needs no centering either. Nothing here should exercise
+        // interior distribution; if it did, this single-codepoint cell
+        // would still only ever get edge padding by construction.
+        assertTrue("expected single-kanji base cell, got: ${lines[1]}", lines[1].contains("食"))
+        assertTrue(!lines[1].contains("⠀食⠀⠀") && !lines[1].contains("⠀⠀食⠀"))
+    }
+
     @Test
     fun interlinearFuriganaOverRomajiUnder() {
         val settings = JapanglifySettings(
