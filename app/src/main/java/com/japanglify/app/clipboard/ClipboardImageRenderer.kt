@@ -37,15 +37,23 @@ object ClipboardImageRenderer {
     private const val BG_COLOR = Color.WHITE
     private const val TEXT_COLOR = Color.BLACK
 
+    /**
+     * Real furigana is a small reading annotation, not a same-size third
+     * line — shared with [com.japanglify.app.ui.SettingsFragment]'s in-app
+     * Try-It preview ([android.text.style.RelativeSizeSpan]) so both
+     * renderings of the same output agree on how much smaller.
+     */
+    const val FURIGANA_RELATIVE_SIZE = 0.62f
+
     /** One full-width kana glyph, used to size the wrap budget to a target pixel width. */
     private const val SAMPLE_FULLWIDTH_CHAR = "あ"
 
-    private fun buildPaint(context: Context): TextPaint {
+    private fun buildPaint(context: Context, sizeSp: Float = TEXT_SIZE_SP): TextPaint {
         val density = context.resources.displayMetrics.density
         return TextPaint().apply {
             isAntiAlias = true
             color = TEXT_COLOR
-            textSize = TEXT_SIZE_SP * density
+            textSize = sizeSp * density
         }
     }
 
@@ -61,22 +69,32 @@ object ClipboardImageRenderer {
         val base: String,
         val romaji: String,
         val isWordStart: Boolean,
+        val gloss: String,
+        val emoji: String,
         val width: Float
     )
 
-    /** Which of the (up to) three lines to draw, top to bottom, per [RomajiPosition]. */
-    private enum class Line { FURIGANA, BASE, ROMAJI }
+    /**
+     * Which lines to draw, top to bottom. Gloss and emoji always trail last,
+     * after furigana/base/romaji regardless of [RomajiPosition] -- matches
+     * every other [com.japanglify.app.domain.OutputFormat]'s "own line, at
+     * the bottom" placement for these two rather than being tied to romaji's
+     * position-relative logic.
+     */
+    private enum class Line { FURIGANA, BASE, ROMAJI, GLOSS, EMOJI }
 
     private fun lineOrder(settings: JapanglifySettings): List<Line> =
-        when (settings.romajiPosition) {
+        (when (settings.romajiPosition) {
             RomajiPosition.ABOVE, RomajiPosition.BEFORE -> listOf(Line.ROMAJI, Line.FURIGANA, Line.BASE)
             RomajiPosition.BELOW, RomajiPosition.AFTER -> listOf(Line.FURIGANA, Line.BASE, Line.ROMAJI)
-        }
+        }) + listOf(Line.GLOSS, Line.EMOJI)
 
     private fun MeasuredCell.text(line: Line): String = when (line) {
         Line.FURIGANA -> furigana
         Line.BASE -> base
         Line.ROMAJI -> romaji
+        Line.GLOSS -> gloss
+        Line.EMOJI -> emoji
     }
 
     /**
@@ -93,6 +111,7 @@ object ClipboardImageRenderer {
         settings: JapanglifySettings
     ): Bitmap {
         val paint = buildPaint(context)
+        val furiganaPaint = buildPaint(context, TEXT_SIZE_SP * FURIGANA_RELATIVE_SIZE)
         val density = context.resources.displayMetrics.density
         val padding = paddingPx(context)
         val wordGapPx = WORD_GAP_DP * density
@@ -104,12 +123,16 @@ object ClipboardImageRenderer {
             row.cells.map { c ->
                 val furi = if (settings.includeFurigana) c.furigana else ""
                 val roma = if (settings.includeRomaji) c.romaji else ""
+                val gloss = if (settings.includeGlosses) c.gloss else ""
+                val emoji = if (settings.includeEmoji) c.emoji else ""
                 val width = maxOf(
                     paint.measureText(c.base),
-                    paint.measureText(furi),
-                    paint.measureText(roma)
+                    furiganaPaint.measureText(furi),
+                    paint.measureText(roma),
+                    paint.measureText(gloss),
+                    paint.measureText(emoji)
                 ).coerceAtLeast(1f)
-                MeasuredCell(furi, c.base, roma, c.isWordStart, width)
+                MeasuredCell(furi, c.base, roma, c.isWordStart, gloss, emoji, width)
             }
         }
 
@@ -140,13 +163,22 @@ object ClipboardImageRenderer {
         var y = padding.toFloat()
         for (row in measuredRows) {
             for (line in rowVisibleLines(row)) {
+                val linePaint = if (line == Line.FURIGANA) furiganaPaint else paint
                 var x = padding.toFloat()
                 row.forEachIndexed { i, cell ->
                     if (i > 0 && cell.isWordStart) x += wordGapPx
                     val text = cell.text(line)
                     if (text.isNotEmpty()) {
-                        val tw = paint.measureText(text)
-                        canvas.drawText(text, x + (cell.width - tw) / 2f, y + baselineOffset, paint)
+                        // Gloss/emoji are left-anchored, never truncated, matching the
+                        // plain-text renderer's padEndDisplay (vs. padCenterDisplay for
+                        // furigana/base/romaji) -- see buildGlossLine/buildEmojiLine.
+                        val tx = if (line == Line.GLOSS || line == Line.EMOJI) {
+                            x
+                        } else {
+                            val tw = linePaint.measureText(text)
+                            x + (cell.width - tw) / 2f
+                        }
+                        canvas.drawText(text, tx, y + baselineOffset, linePaint)
                     }
                     x += cell.width
                 }

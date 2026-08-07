@@ -32,9 +32,10 @@ class ProcessTextActivity : Activity() {
         com.japanglify.app.clipboard.LastResultStore.rememberHost(callingPackage, null)
         val app = application as JapanglifyApp
         val settings = app.preferences.load()
+        val source = raw.toString()
 
         val expanded = runCatching {
-            app.engine.expand(raw.toString(), settings)
+            app.engine.expand(source, settings)
         }.getOrElse { err ->
             Toast.makeText(
                 this,
@@ -46,6 +47,10 @@ class ProcessTextActivity : Activity() {
             return
         }
 
+        finishWithResult(expanded, readOnly)
+    }
+
+    private fun finishWithResult(expanded: String, readOnly: Boolean) {
         if (!readOnly) {
             val result = Intent().putExtra(Intent.EXTRA_PROCESS_TEXT, expanded)
             setResult(RESULT_OK, result)
@@ -55,7 +60,6 @@ class ProcessTextActivity : Activity() {
             // Read-only hosts do not consume a result; still OK RESULT.
             setResult(RESULT_OK)
         }
-
         finish()
     }
 }

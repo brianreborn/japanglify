@@ -109,6 +109,7 @@ object ClipboardProcessor {
         LastResultStore.save(context, text, result)
         ClipboardNotifications.cancelTapToProcess(context)
         ClipboardNotifications.showResult(context, result)
+
         return ProcessOutcome.SUCCESS
     }
 

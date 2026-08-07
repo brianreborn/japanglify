@@ -1,18 +1,30 @@
 package com.japanglify.app.clipboard
 
 import android.app.Activity
-import android.os.Bundle
 import android.widget.Toast
 import com.japanglify.app.R
 
 /**
  * Brief focused activity so Android allows clipboard reads when the
  * accessibility path still cannot see the clip (rare OEM cases).
+ *
+ * The read must happen in [onWindowFocusChanged], not [onCreate]: Android's
+ * ClipboardService gates `getPrimaryClip()` on the window *currently* having
+ * input focus, and a just-created Activity's window doesn't have it yet —
+ * confirmed live via logcat (`ActivityTaskManager: START ... isFocused=false`
+ * immediately followed by `ClipboardService: Denying clipboard access to
+ * com.japanglify.app, application is not in focus`). Reading in onCreate()
+ * defeated the entire point of this activity, failing almost every time it
+ * was launched from a notification action.
  */
 class ProcessClipboardActivity : Activity() {
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
+    private var handled = false
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (!hasFocus || handled) return
+        handled = true
 
         val outcome = ClipboardProcessor.processClipboardIfNew(this)
         when (outcome) {

@@ -1,7 +1,6 @@
 package com.japanglify.app.ui
 
 import android.Manifest
-import android.content.ClipboardManager
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -19,6 +18,7 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.preference.ListPreference
+import androidx.preference.MultiSelectListPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.SwitchPreferenceCompat
@@ -26,19 +26,35 @@ import com.japanglify.app.JapanglifyApp
 import com.japanglify.app.ProcessTextActivity
 import com.japanglify.app.R
 import com.japanglify.app.clipboard.ClipboardAssistService
+import com.japanglify.app.clipboard.ClipboardImageRenderer
 import com.japanglify.app.clipboard.ClipboardNotifications
+import com.japanglify.app.clipboard.ClipboardProcessor
 import com.japanglify.app.clipboard.CopyHookDiagnostics
 import com.japanglify.app.clipboard.JapanglifyAccessibilityService
 import com.japanglify.app.clipboard.LastResultStore
 import com.japanglify.app.data.PreferencesRepository
+import com.japanglify.app.dictionary.DictionaryDatabase
+import com.japanglify.app.dictionary.DictionaryDownloadService
+import com.japanglify.app.dictionary.DictionaryDownloadStatus
+import com.japanglify.app.dictionary.EmojiDatabase
+import com.japanglify.app.dictionary.WordNetDatabase
+import com.japanglify.app.domain.EmojiPrecisionTier
 import com.japanglify.app.domain.JapanglifySettings
 import com.japanglify.app.domain.OutputFormat
 import com.japanglify.app.domain.TripleScriptRenderer
+import com.japanglify.app.domain.dictionary.DictionarySource
+import com.japanglify.app.domain.dictionary.DictionarySourceFormat
+import com.japanglify.app.domain.dictionary.DictionarySources
+import com.japanglify.app.domain.dictionary.PartOfSpeech
+import java.io.File
 
 class SettingsFragment : PreferenceFragmentCompat() {
 
     private val liveHandler = Handler(Looper.getMainLooper())
     private var liveRunnable: Runnable? = null
+
+    private val dictHandler = Handler(Looper.getMainLooper())
+    private var dictRunnable: Runnable? = null
 
     private val requestNotifications = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -73,6 +89,14 @@ class SettingsFragment : PreferenceFragmentCompat() {
             PreferencesRepository.KEY_OUTPUT_FORMAT,
             com.japanglify.app.domain.OutputFormat.entries.map { it.id to it.displayName }
         )
+        findPreference<ListPreference>(PreferencesRepository.KEY_OUTPUT_FORMAT)
+            ?.setOnPreferenceChangeListener { _, newValue ->
+                // ListPreference reports the new value before it's persisted, so
+                // pass it straight through rather than re-reading SharedPreferences.
+                val fmt = OutputFormat.fromId(newValue as? String)
+                findPreference<OutputFormatPreviewPreference>(KEY_OUTPUT_FORMAT_PREVIEW)?.refresh(fmt)
+                true
+            }
         bindList(
             PreferencesRepository.KEY_WRITING_ORIENTATION,
             com.japanglify.app.domain.WritingOrientation.entries.map { it.id to it.displayName }
@@ -81,6 +105,49 @@ class SettingsFragment : PreferenceFragmentCompat() {
             PreferencesRepository.KEY_FURIGANA_PUNCTUATION_STYLE,
             com.japanglify.app.domain.FuriganaPunctuationStyle.entries.map { it.id to it.displayName }
         )
+        bindList(
+            PreferencesRepository.KEY_DICTIONARY_SOURCE,
+            DictionarySources.ALL.map { it.id to it.displayName }
+        )
+        findPreference<ListPreference>(PreferencesRepository.KEY_DICTIONARY_SOURCE)
+            ?.setOnPreferenceChangeListener { _, newValue ->
+                // Same "new value arrives before it's persisted" shape as
+                // KEY_OUTPUT_FORMAT above -- refresh against it directly.
+                val source = DictionarySources.byId(newValue as? String) ?: DictionarySources.JMDICT_ENGLISH
+                refreshDictionaryStatus(source)
+                true
+            }
+        findPreference<DictionaryStatusPreference>(KEY_DICTIONARY_STATUS)?.apply {
+            onDownloadClicked = {
+                DictionaryDownloadService.start(requireContext(), selectedDictionarySource())
+                scheduleDictionaryPoll()
+            }
+            onDeleteClicked = { deleteDictionary(selectedDictionarySource()) }
+        }
+
+        findPreference<DictionaryStatusPreference>(KEY_EMOJI_STATUS)?.apply {
+            onDownloadClicked = {
+                DictionaryDownloadService.start(requireContext(), DictionarySources.CLDR_EMOJI)
+                scheduleDictionaryPoll()
+            }
+            onDeleteClicked = { deleteDictionary(DictionarySources.CLDR_EMOJI) }
+        }
+        findPreference<DictionaryStatusPreference>(KEY_WORDNET_STATUS)?.apply {
+            onDownloadClicked = {
+                DictionaryDownloadService.start(requireContext(), DictionarySources.WORDNET_SYNONYMS)
+                scheduleDictionaryPoll()
+            }
+            onDeleteClicked = { deleteDictionary(DictionarySources.WORDNET_SYNONYMS) }
+        }
+        bindList(
+            PreferencesRepository.KEY_EMOJI_PRECISION_TIER,
+            EmojiPrecisionTier.entries.map { it.id to it.displayName }
+        )
+        findPreference<MultiSelectListPreference>(PreferencesRepository.KEY_EMOJI_POS_SCOPE)?.apply {
+            entryValues = PartOfSpeech.entries.map { it.name }.toTypedArray()
+            entries = PartOfSpeech.entries.map { it.displayName }.toTypedArray()
+        }
+
         findPreference<Preference>(KEY_ABOUT_CONTACT)?.setOnPreferenceClickListener {
             val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$CONTACT_EMAIL"))
             runCatching { startActivity(intent) }
@@ -149,10 +216,18 @@ class SettingsFragment : PreferenceFragmentCompat() {
         refreshA11yStatus()
         refreshStatusCard()
         scheduleLivePreview()
+        findPreference<OutputFormatPreviewPreference>(KEY_OUTPUT_FORMAT_PREVIEW)?.refresh()
+        refreshDictionaryStatus(selectedDictionarySource())
+        refreshDictionaryStatus(DictionarySources.CLDR_EMOJI)
+        refreshDictionaryStatus(DictionarySources.WORDNET_SYNONYMS)
+        // Covers a download already in flight from before this screen was
+        // (re)opened -- e.g. rotated, or navigated away and back.
+        scheduleDictionaryPoll()
     }
 
     override fun onDestroyView() {
         liveRunnable?.let { liveHandler.removeCallbacks(it) }
+        dictRunnable?.let { dictHandler.removeCallbacks(it) }
         super.onDestroyView()
     }
 
@@ -215,7 +290,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                     append(line.text)
                     if (line.role == TripleScriptRenderer.InterlinearLineRole.FURIGANA) {
                         setSpan(
-                            RelativeSizeSpan(FURIGANA_RELATIVE_SIZE),
+                            RelativeSizeSpan(ClipboardImageRenderer.FURIGANA_RELATIVE_SIZE),
                             start,
                             length,
                             Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -262,12 +337,13 @@ class SettingsFragment : PreferenceFragmentCompat() {
     }
 
     private fun japanglifyClipboard() {
-        val clipboard = requireContext().getSystemService(ClipboardManager::class.java)
-        val text = clipboard.primaryClip
-            ?.takeIf { it.itemCount > 0 }
-            ?.getItemAt(0)
-            ?.coerceToText(requireContext())
-            ?.toString()
+        // Shared with ClipboardProcessor's other callers rather than reading
+        // ClipboardManager directly here: readClipboardSnapshot() already
+        // catches the exception a non-text ClipData item (e.g. a URI/image
+        // clip with no read grant) can throw from coerceToText() — this call
+        // site used to skip that and could crash instead of just no-op'ing.
+        val text = ClipboardProcessor.readClipboardSnapshot(requireContext())
+            .text
             ?.takeIf { it.isNotBlank() }
 
         if (text == null) {
@@ -276,11 +352,11 @@ class SettingsFragment : PreferenceFragmentCompat() {
         }
 
         val expanded = expandOrToast(text) ?: return
+        val app = requireContext().applicationContext as JapanglifyApp
         findPreference<TryItCardPreference>(KEY_TRY_IT_CARD)?.let { card ->
             card.setText(expanded)
             // Same double-conversion hazard as japanglifyTryItField() above.
             liveRunnable?.let { liveHandler.removeCallbacks(it) }
-            val app = requireContext().applicationContext as JapanglifyApp
             card.setOutput(buildPreviewOutput(app, text, app.preferences.load()))
         }
         LastResultStore.writeToClipboard(requireContext(), expanded)
@@ -299,6 +375,143 @@ class SettingsFragment : PreferenceFragmentCompat() {
             ).show()
             null
         }
+    }
+
+    // ── Dictionary ──────────────────────────────────────────────────
+
+    private fun selectedDictionarySource(): DictionarySource {
+        val app = requireContext().applicationContext as JapanglifyApp
+        return DictionarySources.byId(app.preferences.selectedDictionarySourceId())
+            ?: DictionarySources.JMDICT_ENGLISH
+    }
+
+    private fun refreshDictionaryStatus(source: DictionarySource) {
+        val statusKey = when (source.format) {
+            DictionarySourceFormat.CLDR_EMOJI_XML -> KEY_EMOJI_STATUS
+            DictionarySourceFormat.WORDNET_PROLOG -> KEY_WORDNET_STATUS
+            DictionarySourceFormat.JMDICT_JSON -> KEY_DICTIONARY_STATUS
+        }
+        val statusPref = findPreference<DictionaryStatusPreference>(statusKey) ?: return
+        val app = requireContext().applicationContext as JapanglifyApp
+        val status = app.preferences.dictionaryStatus(source.id)
+        // wordsImported isn't persisted anywhere (only known transiently
+        // during the download's own progress callback) -- when READY,
+        // query the real row count directly rather than show a stale or
+        // always-zero number once the user leaves and reopens Settings.
+        val wordCount = if (status == DictionaryDownloadStatus.READY) countEntries(source) else 0
+        statusPref.render(
+            DictionaryStatusPreference.State(
+                sourceName = source.displayName,
+                status = status,
+                percent = null,
+                wordsImported = wordCount,
+                errorMessage = app.preferences.dictionaryErrorMessage(source.id)
+            )
+        )
+    }
+
+    private fun countEntries(source: DictionarySource): Int = runCatching {
+        when (source.format) {
+            DictionarySourceFormat.JMDICT_JSON -> {
+                val helper = DictionaryDatabase(requireContext(), DictionaryDatabase.fileNameFor(source.id))
+                helper.readableDatabase.rawQuery(
+                    "SELECT COUNT(*) FROM ${DictionaryDatabase.TABLE}",
+                    null
+                ).use { cursor -> cursor.moveToFirst(); cursor.getInt(0) }
+            }
+            DictionarySourceFormat.CLDR_EMOJI_XML -> {
+                val helper = EmojiDatabase(requireContext(), EmojiDatabase.fileNameFor(source.id))
+                helper.readableDatabase.rawQuery(
+                    "SELECT COUNT(*) FROM ${EmojiDatabase.TABLE}",
+                    null
+                ).use { cursor -> cursor.moveToFirst(); cursor.getInt(0) }
+            }
+            DictionarySourceFormat.WORDNET_PROLOG -> {
+                val helper = WordNetDatabase(requireContext(), WordNetDatabase.fileNameFor(source.id))
+                helper.readableDatabase.rawQuery(
+                    "SELECT COUNT(*) FROM ${WordNetDatabase.TABLE}",
+                    null
+                ).use { cursor -> cursor.moveToFirst(); cursor.getInt(0) }
+            }
+        }
+    }.getOrDefault(0)
+
+    /**
+     * Same debounce/cancel-and-repost shape as [scheduleLivePreview], but
+     * self-rescheduling rather than a one-shot: the actual downloads run in
+     * [DictionaryDownloadService] (a separate component, protected against
+     * this fragment/activity going away), so this fragment has no direct
+     * callback into them and instead polls the same
+     * [com.japanglify.app.data.PreferencesRepository] status the service
+     * persists at each stage transition.
+     *
+     * One shared poll covers *both* possible sources (the selected word
+     * dictionary and the fixed emoji source) per tick rather than two
+     * independent Handler/Runnable pairs -- both would run on the same main
+     * thread either way (no real thread-switching cost from having two),
+     * but one scheduled callback checking two sources is simpler than two
+     * near-identical ones, and it self-stops once *neither* is still
+     * DOWNLOADING/PARSING instead of needing two independent stop
+     * conditions.
+     */
+    private fun scheduleDictionaryPoll() {
+        dictRunnable?.let { dictHandler.removeCallbacks(it) }
+        // A source can reach READY on one tick while the other source is
+        // still in progress on a later tick -- track which ones already
+        // triggered rebuildEngine() so a still-running sibling source
+        // doesn't cause it to be called again every tick.
+        val alreadyRebuilt = mutableSetOf<String>()
+        val r = object : Runnable {
+            override fun run() {
+                val app = requireContext().applicationContext as JapanglifyApp
+                var anyInProgress = false
+                for (source in listOf(
+                    selectedDictionarySource(),
+                    DictionarySources.CLDR_EMOJI,
+                    DictionarySources.WORDNET_SYNONYMS
+                )) {
+                    refreshDictionaryStatus(source)
+                    when (app.preferences.dictionaryStatus(source.id)) {
+                        DictionaryDownloadStatus.DOWNLOADING, DictionaryDownloadStatus.PARSING ->
+                            anyInProgress = true
+                        DictionaryDownloadStatus.READY ->
+                            // A download can finish while the app is already
+                            // running (the service isn't tied to this
+                            // screen) -- without this, it would silently sit
+                            // unused until the app was force-killed and
+                            // reopened.
+                            if (alreadyRebuilt.add(source.id)) app.rebuildEngine()
+                        else -> Unit
+                    }
+                }
+                if (anyInProgress) dictHandler.postDelayed(this, DICTIONARY_POLL_INTERVAL_MS)
+            }
+        }
+        dictRunnable = r
+        dictHandler.post(r)
+    }
+
+    private fun deleteDictionary(source: DictionarySource) {
+        val context = requireContext()
+        val app = context.applicationContext as JapanglifyApp
+        val fileName = when (source.format) {
+            DictionarySourceFormat.JMDICT_JSON -> DictionaryDatabase.fileNameFor(source.id)
+            DictionarySourceFormat.CLDR_EMOJI_XML -> EmojiDatabase.fileNameFor(source.id)
+            DictionarySourceFormat.WORDNET_PROLOG -> WordNetDatabase.fileNameFor(source.id)
+        }
+        val dbFile = context.getDatabasePath(fileName)
+        dbFile.delete()
+        // SQLiteOpenHelper only creates -journal/-wal sidecars for a
+        // connection that opened *this* file for writing; the read-only
+        // Sqlite*Provider connections this app uses don't, but clean up
+        // defensively rather than assume that always holds.
+        File("${dbFile.path}-journal").delete()
+        File("${dbFile.path}-wal").delete()
+        File("${dbFile.path}-shm").delete()
+        app.preferences.setDictionaryStatus(source.id, DictionaryDownloadStatus.NOT_DOWNLOADED)
+        refreshDictionaryStatus(source)
+        app.rebuildEngine()
+        Toast.makeText(context, R.string.dictionary_action_delete, Toast.LENGTH_SHORT).show()
     }
 
     // ── Status card ─────────────────────────────────────────────────
@@ -450,11 +663,14 @@ class SettingsFragment : PreferenceFragmentCompat() {
         const val ARG_SHARED_TEXT = "shared_text"
         private const val KEY_STATUS_CARD = "status_card"
         private const val KEY_TRY_IT_CARD = "try_it_card"
+        private const val KEY_OUTPUT_FORMAT_PREVIEW = "output_format_preview"
         private const val KEY_ABOUT_CONTACT = "about_contact"
         private const val CONTACT_EMAIL = "brianfundakowskifeldman@gmail.com"
         private const val KEY_ABOUT_PROFILE = "about_profile"
         private const val PROFILE_URL = "https://x.com/born_brian85001"
-        /** Real furigana is a small reading annotation, not a same-size third line. */
-        private const val FURIGANA_RELATIVE_SIZE = 0.62f
+        private const val KEY_DICTIONARY_STATUS = "dictionary_status"
+        private const val KEY_EMOJI_STATUS = "emoji_status"
+        private const val KEY_WORDNET_STATUS = "wordnet_status"
+        private const val DICTIONARY_POLL_INTERVAL_MS = 1000L
     }
 }

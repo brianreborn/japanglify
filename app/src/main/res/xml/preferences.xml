@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto">
+<PreferenceScreen
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <Preference
         app:key="options_heading"
@@ -28,6 +30,7 @@
             app:summary="@string/pref_capitalize_romaji_summary"
             app:title="@string/pref_capitalize_romaji" />
         <ListPreference
+            android:layout="@layout/preference_indented"
             app:defaultValue="none"
             app:dependency="include_furigana"
             app:key="furigana_punctuation_style"
@@ -51,6 +54,7 @@
             app:summary="@string/a11y_status_unknown"
             app:title="@string/pref_a11y_status" />
         <SwitchPreferenceCompat
+            android:layout="@layout/preference_indented"
             app:defaultValue="false"
             app:dependency="clipboard_assist"
             app:key="clipboard_fgs_fallback"
@@ -77,6 +81,9 @@
             app:key="output_format"
             app:title="@string/pref_output_format"
             app:useSimpleSummaryProvider="true" />
+        <com.japanglify.app.ui.OutputFormatPreviewPreference
+            app:key="output_format_preview"
+            app:selectable="false" />
         <com.japanglify.app.ui.MaxLineWidthPreference
             app:defaultValue="14"
             app:key="max_line_width_fullwidth"
@@ -87,6 +94,57 @@
             app:key="writing_orientation"
             app:summary="@string/pref_writing_orientation_summary"
             app:title="@string/pref_writing_orientation" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="@string/pref_category_dictionary">
+        <ListPreference
+            app:defaultValue="jmdict_en"
+            app:key="dictionary_source"
+            app:title="@string/pref_dictionary_source"
+            app:useSimpleSummaryProvider="true" />
+        <com.japanglify.app.ui.DictionaryStatusPreference
+            app:key="dictionary_status"
+            app:selectable="false" />
+        <SwitchPreferenceCompat
+            app:defaultValue="false"
+            app:key="include_glosses"
+            app:summary="@string/pref_include_glosses_summary"
+            app:title="@string/pref_include_glosses" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="@string/pref_category_emoji">
+        <com.japanglify.app.ui.DictionaryStatusPreference
+            app:key="emoji_status"
+            app:selectable="false" />
+        <SwitchPreferenceCompat
+            app:defaultValue="false"
+            app:key="include_emoji"
+            app:summary="@string/pref_include_emoji_summary"
+            app:title="@string/pref_include_emoji" />
+        <ListPreference
+            android:layout="@layout/preference_indented"
+            app:defaultValue="strict"
+            app:dependency="include_emoji"
+            app:key="emoji_precision_tier"
+            app:title="@string/pref_emoji_precision_tier"
+            app:useSimpleSummaryProvider="true" />
+        <com.japanglify.app.ui.DictionaryStatusPreference
+            app:dependency="include_emoji"
+            app:key="wordnet_status"
+            app:selectable="false" />
+        <SwitchPreferenceCompat
+            android:layout="@layout/preference_indented"
+            app:defaultValue="false"
+            app:dependency="include_emoji"
+            app:key="emoji_always_show_both"
+            app:summary="@string/pref_emoji_always_show_both_summary"
+            app:title="@string/pref_emoji_always_show_both" />
+        <MultiSelectListPreference
+            android:layout="@layout/preference_indented"
+            app:dependency="include_emoji"
+            app:key="emoji_pos_scope"
+            app:summary="@string/pref_emoji_pos_scope_summary"
+            app:title="@string/pref_emoji_pos_scope" />
     </PreferenceCategory>
 
     <com.japanglify.app.ui.StatusCardPreference
