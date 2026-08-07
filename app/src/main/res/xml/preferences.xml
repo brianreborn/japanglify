@@ -82,6 +82,9 @@
             app:key="output_format"
             app:title="@string/pref_output_format"
             app:useSimpleSummaryProvider="true" />
+        <com.japanglify.app.ui.OutputFormatPreviewPreference
+            app:key="output_format_preview"
+            app:selectable="false" />
         <com.japanglify.app.ui.MaxLineWidthPreference
             app:defaultValue="14"
             app:key="max_line_width_fullwidth"

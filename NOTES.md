@@ -69,23 +69,70 @@ Working state as of 2026-08-06. This file tracks what's left before a real
   place. Built and reinstalled on both test devices but not yet re-verified
   end-to-end with a fresh Copy → paste round-trip.
 
-- **"Copy Image" rendering.** Furigana now renders visibly smaller than
-  base/romaji in the rasterized PNG too (`ClipboardImageRenderer` gained a
-  second, smaller `TextPaint` for the furigana row — `FURIGANA_RELATIVE_SIZE
-  = 0.62f`, the same constant the in-app Try-It preview's `RelativeSizeSpan`
-  already used; `SettingsFragment` now references that one shared constant
-  instead of duplicating it). Builds clean, but **not live-verified this
-  session** — driving the real "Copy image" notification button requires
-  either the Accessibility copy-hook or a genuine host Copy action, and
-  every ADB-automation path tried this session to reach it artificially
-  (direct broadcast to `ClipboardAssistReceiver`, seeding `LastResultStore`
-  via `run-as`) silently no-opped without error, consistent with this
-  session's broader live-device-automation flakiness (see the UAT item
-  above). Whoever is next on a device: process a phrase, tap "Copy image"
-  from the result notification, and confirm the furigana row visibly reads
-  smaller than the base/romaji rows in the saved PNG. Also still carries the
-  older stray-"？"-under-`ORIGINAL`-style unverified report from before this
-  session.
+- **"Copy Image" rendering — fully live-verified end-to-end this session,
+  via a real Discord Copy, not another broadcast workaround.** Furigana
+  renders visibly smaller than base/romaji in the rasterized PNG
+  (`ClipboardImageRenderer` gained a second, smaller `TextPaint` for the
+  furigana row — `FURIGANA_RELATIVE_SIZE = 0.62f`, shared with the in-app
+  Try-It preview's `RelativeSizeSpan` instead of duplicated). **Confirmed by
+  pulling the actual generated PNG off the device and viewing it directly**
+  (`run-as ... cat cache/images/japanglify_result.png`): にほんご renders
+  visibly smaller than 日本語/ni·ho·n·go, exactly as intended.
+  Earlier ADB-broadcast attempts to trigger `ACTION_COPY_IMAGE` directly
+  (bypassing the real UI) were abandoned as a dead end — turned out to be
+  the wrong approach entirely, not just unreliable. The real flow (enable
+  Accessibility → Copy in a host app → tap "Copy image" on the notification)
+  was driven for real this session, in the Discord scenario specifically
+  (paste "日本語" into a real Discord channel's message box *without
+  sending*, select and Copy it there, confirm the real Japanglify
+  notification appears with Discord correctly prioritizing "Copy image"
+  since it's in `IMAGE_PREFERRED_HOSTS`, tap it, pull and inspect the PNG).
+  Getting there surfaced three real environmental gotchas worth recording
+  (see below) that were the *actual* blockers, not automation flakiness:
+  1. **`am force-stop` unbinds the Accessibility service, not just
+     `adb install -r`** (NOTES.md's existing environment tip only mentioned
+     reinstall). After any force-stop, Accessibility needs re-enabling via
+     Settings → Accessibility → Japanglify Copy assist → toggle → Allow.
+  2. **Android's background clipboard-access restriction
+     (`ClipboardService: Denying clipboard access ... application is not in
+     focus`) blocks `JapanglifyAccessibilityService`'s clipboard *reads***
+     (both the poll loop and any `getPrimaryClip()` call) whenever
+     Japanglify isn't the focused app — which, structurally, is always true
+     for a background accessibility service reacting to a Copy in some
+     *other* app. This didn't break the flow: the "selection memory"
+     fallback (`lastSelectedText`, captured from `TYPE_VIEW_TEXT_SELECTION_
+     CHANGED` accessibility node text rather than `ClipboardManager`)
+     correctly bypassed it and processed successfully
+     (`CopyHookDiagnostics` showed `processed selection OK`). This is a good
+     signal that fallback is load-bearing on modern Android, not a nice-to-have.
+  3. **Enabling Accessibility directly via system Settings (rather than
+     through the app's own in-app toggle) skips the app's `POST_NOTIFICATIONS`
+     runtime-permission request**, since that request is wired to the
+     in-app switch's `onPreferenceChangeListener`, not to the service
+     actually connecting. Net effect: the whole pipeline runs successfully
+     but silently produces no visible notification
+     (`dumpsys notification` showed `AppSettings: ... importance=NONE`
+     until fixed via Settings → Apps → Japanglify → Notifications). Anyone
+     enabling Accessibility from system Settings first should sanity-check
+     notification permission separately.
+  Still carries the older stray-"？"-under-`ORIGINAL`-style report from
+  before this session, never reproduced against current code.
+  - **Translation, separately**: the network path is confirmed correct at
+    the protocol level — repeated attempts across this session consistently
+    logged `non-200 response: 429` (see the Task #6 entry below), never a
+    code exception, never a silent black box now that logging was added.
+    No successful 200 response was achieved this session despite retrying
+    over roughly an hour; whoever picks this up next should expect the rate
+    limit may still be active on this same device/network and shouldn't
+    assume a repeat 429 means new breakage.
+  - **Translation, separately**: the network path is now confirmed correct
+    at the protocol level — repeated attempts across this session
+    consistently logged `non-200 response: 429` (see the Task #6 entry
+    below), never a code exception, and never a silent black box now that
+    logging was added. No successful 200 response was achieved this
+    session despite retrying ~45 minutes apart; whoever picks this up next
+    should expect the rate limit may still be active on this same
+    device/network and shouldn't assume a repeat 429 means new breakage.
 
 - **Task #6 — English-translation 4th line. Decided + implemented this
   session.** User chose the online-API direction, specifically the free
@@ -126,43 +173,86 @@ Working state as of 2026-08-06. This file tracks what's left before a real
   container), which is a different environment from both the FreeBSD dev
   host and a normal Linux CI box.
 
-- **Output-format live examples in Settings.** Not started. The Rendering
-  category's output-format picker (`OutputFormat`: parenthetical /
-  interlinear / HTML ruby / compact / furigana-inline) is currently a plain
-  `ListPreference` dropdown — users pick a format by name/description alone
-  with no idea what it actually looks like until they try it. Render a short
-  sample conversion under each option (or at least under the currently
-  selected one) so people can see what they're choosing between, the same
-  way `MaxLineWidthPreference` already renders a live sample at the
-  candidate line width while dragging its slider — that's the pattern to
-  follow rather than inventing a new one.
+- **Output-format live examples in Settings — implemented and live-verified
+  this session.** New `OutputFormatPreviewPreference` (mirrors
+  `MaxLineWidthPreference`'s pattern: a read-only custom `Preference` card,
+  not a replacement for the `ListPreference` picker itself) sits right below
+  the `output_format` dropdown and renders all 5 `OutputFormat` options
+  against the same short sample ("日本語") side by side, with the currently
+  selected one shown in bold with a "✓" prefix. Refreshes on `onResume()`
+  and immediately when `output_format` changes (via its
+  `setOnPreferenceChangeListener`, using the new value directly since
+  `ListPreference` reports it before persisting). Live-verified on the
+  Pixel 8: all 5 formats render correctly (furigana-inline, parenthetical,
+  interlinear — with the bold "✓ Interlinear" label — HTML ruby showing raw
+  tags as expected, compact brackets), confirming people can now compare
+  every format before picking one instead of guessing from the name alone.
 
-- **Audit clipboard-event recursion safety.** For a future cleanup pass, not
-  urgent now: do a dedicated search across the clipboard-assist pipeline
-  (`LastResultStore`'s self-write suppression/ring-buffer,
-  `JapanglifyAccessibilityService`'s `clipListener` + `pollRunnable`,
-  `ClipboardAssistService`'s own listener, and the new translation
-  notification-update path in `ClipboardProcessor`) for any path where a
-  Japanglify-triggered clipboard write could re-trigger the pipeline instead
-  of being recognized as "ours." The guards (`isSuppressing`,
-  `isSelfWrite`, `shouldIgnoreClipboard`, the `CLIP_LABEL` stamp) are spread
-  across several independent listeners/pollers rather than one chokepoint,
-  and the translation feature just added a second `showResult`/
-  `LastResultStore.save` call per conversion — worth explicitly re-checking
-  that combination isn't a gap, not just assuming it's covered by the
-  existing per-listener guards.
+- **Clipboard-event recursion safety audit — done this session, no bug
+  found.** Traced every write/listener path: `LastResultStore`'s
+  suppression window + self-write ring buffer + `CLIP_LABEL` stamp,
+  `JapanglifyAccessibilityService`'s `clipListener` + `pollRunnable` + Cut
+  auto-replace, `ClipboardAssistService`'s own listener, and the new
+  translation notification-update path in `ClipboardProcessor`.
+  - The translation path (`LastResultStore.save()` called a second time
+    once translation resolves) never touches the system clipboard at all —
+    it only updates internal state and re-posts the same notification ID —
+    so it's structurally outside this class of bug regardless of timing.
+  - One real near-miss chased down and confirmed already handled: Cut
+    auto-replace repositions the cursor after inserting text
+    (`moveCursorAfterInsert`, via `ACTION_SET_SELECTION`), which can fire a
+    `TYPE_VIEW_TEXT_SELECTION_CHANGED` event from the *host* app (not
+    Japanglify's own package, so the early `event.packageName == packageName`
+    guard doesn't catch it). Traced into `captureSelection`: it explicitly
+    rejects a collapsed cursor (`start < 0 || end <= start` → `return null`),
+    and the resulting selection from `moveCursorAfterInsert` is always
+    collapsed (`start == end == position`) — so this event is filtered out
+    before it could re-trigger anything. The existing comment on that check
+    ("do NOT fall back to fromEventList here, or every cursor tap in a
+    populated field re-triggers the chip") shows this was already a
+    deliberate design decision, not an accident.
+  - Both `ClipboardAssistService` and `JapanglifyAccessibilityService` can
+    react to the same real clipboard change if a user has both enabled;
+    `ClipboardProcessor.processText`'s `lastHandledRaw` duplicate check
+    absorbs the second trigger as `DUPLICATE`. No true race here since
+    everything runs on the main/UI `Looper` thread — the lack of explicit
+    synchronization on `lastHandledRaw` is fine, not a latent bug.
+  - Conclusion: the guards are spread across several independent
+    listeners/pollers rather than one chokepoint, which makes this worth
+    re-checking whenever a new clipboard-write path is added (like
+    translation was this session) — but as of this audit, every path is
+    covered.
 
-- **Performance measurement / live profiling pass.** For a future cleanup
-  pass, not urgent now: no actual profiling has been done on this app yet —
-  latency/allocation claims so far (e.g. the translation feature's
-  "fastpath" work) are reasoned about from the code, not measured on a
-  device. Worth a real pass with Android Studio's profiler or
-  `adb shell am start -W` / Perfetto/systrace: `PROCESS_TEXT` end-to-end
-  latency (with translation on and off), the accessibility service's
-  poll-loop (`JapanglifyAccessibilityService.POLL_MS`) battery/CPU cost over
-  time, `KuromojiReadingProvider`'s dictionary-load cost on first use, and
-  `TripleScriptRenderer`'s interlinear packing/measurement cost on long
-  selections.
+- **Performance measurement pass — first real numbers gathered this
+  session** (a full Android Studio profiler/Perfetto pass is still future
+  work, but this replaces "reasoned about, not measured" with actual data):
+  - **`PROCESS_TEXT` end-to-end latency** (`adb shell am start -W`, real
+    Pixel 8): **cold** (process not running) **~1941ms** `TotalTime`;
+    **warm** (process already alive) **~71ms**. The ~1.9s gap is almost
+    entirely one-time process/dictionary init, not per-call cost — see next.
+  - **Kuromoji dictionary load**: **~649ms**, measured directly via a new
+    permanent timing section in `domain`'s `DemoMain` (`./gradlew
+    :domain:runDemo`, section "0. Performance") — same library/dictionary
+    Android loads in `JapanglifyApp.onCreate()`, so this JVM number is
+    representative of the real one-time app-startup cost. Accounts for the
+    majority of the cold-start gap above.
+  - **`TripleScriptRenderer` on a long selection**: also now in `DemoMain`
+    ("4. Performance") — 200 repeated sentences (1800 input chars, wrapping
+    to 300 interlinear rows) analyze+render in **~101.7ms**. Scales
+    reasonably; not a concern at realistic selection lengths.
+  - **Accessibility poll-loop cost**: not live-profiled (would need
+    `dumpsys batterystats`/Perfetto over real elapsed time, not attempted
+    this session), but characterized from the code:
+    `JapanglifyAccessibilityService.POLL_MS = 400`, i.e. up to ~2.5
+    `ClipboardManager.getPrimaryClip()` binder calls/second, continuously,
+    for as long as the Copy-hook accessibility service is enabled — this is
+    the one genuinely open question left (a real battery-cost number, not
+    just "it's a poll loop with a 400ms interval").
+  - Translation's "fastpath" claim (zero cost when the setting is off)
+    wasn't separately re-measured — it's a single `SharedPreferences`
+    boolean read before anything else runs, same order of magnitude as
+    dictionary/render costs above make negligible-but-unmeasured claims
+    like this now easy to double-check the same way if it's ever in doubt.
 
 - **Named configuration profiles — post-1.0, backburner.** Not started.
   Explicitly deprioritized past 1.0 by the user, and explicitly scoped up
@@ -215,10 +305,28 @@ Working state as of 2026-08-06. This file tracks what's left before a real
 
 - Build: `JAVA_HOME=/usr/local/openjdk21 ./gradlew :app:assembleDebug` — the
   pinned Gradle 8.9 does not support the system default JDK 25.
-- `adb install -r` silently unbinds the accessibility service without
-  clearing the persisted `enabled_accessibility_services` setting. After any
-  reinstall: `adb shell settings put secure enabled_accessibility_services ""`
-  then set it back to the service's component name to force a rebind.
+- `adb install -r` **and plain `am force-stop com.japanglify.app`** both
+  unbind the accessibility service — confirmed this session that force-stop
+  alone does it too, not just reinstall (`adb shell settings get secure
+  enabled_accessibility_services` reads back `null` afterward even though
+  the in-app toggle still visually shows "on" until you reopen system
+  Settings). Re-enable via Settings → Accessibility → Japanglify Copy
+  assist → toggle → Allow after *any* force-stop, not just reinstalls.
+- If Accessibility gets enabled via system Settings directly (not through
+  the app's own in-app switch), `POST_NOTIFICATIONS` never gets requested —
+  the whole copy-hook pipeline runs and succeeds silently with zero visible
+  notification. Check `adb shell dumpsys notification --noredact | grep -A2
+  japanglify` for `importance=NONE`/`AppSettings:` if a Copy visibly logs
+  `processed selection OK` (`CopyHookDiagnostics`) but nothing appears; fix
+  via Settings → Apps → Japanglify → Notifications.
+- Android's background clipboard-read restriction
+  (`ClipboardService: Denying clipboard access ... application is not in
+  focus`) blocks `JapanglifyAccessibilityService`'s `getPrimaryClip()` calls
+  whenever Japanglify isn't the focused app — i.e. basically always, for a
+  background service reacting to another app's Copy. This is expected, not
+  a bug: the "selection memory" fallback (captured from accessibility
+  selection-changed events, not `ClipboardManager`) is what actually carries
+  the pipeline in that case.
 - Screenshots: `scripts/adb-shot.sh <out.png> [max_seconds] [poll_interval]`
   busy-polls until two consecutive frames match, but has been flaky this
   session over an unstable wireless-debugging connection — plain

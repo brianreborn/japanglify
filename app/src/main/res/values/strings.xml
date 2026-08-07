@@ -26,6 +26,9 @@
 
     <string name="pref_category_rendering">Rendering</string>
     <string name="pref_output_format">Output format</string>
+    <string name="output_format_preview_heading">Preview — how each format renders "日本語"; the selected one is bold</string>
+    <string name="output_format_preview_sample">日本語</string>
+    <string name="output_format_preview_selected_label">✓ %1$s</string>
     <string name="pref_max_line_width">Max line width (fullwidth chars)</string>
     <string name="pref_max_line_width_summary">Wrap interlinear columns so each row fits this many あ-width cells (default 14 ≈ a couple of short words). 0 = no wrap.</string>
     <string name="max_line_width_preview_heading">Preview — actual wrap depends on the host\'s font/size</string>

@@ -74,6 +74,14 @@ class SettingsFragment : PreferenceFragmentCompat() {
             PreferencesRepository.KEY_OUTPUT_FORMAT,
             com.japanglify.app.domain.OutputFormat.entries.map { it.id to it.displayName }
         )
+        findPreference<ListPreference>(PreferencesRepository.KEY_OUTPUT_FORMAT)
+            ?.setOnPreferenceChangeListener { _, newValue ->
+                // ListPreference reports the new value before it's persisted, so
+                // pass it straight through rather than re-reading SharedPreferences.
+                val fmt = OutputFormat.fromId(newValue as? String)
+                findPreference<OutputFormatPreviewPreference>(KEY_OUTPUT_FORMAT_PREVIEW)?.refresh(fmt)
+                true
+            }
         bindList(
             PreferencesRepository.KEY_WRITING_ORIENTATION,
             com.japanglify.app.domain.WritingOrientation.entries.map { it.id to it.displayName }
@@ -150,6 +158,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
         refreshA11yStatus()
         refreshStatusCard()
         scheduleLivePreview()
+        findPreference<OutputFormatPreviewPreference>(KEY_OUTPUT_FORMAT_PREVIEW)?.refresh()
     }
 
     override fun onDestroyView() {
@@ -484,6 +493,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
         const val ARG_SHARED_TEXT = "shared_text"
         private const val KEY_STATUS_CARD = "status_card"
         private const val KEY_TRY_IT_CARD = "try_it_card"
+        private const val KEY_OUTPUT_FORMAT_PREVIEW = "output_format_preview"
         private const val KEY_ABOUT_CONTACT = "about_contact"
         private const val CONTACT_EMAIL = "brianfundakowskifeldman@gmail.com"
         private const val KEY_ABOUT_PROFILE = "about_profile"
