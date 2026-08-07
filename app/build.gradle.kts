@@ -139,3 +139,57 @@ val staticAnalysis by tasks.registering {
         println("==> :app staticAnalysis complete ($warningCount static warnings).")
     }
 }
+
+// adb lookup mirrors scripts/acceptance-smoke-test.sh's own fallback chain,
+// so "is a device connected?" agrees between Gradle's configuration-time
+// check (below) and the script's runtime check.
+fun findAdbForGradle(): String? {
+    val candidates = listOfNotNull(
+        System.getenv("ANDROID_SDK_ROOT")?.let { "$it/platform-tools/adb" },
+        System.getenv("ANDROID_HOME")?.let { "$it/platform-tools/adb" },
+        "$rootDir/sdk/platform-tools/adb"
+    )
+    candidates.firstOrNull { file(it).canExecute() }?.let { return it }
+    return runCatching {
+        val proc = ProcessBuilder("which", "adb").start()
+        proc.waitFor()
+        proc.inputStream.bufferedReader().readText().trim().takeIf { it.isNotEmpty() }
+    }.getOrNull()
+}
+
+// Drives scripts/acceptance-smoke-test.sh: runs the domain suite and (if a
+// device is connected right now) installs the debug build and exercises the
+// real rendering pipeline via the debug-only AcceptanceTestActivity,
+// producing a Markdown report with embedded screenshots at
+// build/reports/acceptance/. installDebug is only pulled in as a dependency
+// when a device is actually present — same graceful-degradation style as
+// the keystoreProperties handling above — so this also runs headlessly
+// (domain summary + "no device" note) ahead of the eventual locally-spun-up
+// Android VM target, without installDebug hard-failing the whole task.
+val acceptanceSmokeTest by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Runs the acceptance smoke test and writes a Markdown report with screenshots."
+    dependsOn(":domain:test")
+
+    val outDir = layout.buildDirectory.dir("reports/acceptance")
+    val serial = (project.findProperty("deviceSerial") as String?) ?: ""
+    val adbPath = findAdbForGradle()
+    val deviceConnected = adbPath != null && runCatching {
+        val args = mutableListOf(adbPath)
+        if (serial.isNotEmpty()) {
+            args += "-s"
+            args += serial
+        }
+        args += "get-state"
+        ProcessBuilder(args).redirectErrorStream(true).start().waitFor() == 0
+    }.getOrDefault(false)
+
+    if (deviceConnected) {
+        dependsOn("installDebug")
+    }
+
+    doFirst {
+        outDir.get().asFile.mkdirs()
+    }
+    commandLine("bash", "$rootDir/scripts/acceptance-smoke-test.sh", outDir.get().asFile.path, serial)
+}

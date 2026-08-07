@@ -277,6 +277,19 @@ Working state as of 2026-08-06. This file tracks what's left before a real
   scoping as its own small design pass once picked back up, not bolted on
   ad hoc.
 
+- **LaTeX output rendering — post-1.0, backburner.** Not started. A new
+  `OutputFormat` (or a separate rendering path entirely, since LaTeX's ruby
+  story is a package choice, not a Unicode trick like `INTERLINEAR`'s
+  PAD/Word-Joiner approach) that emits real LaTeX for furigana-annotated
+  Japanese — likely via the `ruby` package (`\ruby{漢字}{かんじ}`) or CJK/
+  luatex-ja's native furigana support, plus romaji as a second annotation
+  line if that's expressible in the same macro or needs its own row. Needs a
+  design pass on: which LaTeX furigana package to target (portability vs.
+  fidelity tradeoff — `ruby` is plain pdfLaTeX-compatible but cruder;
+  luatex-ja needs LuaLaTeX), whether romaji fits in-line or wants a separate
+  block, and escaping (LaTeX special characters in surrounding text, and in
+  the rare case a translation's 4th line is included too).
+
 ## Known-good as of this session (verified live on Pixel 8 + Galaxy Note 9)
 
 - Settings screen: section order (Scripts → Copy assist → Phoneticization →
@@ -309,6 +322,18 @@ Working state as of 2026-08-06. This file tracks what's left before a real
   every `OutputFormat`/`RomanizationSystem`. Stored proof the full
   tokenize→resolve→render pipeline holds up on organic Japanese, not just
   curated examples.
+- `./gradlew acceptanceSmokeTest` (new): turns this session's by-hand live
+  verification into a repeatable target. Runs `:domain:test`, then — only if
+  a device is connected (`installDebug` is pulled in conditionally, not
+  hard-required) — drives Settings + output-format-preview screenshots and
+  renders the real proof-sentence pipeline via a new debug-only
+  `AcceptanceTestActivity` (`app/src/debug/`, never ships in release —
+  confirmed absent from `app-release.apk`'s merged manifest). Writes
+  `build/reports/acceptance/index.md`, a GitHub-renderable Markdown report
+  with embedded screenshots. Device-optional by design (`-PdeviceSerial=...`
+  to target one explicitly) — exits 0 with just the domain summary and a
+  "no device" note when none is connected, ahead of the eventual
+  locally-spun-up Android VM target. Verified both ways this session.
 
 ## Environment notes (don't rediscover these)
 
@@ -354,6 +379,18 @@ Working state as of 2026-08-06. This file tracks what's left before a real
   busy-polls until two consecutive frames match, but has been flaky this
   session over an unstable wireless-debugging connection — plain
   `adb exec-out screencap -p > file.png` is a more reliable fallback.
+- A device left idle dozes off; `screencap` still "succeeds" against a
+  dozing screen — it just captures the lockscreen/notification shade
+  instead of the app, a silent wrong-content result, not a loud failure.
+  `acceptanceSmokeTest` now wakes + `wm dismiss-keyguard`s before driving
+  the UI, but on a phone with a real PIN/pattern/biometric lock enabled
+  (as opposed to swipe-only/no lock), that lands on `AlternateBouncerView`
+  and can't go further — `wm dismiss-keyguard` only clears an
+  insecure/no-auth keyguard, by design, and this script should never try to
+  push past real device security. If a fully-populated report is needed
+  from a secured phone, unlock it manually right before running. The
+  eventual local Android VM target should default to no lock screen, which
+  sidesteps this entirely.
 - Multiple devices connected simultaneously: always pin commands with
   `adb -s <serial>` (or `export ANDROID_SERIAL=<serial>` per-command, not
   exported globally across tool calls — it doesn't persist in this harness).
