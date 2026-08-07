@@ -109,6 +109,20 @@ object DemoMain {
         for (seg in glossSegments) {
             println("  ${seg.surface.padEnd(6)} -> ${seg.gloss ?: "(no entry)"}")
         }
+
+        // Rendering integration (Phase 3): same fake dictionary, run through
+        // the real engine for every OutputFormat, so the actual gloss
+        // markup/layout per format is visible here too, not just the raw
+        // per-token lookups above.
+        println("\n--- 6. Word/particle glosses rendered per output format ---")
+        val glossEngine = JapanglifyEngine(glossAnalyzer)
+        for (fmt in OutputFormat.entries) {
+            val out = glossEngine.expand(
+                text,
+                JapanglifySettings(outputFormat = fmt, includeGlosses = true)
+            )
+            println("[${fmt.displayName}]:\n$out\n")
+        }
     }
 
     /**

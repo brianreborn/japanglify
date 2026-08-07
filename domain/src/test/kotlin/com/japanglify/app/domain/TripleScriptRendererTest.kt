@@ -367,4 +367,153 @@ class TripleScriptRendererTest {
         val out = renderer.render(nihongo, settings)
         assertTrue(out.contains("writing-mode:vertical-rl"))
     }
+
+    // ── Word/particle glosses (Phase 3 of the dictionary-lookup feature) ──
+
+    private val nihongoWithGloss = listOf(
+        AnnotatedSegment(
+            surface = "日本語",
+            furigana = "にほんご",
+            romaji = "nihongo",
+            needsFurigana = true,
+            gloss = "n. Japanese"
+        )
+    )
+
+    private val sentenceWithGloss = listOf(
+        AnnotatedSegment("日本語", "にほんご", "nihongo", true, gloss = "n. Japanese"),
+        AnnotatedSegment("を", null, "o", false, isParticle = true, gloss = "part. object marker"),
+        AnnotatedSegment("勉強", "べんきょう", "benkyou", true, gloss = "n. study"),
+        AnnotatedSegment("する", null, "suru", false, gloss = "v. to do")
+    )
+
+    @Test
+    fun glossesOffByDefaultAcrossEveryFormat() {
+        // includeGlosses defaults to false — no format should ever emit
+        // gloss text unless it's explicitly turned on, even when every
+        // segment has one attached.
+        for (fmt in OutputFormat.entries) {
+            val settings = JapanglifySettings(outputFormat = fmt)
+            val out = renderer.render(nihongoWithGloss, settings)
+            assertFalse("$fmt leaked gloss text with includeGlosses off:\n$out", out.contains("Japanese"))
+        }
+    }
+
+    @Test
+    fun parentheticalAppendsGlossAfterReadings() {
+        val settings = JapanglifySettings(
+            outputFormat = OutputFormat.PARENTHETICAL,
+            romajiPosition = RomajiPosition.BELOW,
+            includeGlosses = true
+        )
+        val out = renderer.render(nihongoWithGloss, settings)
+        assertEquals("日本語（にほんご / nihongo / n. Japanese）", out)
+    }
+
+    @Test
+    fun furiganaInlineAddsThirdGlossLine() {
+        val settings = JapanglifySettings(
+            outputFormat = OutputFormat.FURIGANA_INLINE,
+            romajiPosition = RomajiPosition.BELOW,
+            includeGlosses = true
+        )
+        val out = renderer.render(nihongoWithGloss, settings)
+        assertEquals("日本語《にほんご》\nnihongo\nn. Japanese", out)
+    }
+
+    @Test
+    fun compactBracketsAddsGlossBraces() {
+        val settings = JapanglifySettings(outputFormat = OutputFormat.COMPACT, includeGlosses = true)
+        val out = renderer.render(nihongoWithGloss, settings)
+        assertEquals("日本語〔にほんご〕[nihongo]{n. Japanese}", out)
+    }
+
+    @Test
+    fun interlinearAddsFourthGlossRow() {
+        val settings = JapanglifySettings(
+            outputFormat = OutputFormat.INTERLINEAR,
+            romajiPosition = RomajiPosition.BELOW,
+            includeGlosses = true,
+            maxLineWidthFullwidth = 0
+        )
+        val out = renderer.render(sentenceWithGloss, settings).stripWordJoiner()
+        val lines = out.lines()
+        assertEquals(4, lines.size)
+        val glossLine = lines[3]
+        assertTrue(glossLine.contains("n. Japanese"))
+        assertTrue(glossLine.contains("part. object marker"))
+        assertTrue(glossLine.contains("n. study"))
+        assertTrue(glossLine.contains("v. to do"))
+    }
+
+    @Test
+    fun interlinearGlossRowOmittedWhenNoSegmentHasOne() {
+        val settings = JapanglifySettings(
+            outputFormat = OutputFormat.INTERLINEAR,
+            includeGlosses = true
+        )
+        // nihongo (no gloss attribute set) -- includeGlosses is on, but
+        // there's nothing to show, so the row must not appear as a blank line.
+        val out = renderer.render(nihongo, settings)
+        assertEquals(3, out.lines().size)
+    }
+
+    @Test
+    fun interlinearGlossIsWordLevelNotPerCharacter() {
+        // With romaji off, kanji words split into one cell per character
+        // (see splitKanjiFurigana) -- gloss must still appear exactly once
+        // per word, not once per kanji character.
+        val settings = JapanglifySettings(
+            outputFormat = OutputFormat.INTERLINEAR,
+            includeRomaji = false,
+            includeGlosses = true,
+            maxLineWidthFullwidth = 0
+        )
+        val out = renderer.render(nihongoWithGloss, settings).stripWordJoiner()
+        val glossLine = out.lines().last()
+        assertEquals(1, Regex("Japanese").findAll(glossLine).count())
+    }
+
+    @Test
+    fun htmlRubyAddsThirdBlockSpanForGloss() {
+        val settings = JapanglifySettings(
+            outputFormat = OutputFormat.HTML_RUBY,
+            romajiPosition = RomajiPosition.BELOW,
+            includeGlosses = true
+        )
+        val out = renderer.render(nihongoWithGloss, settings)
+        assertTrue(out.contains("<ruby>日本語<rt>にほんご</rt></ruby>"))
+        assertFalse(out.contains("<rtc"))
+        assertTrue(out.contains("nihongo"))
+        assertTrue(out.contains("n. Japanese"))
+        // Gloss always trails, after wherever romaji landed (BELOW here).
+        assertTrue(out.indexOf("nihongo") < out.indexOf("n. Japanese"))
+    }
+
+    @Test
+    fun htmlRubyGlossTrailsEvenWhenRomajiIsAbove() {
+        val settings = JapanglifySettings(
+            outputFormat = OutputFormat.HTML_RUBY,
+            romajiPosition = RomajiPosition.ABOVE,
+            includeGlosses = true
+        )
+        val out = renderer.render(nihongoWithGloss, settings)
+        // romaji before the ruby element, but gloss still comes last overall.
+        assertTrue(out.indexOf("nihongo") < out.indexOf("<ruby>"))
+        assertTrue(out.indexOf("<ruby>") < out.indexOf("n. Japanese"))
+    }
+
+    @Test
+    fun htmlRubyGlossOnlyNoFuriganaNoRomajiStillWraps() {
+        val settings = JapanglifySettings(
+            outputFormat = OutputFormat.HTML_RUBY,
+            includeFurigana = false,
+            includeRomaji = false,
+            includeGlosses = true
+        )
+        val out = renderer.render(nihongoWithGloss, settings)
+        assertFalse(out.contains("<ruby>"))
+        assertTrue(out.contains("日本語"))
+        assertTrue(out.contains("n. Japanese"))
+    }
 }
