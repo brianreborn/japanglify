@@ -14,6 +14,12 @@ data class JapanglifySettings(
     val writingOrientation: WritingOrientation = WritingOrientation.HORIZONTAL,
     val includeFurigana: Boolean = true,
     val includeRomaji: Boolean = true,
+    /**
+     * Word/particle English glosses via a downloaded dictionary (see
+     * [com.japanglify.app.domain.dictionary.GlossAnnotator]). Off by
+     * default — no dictionary is bundled, this is purely opt-in.
+     */
+    val includeGlosses: Boolean = false,
     /** When true, attach furigana only to spans that contain kanji. */
     val furiganaKanjiOnly: Boolean = true,
     /** Capitalize the first letter of each romaji word/segment. */

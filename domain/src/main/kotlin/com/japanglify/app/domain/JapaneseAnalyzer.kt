@@ -1,5 +1,7 @@
 package com.japanglify.app.domain
 
+import com.japanglify.app.domain.dictionary.GlossAnnotator
+
 /**
  * Turns raw selected text into a list of [AnnotatedSegment]s carrying
  * surface form, hiragana furigana, and romaji.
@@ -7,9 +9,14 @@ package com.japanglify.app.domain
  * Uses an optional [ReadingProvider] (typically Kuromoji on device) for
  * kanji readings. When no provider is available, pure-kana text is still
  * fully annotated; kanji is left without furigana.
+ *
+ * [glossAnnotator] is likewise optional and degrades the same way: no
+ * dictionary downloaded yet (or glosses off in settings) just means every
+ * segment's `gloss` stays null, same as furigana/romaji without a provider.
  */
 class JapaneseAnalyzer(
-    private val readingProvider: ReadingProvider? = null
+    private val readingProvider: ReadingProvider? = null,
+    private val glossAnnotator: GlossAnnotator? = null
 ) {
 
     fun interface ReadingProvider {
@@ -26,7 +33,15 @@ class JapaneseAnalyzer(
         /** True for an auxiliary-verb/conjugation-ending token (e.g. ました, ない). */
         val isBoundToPrevious: Boolean = false,
         /** True for a grammatical particle (は/を/の/に/…). */
-        val isParticle: Boolean = false
+        val isParticle: Boolean = false,
+        /**
+         * Dictionary/base form (Kuromoji's `getBaseForm()`) — the lookup key
+         * for [com.japanglify.app.domain.dictionary.GlossAnnotator], e.g.
+         * 行き's base form is 行く. Null when unavailable (no provider, or a
+         * merged multi-token span with no single base form of its own — see
+         * `KuromojiReadingProvider.mergeConsecutiveNumbers`).
+         */
+        val baseForm: String? = null
     )
 
     fun annotate(text: String, settings: JapanglifySettings): List<AnnotatedSegment> {
@@ -34,18 +49,25 @@ class JapaneseAnalyzer(
 
         val romanizer = Romanizer(settings.romanizationSystem)
         val tokens = readingProvider?.tokenize(text) ?: fallbackTokenize(text)
+        val glosses = if (settings.includeGlosses) {
+            glossAnnotator?.annotate(tokens) ?: List(tokens.size) { null }
+        } else {
+            List(tokens.size) { null }
+        }
 
-        return tokens.map { token -> toSegment(token, settings, romanizer) }
+        return tokens.mapIndexed { i, token -> toSegment(token, settings, romanizer, glosses[i]) }
     }
 
     private fun toSegment(
         token: SurfaceReading,
         settings: JapanglifySettings,
-        romanizer: Romanizer
+        romanizer: Romanizer,
+        gloss: String?
     ): AnnotatedSegment {
         val surface = token.surface
 
-        // Punctuation / symbols: keep on base, map to Latin on the romaji line
+        // Punctuation / symbols: keep on base, map to Latin on the romaji line.
+        // No dictionary entry makes sense here, so gloss is never attached.
         if (KanaConverter.isMostlyPunctuation(surface)) {
             val roma = if (settings.includeRomaji) {
                 KanaConverter.punctuationToRomaji(surface).ifBlank { surface }
@@ -140,7 +162,8 @@ class JapaneseAnalyzer(
             needsFurigana = needsFurigana,
             isBoundToPrevious = token.isBoundToPrevious,
             isParticle = token.isParticle,
-            romajiSyllables = romajiSyllables
+            romajiSyllables = romajiSyllables,
+            gloss = gloss
         )
     }
 

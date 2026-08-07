@@ -79,6 +79,36 @@ object DemoMain {
         val renderMs = (System.nanoTime() - renderStart) / 1_000_000.0
         println("Analyze + render: %.1f ms (%d output chars, %d rows)"
             .format(renderMs, longOut.length, longOut.split("\n\n").size))
+
+        // Word/particle glosses — proves the tokenize -> base-form lookup ->
+        // formatted-gloss pipeline against real Kuromoji tokenization, ahead
+        // of any Android/SQLite/download code existing (see the dictionary
+        // feature plan's Phase 2). No real dictionary is downloaded yet, so
+        // this uses a tiny hand-built stand-in covering just this sentence's
+        // words — same idea as the fake DictionaryProvider the unit tests use.
+        println("\n--- 5. Word/particle glosses (fake dictionary, real Kuromoji tokens) ---")
+        val fakeDictionary = mapOf(
+            "日本語" to com.japanglify.app.domain.dictionary.DictionaryEntry(
+                "日本語", "にほんご", com.japanglify.app.domain.dictionary.PartOfSpeech.NOUN, "Japanese"
+            ),
+            "を" to com.japanglify.app.domain.dictionary.DictionaryEntry(
+                "を", null, com.japanglify.app.domain.dictionary.PartOfSpeech.PARTICLE, "object marker"
+            ),
+            "勉強" to com.japanglify.app.domain.dictionary.DictionaryEntry(
+                "勉強", "べんきょう", com.japanglify.app.domain.dictionary.PartOfSpeech.NOUN, "study"
+            ),
+            "する" to com.japanglify.app.domain.dictionary.DictionaryEntry(
+                "する", "する", com.japanglify.app.domain.dictionary.PartOfSpeech.VERB, "to do"
+            )
+        )
+        val glossAnnotator = com.japanglify.app.domain.dictionary.GlossAnnotator(
+            com.japanglify.app.domain.dictionary.GlossAnnotator.DictionaryProvider { key -> fakeDictionary[key] }
+        )
+        val glossAnalyzer = JapaneseAnalyzer(kuromojiProvider, glossAnnotator)
+        val glossSegments = glossAnalyzer.annotate(text, JapanglifySettings(includeGlosses = true))
+        for (seg in glossSegments) {
+            println("  ${seg.surface.padEnd(6)} -> ${seg.gloss ?: "(no entry)"}")
+        }
     }
 
     /**
@@ -105,7 +135,7 @@ object DemoMain {
                 } else {
                     t.reading?.takeIf { it.isNotBlank() && it != "*" }
                 }
-                JapaneseAnalyzer.SurfaceReading(t.surface, reading)
+                JapaneseAnalyzer.SurfaceReading(t.surface, reading, baseForm = t.baseForm)
             }
         }
     }

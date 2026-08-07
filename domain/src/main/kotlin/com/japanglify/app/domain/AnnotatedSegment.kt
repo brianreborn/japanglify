@@ -25,6 +25,10 @@ package com.japanglify.app.domain
  *   romaji row so a multi-kanji word's reading isn't one unbroken run
  *   hiding which part matches which kana/kanji; every other renderer keeps
  *   using [romaji] as-is.
+ * @property gloss English dictionary gloss (e.g. "n. paper"), formatted
+ *   ready to render by [com.japanglify.app.domain.dictionary.GlossAnnotator]
+ *   — null when glosses are off, no dictionary is downloaded, or no entry
+ *   was found for this token.
  */
 data class AnnotatedSegment(
     val surface: String,
@@ -33,8 +37,10 @@ data class AnnotatedSegment(
     val needsFurigana: Boolean = false,
     val isBoundToPrevious: Boolean = false,
     val isParticle: Boolean = false,
-    val romajiSyllables: String? = null
+    val romajiSyllables: String? = null,
+    val gloss: String? = null
 ) {
     val hasFurigana: Boolean get() = !furigana.isNullOrBlank()
     val hasRomaji: Boolean get() = !romaji.isNullOrBlank()
+    val hasGloss: Boolean get() = !gloss.isNullOrBlank()
 }

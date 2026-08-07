@@ -25,7 +25,8 @@ class KuromojiReadingProvider(
                 // 助動詞 (auxiliary verb / conjugation ending, e.g. ました, ない)
                 // completes the previous word rather than starting a new one.
                 isBoundToPrevious = token.partOfSpeechLevel1 == "助動詞",
-                isParticle = token.partOfSpeechLevel1 == "助詞"
+                isParticle = token.partOfSpeechLevel1 == "助詞",
+                baseForm = token.baseForm
             )
         }
     }
@@ -39,7 +40,12 @@ class KuromojiReadingProvider(
      * Kuromoji's [Token] has no public constructor, so we merge via a small
      * shim rather than building a synthetic Token.
      */
-    private data class MergedToken(val surface: String, val rawReading: String?, val partOfSpeechLevel1: String)
+    private data class MergedToken(
+        val surface: String,
+        val rawReading: String?,
+        val partOfSpeechLevel1: String,
+        val baseForm: String?
+    )
 
     private fun mergeConsecutiveNumbers(tokens: List<Token>): List<MergedToken> {
         val out = ArrayList<MergedToken>()
@@ -53,11 +59,17 @@ class KuromojiReadingProvider(
                     surface.append(tokens[j].surface)
                     j++
                 }
-                // A merged number has no single dictionary reading of its own.
-                out += MergedToken(surface.toString(), rawReading = null, partOfSpeechLevel1 = t.partOfSpeechLevel1)
+                // A merged number has no single dictionary reading or base
+                // form of its own.
+                out += MergedToken(
+                    surface = surface.toString(),
+                    rawReading = null,
+                    partOfSpeechLevel1 = t.partOfSpeechLevel1,
+                    baseForm = null
+                )
                 i = j
             } else {
-                out += MergedToken(t.surface, t.reading, t.partOfSpeechLevel1)
+                out += MergedToken(t.surface, t.reading, t.partOfSpeechLevel1, t.baseForm)
                 i++
             }
         }
