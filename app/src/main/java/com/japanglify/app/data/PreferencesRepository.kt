@@ -3,6 +3,7 @@ package com.japanglify.app.data
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.preference.PreferenceManager
+import com.japanglify.app.dictionary.DictionaryDownloadStatus
 import com.japanglify.app.domain.FuriganaPunctuationStyle
 import com.japanglify.app.domain.JapanglifySettings
 import com.japanglify.app.domain.OutputFormat
@@ -43,6 +44,33 @@ class PreferencesRepository(context: Context) {
         includeGlosses = prefs.getBoolean(KEY_INCLUDE_GLOSSES, false)
     )
 
+    /**
+     * Download status persists across app restarts (a "READY" dictionary
+     * must still read as ready after the process dies) — kept outside
+     * [JapanglifySettings] for the same reason [includeGlosses]'s toggle
+     * lives in preferences.xml rather than that class's own defaults: this
+     * is app-layer/network/storage state, not a pure offline rendering
+     * input. Per-[sourceId] since the registry supports multiple sources.
+     */
+    fun dictionaryStatus(sourceId: String): DictionaryDownloadStatus {
+        val raw = prefs.getString(keyDictionaryStatus(sourceId), null)
+        return DictionaryDownloadStatus.entries.firstOrNull { it.name == raw }
+            ?: DictionaryDownloadStatus.NOT_DOWNLOADED
+    }
+
+    fun dictionaryErrorMessage(sourceId: String): String? =
+        prefs.getString(keyDictionaryError(sourceId), null)
+
+    fun setDictionaryStatus(sourceId: String, status: DictionaryDownloadStatus, errorMessage: String? = null) {
+        prefs.edit()
+            .putString(keyDictionaryStatus(sourceId), status.name)
+            .putString(keyDictionaryError(sourceId), errorMessage)
+            .apply()
+    }
+
+    private fun keyDictionaryStatus(sourceId: String) = "${KEY_DICTIONARY_STATUS_PREFIX}$sourceId"
+    private fun keyDictionaryError(sourceId: String) = "${KEY_DICTIONARY_ERROR_PREFIX}$sourceId"
+
     companion object {
         const val KEY_ROMANIZATION = "romanization_system"
         const val KEY_ROMAJI_POSITION = "romaji_position"
@@ -60,6 +88,8 @@ class PreferencesRepository(context: Context) {
         const val KEY_A11Y_STATUS = "a11y_status"
         const val KEY_COPY_HOOK_PAUSED = "copy_hook_paused"
         const val KEY_INCLUDE_GLOSSES = "include_glosses"
+        const val KEY_DICTIONARY_STATUS_PREFIX = "dictionary_status_"
+        const val KEY_DICTIONARY_ERROR_PREFIX = "dictionary_error_"
 
         fun parseMaxLineWidth(raw: String?): Int {
             val n = raw?.toIntOrNull()

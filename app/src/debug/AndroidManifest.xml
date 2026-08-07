@@ -5,12 +5,21 @@
   Registers AcceptanceTestActivity, the intent-driven seam the
   acceptanceSmokeTest Gradle target uses to exercise the real rendering
   pipeline without any UI navigation, third-party host app, or interactive
-  permission dialog — see scripts/acceptance-smoke-test.sh.
+  permission dialog — see scripts/acceptance-smoke-test.sh. Also registers
+  DictionaryDownloadTestActivity, an equivalent seam for live-testing the
+  real dictionary download + ETL pipeline before Phase 6's Settings UI
+  exists to trigger it.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
         <activity
             android:name=".debug.AcceptanceTestActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:noHistory="true"
+            android:theme="@style/Theme.Japanglify.Transparent" />
+        <activity
+            android:name=".debug.DictionaryDownloadTestActivity"
             android:excludeFromRecents="true"
             android:exported="true"
             android:noHistory="true"

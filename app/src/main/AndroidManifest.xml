@@ -4,6 +4,10 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- Optional dictionary download only (see DictionaryDownloadManager);
+         every lookup after that one-time download is fully offline. -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <!-- Lets *this* app resolve PROCESS_TEXT targets (diagnostics + in-app menu). -->
     <queries>
@@ -110,6 +114,11 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Optional clipboard watch when accessibility is not enabled." />
         </service>
+
+        <service
+            android:name=".dictionary.DictionaryDownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
         <receiver
             android:name=".clipboard.ClipboardAssistReceiver"

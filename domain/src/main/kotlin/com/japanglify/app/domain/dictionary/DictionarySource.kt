@@ -21,10 +21,16 @@ object DictionarySources {
     /**
      * Standard open Japanese-English dictionary (EDRDG / Jim Breen's
      * project), CC BY-SA 4.0. Sourced via the jmdict-simplified project's
-     * pre-built English-only JSON releases, re-packaged to a URL this
-     * project controls rather than depending on a third party's ongoing
-     * hosting — see the plan's "Data source: JMdict" section for why, and
-     * for the maintainer-side packaging step this placeholder URL assumes.
+     * pre-built English-only JSON release — verified live this session
+     * (fetched the real GitHub release listing and a sample of the actual
+     * JSON, not assumed): a plain .zip, not .tgz, so Java's built-in
+     * java.util.zip.ZipInputStream reads it directly with no TAR-parsing
+     * dependency needed. downloadUrl points directly at jmdict-simplified's
+     * own release for now — a working stand-in until re-packaged to a URL
+     * this project controls (a maintainer-side task, not runtime code; see
+     * the plan's "Data source: JMdict" section for why that matters for
+     * long-term hosting reliability, separate from this being a genuinely
+     * working URL today).
      */
     val JMDICT_ENGLISH = DictionarySource(
         id = "jmdict_en",
@@ -32,10 +38,16 @@ object DictionarySources {
         description = "Standard open Japanese–English dictionary " +
             "(EDRDG / Jim Breen's project). ~10–15 MB download, " +
             "fully offline afterward.",
-        downloadUrl = "https://github.com/brianreborn/japanglify/releases/" +
-            "download/dictionaries/jmdict-en-latest.json.gz",
-        approxDownloadSizeBytes = 12_000_000L,
-        approxOnDiskSizeBytes = 20_000_000L,
+        downloadUrl = "https://github.com/scriptin/jmdict-simplified/releases/" +
+            "download/3.6.2%2B20260803141815/jmdict-eng-3.6.2%2B20260803141815.json.zip",
+        approxDownloadSizeBytes = 11_475_140L,
+        // Measured live from a real import, not estimated: ~451k rows
+        // (one per kanji spelling plus a kana-reading row whenever it
+        // differs from every kanji spelling -- needed so common words like
+        // する resolve at all, since Kuromoji's baseForm for them is the
+        // bare kana form even when JMdict itself files the entry under a
+        // kanji spelling) came to ~40 MB on disk.
+        approxOnDiskSizeBytes = 40_500_000L,
         license = "CC BY-SA 4.0 (JMdict / EDRDG)"
     )
 
