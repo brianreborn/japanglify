@@ -5,6 +5,13 @@ Working state as of 2026-08-06. This file tracks what's left before a real
 
 ## Open items
 
+- **Loose emoji-precision tier — post-1.0, backburner.** Not started. Named
+  and selectable in Settings (`EmojiPrecisionTier.LOOSE`) so the setting's
+  shape is stable, but currently behaves identically to Strict — real
+  fuzzy/semantic matching beyond exact `tts` and Medium's WordNet-synonym
+  expansion is a bigger feature than either of those and hasn't been
+  designed yet.
+
 - **Further emoji-annotation refinement — post-1.0, backburner.** Live UAT of
   the Medium emoji-precision tier (WordNet synonym expansion) surfaced two
   distinct outcomes worth telling apart, found by testing real words against
