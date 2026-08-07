@@ -63,15 +63,20 @@ Working state as of 2026-08-06. This file tracks what's left before a real
   only 2 characters is exactly what real `ruby-align: space-around` would
   also produce for that width ratio — not a residual bug.
 
-- **Re-verify the "でき" line-wrap fix live.** `TripleScriptRenderer` now
-  applies the same Word-Joiner (U+2060) wrap protection to the plain-text
-  interlinear output that was previously reserved for the in-app preview
-  only (see commit history — this was reverted and reinstated once during
-  this session). Confirmed via raw-text inspection that a real host
-  (Discord's compose box) was soft-wrapping mid-cell and splitting a single
-  furigana reading ("でき") across two visual lines with no protection in
-  place. Built and reinstalled on both test devices but not yet re-verified
-  end-to-end with a fresh Copy → paste round-trip.
+- **"でき" line-wrap fix — re-verified live end-to-end this session.**
+  `TripleScriptRenderer` applies Word-Joiner (U+2060) wrap protection to the
+  plain-text interlinear output (previously reserved for the in-app preview
+  only; reverted and reinstated once earlier this session). Originally
+  confirmed only via raw-text inspection that a real host (Discord's
+  compose box) was soft-wrapping mid-cell and splitting a single furigana
+  reading ("でき") across two visual lines with no protection in place.
+  **Now actually re-verified with a fresh round-trip**: converted "えっと、
+  出来ましたかい？" via the Try-It card's from-clipboard button, pasted the
+  real result into Discord's live compose field, and confirmed visually —
+  "でき" renders intact on one line. The row did still soft-wrap elsewhere
+  (between た/かい, and between kai/?), which is correct: Word Joiner
+  protects the inside of a single cell/reading, not all wrapping
+  everywhere; wraps at cell boundaries are expected and fine.
 
 - **"Copy Image" rendering — fully live-verified end-to-end this session,
   via a real Discord Copy, not another broadcast workaround.** Furigana
@@ -170,6 +175,27 @@ Working state as of 2026-08-06. This file tracks what's left before a real
   total black box. **Still needs one clean confirmation once the rate limit
   clears**: enable the toggle, convert a phrase, and confirm a translated
   line actually appears (not just the absence of a 429 in logcat).
+  - **Stale-translation-callback race, found via code audit this session —
+    not yet fixed, not yet live-reproduced.** `Translator.translateAsync()`
+    posts its result back on the main thread with no check that the text it
+    translated is still the *current* one. Three call sites are affected:
+    `ClipboardProcessor.processText()` (the main Copy-hook pipeline),
+    `SettingsFragment.japanglifyTryItField()`, and
+    `SettingsFragment.japanglifyClipboard()`. Concrete scenario: copy
+    Japanese text A (translation on) → its request goes out → before it
+    returns, copy different text B → when A's translation eventually
+    arrives, its callback unconditionally overwrites `LastResultStore` and
+    re-shows the result notification with A's stale, mismatched content,
+    clobbering B's. `JapanglifyAccessibilityService` already has the fix
+    pattern for this exact class of bug elsewhere in the same file
+    (`copyPipelineGeneration`, an incrementing counter checked before any
+    delayed retry applies) — it was just never extended to the translation
+    callbacks. Only manifests on a *successful* (non-null) translation
+    response, so it couldn't be empirically reproduced live this session
+    (every attempt has hit the 429 rate limit — see above). **Explicitly
+    decided non-blocking for 1.0**: translation is off-by-default and this
+    only affects it, so ship without fixing it first; revisit once the rate
+    limit clears enough to actually test the fix.
 
 - **Task #8 — Build from Android's Linux Terminal.** Low priority, not
   started. Would mean validating the existing Gradle/FreeBSD-Linuxulator
@@ -406,3 +432,31 @@ Working state as of 2026-08-06. This file tracks what's left before a real
   top-most instance" and silently no-op if the app is already in the
   foreground/back stack; `am force-stop com.japanglify.app` first to
   guarantee a real cold start (then remember to rebind accessibility).
+- **`adb shell uiautomator dump` destroys and reconnects
+  `JapanglifyAccessibilityService` every time it runs — isolated and
+  confirmed reproducible 3× this session, unrelated to split-screen (an
+  earlier hypothesis this session wrongly blamed multi-window transitions;
+  the actual pid destroying/recreating was uiautomator's own
+  `com.android.commands.uiautomator.Launcher` process, not Japanglify's).
+  Controlled test: baseline → one `uiautomator dump` → new "service
+  connected" timestamp in `CopyHookDiagnostics`. Three rounds of
+  `screencap`/`input tap`/`dumpsys window` in between → no new timestamp.
+  Another `uiautomator dump` → new timestamp again. Root cause is an Android
+  platform behavior, not a Japanglify bug: `uiautomator dump` uses the
+  UiAutomation API, which has to establish its own accessibility-service-like
+  connection to walk the view tree, and doing so causes
+  `AccessibilityManagerService` to reconfigure the set of active connections
+  — bouncing whatever other accessibility services (Japanglify's included)
+  were already bound. **Practical impact: this session's whole testing
+  methodology has been doing this to itself.** Nearly every verification
+  step relied on `uiautomator dump` for safe, coordinate-verified tapping,
+  while also depending on the Copy-hook accessibility service staying
+  continuously bound — so `lastHandledRaw`, `copyPipelineGeneration`,
+  `lastSelectedText`, and any in-flight debounce/retry callbacks were likely
+  getting silently reset between our own checks, session-long. Plausibly
+  explains at least one earlier puzzle this session (a real Discord "Copy
+  Text" that didn't auto-trigger the notification) and any other one-off
+  "flaky" results chalked up to timing. Not a fixable app bug — a testing-
+  methodology constraint to design around (e.g. read `CopyHookDiagnostics`
+  or logcat directly instead of dumping mid-sequence when the Copy-hook's
+  *state*, not just the screen layout, is what's under test).
