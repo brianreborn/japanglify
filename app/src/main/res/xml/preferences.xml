@@ -33,11 +33,6 @@
             app:key="furigana_punctuation_style"
             app:title="@string/pref_furigana_punctuation_style"
             app:useSimpleSummaryProvider="true" />
-        <SwitchPreferenceCompat
-            app:defaultValue="false"
-            app:key="include_translation"
-            app:summary="@string/pref_include_translation_summary"
-            app:title="@string/pref_include_translation" />
     </PreferenceCategory>
 
     <PreferenceCategory app:title="@string/pref_category_clipboard">

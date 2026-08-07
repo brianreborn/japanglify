@@ -4,8 +4,6 @@ import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 
 /**
  * Transparent activity registered for [Intent.ACTION_PROCESS_TEXT].
@@ -49,30 +47,7 @@ class ProcessTextActivity : Activity() {
             return
         }
 
-        // Fastpath: translation defaults off, and this is the one entry
-        // point (the interactive selection-toolbar action) where the user
-        // is waiting synchronously. When disabled, this is byte-for-byte
-        // the same path as before the feature existed — no thread hand-off,
-        // `app.translator` is never touched.
-        if (!app.preferences.isTranslationEnabled()) {
-            finishWithResult(expanded, readOnly)
-            return
-        }
-
-        // Enabled: block a short-lived background thread on a bounded wait
-        // for the translation, then finish on the main thread either way —
-        // never hang, never risk the offline result already in hand.
-        Thread {
-            val latch = CountDownLatch(1)
-            var translation: String? = null
-            app.translator.translateAsync(source) { result ->
-                translation = result
-                latch.countDown()
-            }
-            latch.await(TRANSLATE_TIMEOUT_MS, TimeUnit.MILLISECONDS)
-            val finalText = translation?.let { "$expanded\n\n$it" } ?: expanded
-            runOnUiThread { finishWithResult(finalText, readOnly) }
-        }.start()
+        finishWithResult(expanded, readOnly)
     }
 
     private fun finishWithResult(expanded: String, readOnly: Boolean) {
@@ -86,9 +61,5 @@ class ProcessTextActivity : Activity() {
             setResult(RESULT_OK)
         }
         finish()
-    }
-
-    companion object {
-        private const val TRANSLATE_TIMEOUT_MS = 3_000L
     }
 }

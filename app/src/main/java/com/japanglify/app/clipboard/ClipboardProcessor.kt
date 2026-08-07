@@ -110,22 +110,6 @@ object ClipboardProcessor {
         ClipboardNotifications.cancelTapToProcess(context)
         ClipboardNotifications.showResult(context, result)
 
-        // Additive, best-effort: the notification above already shows the
-        // full offline result at normal speed. Translation, when opted in,
-        // only ever arrives later and updates the same notification in
-        // place — it never delays or risks the base result.
-        if (app.preferences.isTranslationEnabled()) {
-            app.translator.translateAsync(text) { translation ->
-                if (translation == null) {
-                    CopyHookDiagnostics.log(context, "translate failed/timed out")
-                    return@translateAsync
-                }
-                val enriched = "$result\n\n$translation"
-                LastResultStore.save(context, text, enriched)
-                ClipboardNotifications.showResult(context, enriched)
-            }
-        }
-
         return ProcessOutcome.SUCCESS
     }
 
