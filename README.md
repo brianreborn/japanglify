@@ -170,6 +170,17 @@ X never lists third-party items in Cut/Copy/Paste. Japanglify’s **main** path 
 
 Optional: floating chip on selection is secondary. FGS clipboard watch is a weak fallback.
 
+#### If the Accessibility toggle won't turn on ("restricted setting")
+
+Android blocks apps installed **outside** an app store (which is how you got
+this APK, since Japanglify isn't on the Play Store) from using Accessibility
+until you explicitly unlock it:
+
+1. **Settings → Apps → Japanglify Copy assist** (or **Japanglify**).
+2. Tap the **⋮** overflow menu in the top-right corner.
+3. Tap **Allow restricted settings**.
+4. Now go enable it as below — the toggle will work.
+
 Enabling step 2, in Android Settings → Accessibility → Downloaded apps:
 
 <img src="docs/screenshots/accessibility-list.png" width="300" alt="Android Accessibility settings list, showing the Japanglify Copy assist entry under Downloaded apps, currently Off">
@@ -177,6 +188,10 @@ Enabling step 2, in Android Settings → Accessibility → Downloaded apps:
 Tap through to the detail screen and flip **Use Japanglify Copy assist** on:
 
 <img src="docs/screenshots/accessibility-toggle.png" width="300" alt="Japanglify Copy assist detail screen in Accessibility settings, with the Use Japanglify Copy assist toggle">
+
+Confirm the permission dialog:
+
+<img src="docs/screenshots/accessibility-confirm.png" width="300" alt="Android confirmation dialog asking to allow Japanglify Copy assist full control of the device, with Allow/Deny/Uninstall options">
 
 (The list also shows a stock Android "shortcut" toggle — that's an OS-level quick-toggle gesture common to every accessibility service, not something Japanglify adds; it isn't part of the setup above.)
 
