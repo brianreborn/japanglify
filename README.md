@@ -177,7 +177,10 @@ this APK, since Japanglify isn't on the Play Store) from using Accessibility
 until you explicitly unlock it:
 
 1. **Settings → Apps → Japanglify Copy assist** (or **Japanglify**).
-2. Tap the **⋮** overflow menu in the top-right corner.
+2. Tap the **⋮** overflow menu in the top-right corner:
+
+   <img src="docs/screenshots/app-info.png" width="300" alt="Japanglify App info page in Android Settings, with the overflow menu icon in the top-right corner">
+
 3. Tap **Allow restricted settings**.
 4. Now go enable it as below — the toggle will work.
 
