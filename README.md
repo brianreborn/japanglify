@@ -176,40 +176,32 @@ Android blocks apps installed **outside** an app store (which is how you got
 this APK, since Japanglify isn't on the Play Store) from using Accessibility
 until you explicitly unlock it:
 
-1. Open **Settings**, tap **Apps**:
+1. Settings → **Apps** → **See all apps** → scroll to **Japanglify**.
+2. Open it → tap the **⋮** overflow menu (top-right) → **Allow restricted settings**.
+3. Now enable Accessibility → **Japanglify Copy assist** as in step 2 above — the toggle will work.
 
-   <img src="docs/screenshots/settings-home.png" width="300" alt="Android Settings home screen, with the Apps entry highlighted">
+(The Accessibility list also shows a stock Android "shortcut" toggle — that's an OS-level quick-toggle gesture common to every accessibility service, not something Japanglify adds; it isn't part of the setup above.)
 
-2. Tap **See all N apps**:
+<details>
+<summary><b>Screenshots — every tap, start to finish</b></summary>
+<br>
 
-   <img src="docs/screenshots/apps-list.png" width="300" alt="Android Settings Apps screen, with recently opened apps and the See all apps link">
+<table>
+<tr>
+<td align="center" width="25%"><img src="docs/screenshots/settings-home.png" width="180" alt="Android Settings home screen, with the Apps entry highlighted"><br><sub>1. Settings → <b>Apps</b></sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/apps-list.png" width="180" alt="Android Settings Apps screen, with recently opened apps and the See all apps link"><br><sub>2. Tap <b>See all apps</b></sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/all-apps-list.png" width="180" alt="Android Settings All apps list, scrolled to apps starting with A"><br><sub>3. Scroll the full app list…</sub></td>
+<td align="center" width="25%"><img src="docs/screenshots/all-apps-japanglify.png" width="180" alt="Android Settings All apps list, scrolled down to show the Japanglify entry"><br><sub>4. …to find <b>Japanglify</b></sub></td>
+</tr>
+<tr>
+<td align="center"><img src="docs/screenshots/app-info.png" width="180" alt="Japanglify App info page in Android Settings, with the overflow menu icon in the top-right corner"><br><sub>5. Tap <b>⋮</b> → <b>Allow restricted settings</b></sub></td>
+<td align="center"><img src="docs/screenshots/accessibility-list.png" width="180" alt="Android Accessibility settings list, showing the Japanglify Copy assist entry under Downloaded apps, currently Off"><br><sub>6. Accessibility → <b>Japanglify Copy assist</b></sub></td>
+<td align="center"><img src="docs/screenshots/accessibility-toggle.png" width="180" alt="Japanglify Copy assist detail screen in Accessibility settings, with the Use Japanglify Copy assist toggle"><br><sub>7. Flip <b>Use Japanglify Copy assist</b> on</sub></td>
+<td align="center"><img src="docs/screenshots/accessibility-confirm.png" width="180" alt="Android confirmation dialog asking to allow Japanglify Copy assist full control of the device, with Allow/Deny/Uninstall options"><br><sub>8. Confirm the permission dialog</sub></td>
+</tr>
+</table>
 
-3. Scroll the full app list to find **Japanglify** (alphabetical):
-
-   <img src="docs/screenshots/all-apps-list.png" width="300" alt="Android Settings All apps list, scrolled to apps starting with A">
-
-   <img src="docs/screenshots/all-apps-japanglify.png" width="300" alt="Android Settings All apps list, scrolled down to show the Japanglify entry">
-
-4. Tap **Japanglify** to open its App info page, then tap the **⋮** overflow menu in the top-right corner:
-
-   <img src="docs/screenshots/app-info.png" width="300" alt="Japanglify App info page in Android Settings, with the overflow menu icon in the top-right corner">
-
-5. Tap **Allow restricted settings**.
-6. Now go enable it as below — the toggle will work.
-
-Enabling step 2, in Android Settings → Accessibility → Downloaded apps:
-
-<img src="docs/screenshots/accessibility-list.png" width="300" alt="Android Accessibility settings list, showing the Japanglify Copy assist entry under Downloaded apps, currently Off">
-
-Tap through to the detail screen and flip **Use Japanglify Copy assist** on:
-
-<img src="docs/screenshots/accessibility-toggle.png" width="300" alt="Japanglify Copy assist detail screen in Accessibility settings, with the Use Japanglify Copy assist toggle">
-
-Confirm the permission dialog:
-
-<img src="docs/screenshots/accessibility-confirm.png" width="300" alt="Android confirmation dialog asking to allow Japanglify Copy assist full control of the device, with Allow/Deny/Uninstall options">
-
-(The list also shows a stock Android "shortcut" toggle — that's an OS-level quick-toggle gesture common to every accessibility service, not something Japanglify adds; it isn't part of the setup above.)
+</details>
 
 ### Settings (separate screen only)
 
