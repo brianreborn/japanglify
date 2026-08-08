@@ -193,3 +193,62 @@ val acceptanceSmokeTest by tasks.registering(Exec::class) {
     }
     commandLine("bash", "$rootDir/scripts/acceptance-smoke-test.sh", outDir.get().asFile.path, serial)
 }
+
+// Publishes both APKs as assets on a GitHub Release via the `gh` CLI.
+// `gh` must already be installed and authenticated (`gh auth login`) on the
+// machine running this -- this task is a thin wrapper over it, not a
+// credentials manager, same posture as keystore.properties/adb elsewhere in
+// this build: absence degrades to a clear failure message, not a silent
+// no-op, since "publish" has no sensible degraded behavior the way an
+// unsigned release build does.
+//
+// Defaults the release tag to "v<versionName>" (e.g. "v1.0.0"); override
+// with -PreleaseTag=v1.0.0-beta to update an existing tagged release (like
+// this project's actual first public release, tagged "v1.0.0-beta" by
+// hand) instead of creating a new one every run.
+val publishApks by tasks.registering {
+    group = "distribution"
+    description = "Builds and publishes debug + release APKs as assets on a GitHub Release."
+    dependsOn("assembleDebug", "assembleRelease")
+
+    doLast {
+        val tag = (project.findProperty("releaseTag") as String?)
+            ?: "v${android.defaultConfig.versionName}"
+        val debugApk = layout.buildDirectory.file("outputs/apk/debug/app-debug.apk").get().asFile
+        val releaseApk = layout.buildDirectory.file("outputs/apk/release/app-release.apk").get().asFile
+        listOf(debugApk, releaseApk).forEach {
+            require(it.exists()) { "Expected APK not found: ${it.path}" }
+        }
+
+        fun run(vararg args: String): Int {
+            val proc = ProcessBuilder(*args).redirectErrorStream(true).start()
+            proc.inputStream.bufferedReader().forEachLine { println(it) }
+            return proc.waitFor()
+        }
+
+        val ghAvailable = runCatching {
+            ProcessBuilder("which", "gh").start().waitFor() == 0
+        }.getOrDefault(false)
+        require(ghAvailable) {
+            "gh CLI not found on PATH -- install it and run `gh auth login` first."
+        }
+
+        val releaseExists = run("gh", "release", "view", tag) == 0
+        if (!releaseExists) {
+            val created = run(
+                "gh", "release", "create", tag,
+                "--title", "Japanglify $tag",
+                "--notes", "Published via :app:publishApks."
+            )
+            require(created == 0) { "gh release create failed for tag $tag" }
+        }
+
+        val uploaded = run(
+            "gh", "release", "upload", tag,
+            debugApk.path, releaseApk.path,
+            "--clobber"
+        )
+        require(uploaded == 0) { "gh release upload failed for tag $tag" }
+        println("==> Published debug + release APKs to GitHub Release $tag")
+    }
+}
