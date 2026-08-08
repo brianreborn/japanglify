@@ -9,7 +9,12 @@ package com.japanglify.app.domain.dictionary
 data class DictionaryEntry(
     val headword: String,
     val reading: String?,
-    /** Null when the source entry's part of speech didn't map to anything known. */
+    /**
+     * The real category, always populated when the source data maps to one.
+     * Never shown in the rendered gloss text (see [GlossAnnotator.format])
+     * -- used purely for logic: particle-gloss omission, and
+     * [com.japanglify.app.domain.emoji.EmojiAnnotator]'s POS-scope filter.
+     */
     val partOfSpeech: PartOfSpeech?,
     /** First/primary sense's English gloss text, e.g. "paper" for 紙. */
     val gloss: String

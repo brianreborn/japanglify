@@ -20,7 +20,7 @@ class EmojiAnnotatorTest {
         })
 
     @Test
-    fun matchesPlainGlossWithNoPosPrefix() {
+    fun matchesPlainGloss() {
         val annotator = fakeProvider("paper" to "📄")
         val result = annotator.annotate(
             listOf(GlossAnnotator.GlossResult("paper", PartOfSpeech.NOUN)),
@@ -31,21 +31,10 @@ class EmojiAnnotatorTest {
     }
 
     @Test
-    fun stripsPartOfSpeechAbbreviationBeforeMatching() {
-        val annotator = fakeProvider("paper" to "📄")
-        val result = annotator.annotate(
-            listOf(GlossAnnotator.GlossResult("n. paper", PartOfSpeech.NOUN)),
-            allPos,
-            EmojiPrecisionTier.STRICT
-        )
-        assertEquals("📄", result[0])
-    }
-
-    @Test
     fun noMatchYieldsNull() {
         val annotator = fakeProvider("paper" to "📄")
         val result = annotator.annotate(
-            listOf(GlossAnnotator.GlossResult("n. study", PartOfSpeech.NOUN)),
+            listOf(GlossAnnotator.GlossResult("study", PartOfSpeech.NOUN)),
             allPos,
             EmojiPrecisionTier.STRICT
         )
@@ -63,7 +52,7 @@ class EmojiAnnotatorTest {
     fun partOfSpeechOutsideScopeIsExcluded() {
         val annotator = fakeProvider("go" to "🏃")
         val result = annotator.annotate(
-            listOf(GlossAnnotator.GlossResult("v. go", PartOfSpeech.VERB)),
+            listOf(GlossAnnotator.GlossResult("go", PartOfSpeech.VERB)),
             setOf(PartOfSpeech.NOUN),
             EmojiPrecisionTier.STRICT
         )
@@ -88,9 +77,9 @@ class EmojiAnnotatorTest {
         val annotator = fakeProvider("dog" to "🐕")
         val result = annotator.annotate(
             listOf(
-                GlossAnnotator.GlossResult("n. dog", PartOfSpeech.NOUN),
+                GlossAnnotator.GlossResult("dog", PartOfSpeech.NOUN),
                 null,
-                GlossAnnotator.GlossResult("v. to think", PartOfSpeech.VERB)
+                GlossAnnotator.GlossResult("to think", PartOfSpeech.VERB)
             ),
             allPos,
             EmojiPrecisionTier.STRICT
@@ -102,7 +91,7 @@ class EmojiAnnotatorTest {
     fun strictTierIgnoresMediumOnlyMatch() {
         val annotator = tieredProvider(strict = emptyMap(), medium = mapOf("animal" to "🐕"))
         val result = annotator.annotate(
-            listOf(GlossAnnotator.GlossResult("n. animal", PartOfSpeech.NOUN)),
+            listOf(GlossAnnotator.GlossResult("animal", PartOfSpeech.NOUN)),
             allPos,
             EmojiPrecisionTier.STRICT
         )
@@ -113,7 +102,7 @@ class EmojiAnnotatorTest {
     fun mediumTierFallsBackToKeywordMatchWhenStrictMisses() {
         val annotator = tieredProvider(strict = emptyMap(), medium = mapOf("animal" to "🐕"))
         val result = annotator.annotate(
-            listOf(GlossAnnotator.GlossResult("n. animal", PartOfSpeech.NOUN)),
+            listOf(GlossAnnotator.GlossResult("animal", PartOfSpeech.NOUN)),
             allPos,
             EmojiPrecisionTier.MEDIUM
         )
@@ -124,7 +113,7 @@ class EmojiAnnotatorTest {
     fun mediumTierPrefersStrictMatchOverKeywordMatch() {
         val annotator = tieredProvider(strict = mapOf("dog" to "🐕"), medium = mapOf("dog" to "🐶"))
         val result = annotator.annotate(
-            listOf(GlossAnnotator.GlossResult("n. dog", PartOfSpeech.NOUN)),
+            listOf(GlossAnnotator.GlossResult("dog", PartOfSpeech.NOUN)),
             allPos,
             EmojiPrecisionTier.MEDIUM
         )

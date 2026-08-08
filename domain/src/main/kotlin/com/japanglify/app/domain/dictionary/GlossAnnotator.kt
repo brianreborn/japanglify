@@ -18,15 +18,12 @@ class GlossAnnotator(private val dictionary: DictionaryProvider) {
     }
 
     /**
-     * [text] is the formatted, ready-to-render string (e.g. "n. paper").
-     * [partOfSpeech] is the entry's *actual* category regardless of whether
-     * [text] happens to show it -- [DictionaryEntry.partOfSpeech] is already
-     * null'd out at the DB layer for non-ambiguous headwords (see
-     * `SqliteDictionaryProvider`/`MARK_POS_AMBIGUOUS_SQL`) purely so the
-     * abbreviation isn't *displayed*; that's a separate concern from a
-     * consumer like [com.japanglify.app.domain.emoji.EmojiAnnotator] needing
-     * the real category to apply a part-of-speech scope filter, so this
-     * carries [DictionaryEntry.partOfSpeech] unchanged, independent of [text].
+     * [text] is the gloss text, direct with no abbreviation/metadata prefix
+     * (e.g. just "paper", never "n. paper") -- found this reads as noise,
+     * not help, live. [partOfSpeech] is the entry's real category and is
+     * never shown in [text]; it exists purely for a consumer like
+     * [com.japanglify.app.domain.emoji.EmojiAnnotator] that needs the actual
+     * category to apply a part-of-speech scope filter.
      */
     data class GlossResult(val text: String, val partOfSpeech: PartOfSpeech?)
 
@@ -34,35 +31,60 @@ class GlossAnnotator(private val dictionary: DictionaryProvider) {
      * One result per input token, same size/order as [tokens] — null means
      * either no dictionary entry was found (a genuinely missing word, or a
      * Kuromoji/JMdict lexical mismatch; see the plan's open questions) or a
-     * deliberately omitted gloss (see [OMITTED_ABSTRACT_PARTICLES]).
+     * deliberately omitted gloss (every particle -- see [format] -- plus
+     * every [JapaneseAnalyzer.SurfaceReading.isBoundToPrevious] token, see
+     * below).
      */
     fun annotate(tokens: List<JapaneseAnalyzer.SurfaceReading>): List<GlossResult?> =
         tokens.map { token ->
+            // A conjugation ending / auxiliary / copula (ました, ない, だ, ...)
+            // isn't an independent word -- it completes the previous token's
+            // inflected form (see isBoundToPrevious's own doc). Glossing it
+            // separately reads as a stray, disconnected word, and JMdict's
+            // POS code for these doesn't reliably land on PARTICLE either
+            // (copula is its own JMdict tag, "cop", which format()'s
+            // PARTICLE-only check never catches) -- found live via real
+            // device UAT: だ's own gloss rendered as an unrelated word
+            // jammed with zero gap right against the previous word's gloss
+            // (isBoundToPrevious cells get no word-gap by design), reading
+            // as one garbled word, e.g. "wonderfuldui" for 不思議な. Skipping
+            // the lookup entirely for these tokens fixes both problems at
+            // once: no stray gloss, and nothing left to jam into the gap.
+            if (token.isBoundToPrevious) return@map null
+            // Prefer Kuromoji's own contextual particle tag over re-deriving
+            // it from the dictionary lookup below: a dictionary match is
+            // keyed on baseForm/surface alone, out of context, and can land
+            // on the wrong same-spelling headword (a real risk for common
+            // single-kana particles) -- Kuromoji already knows definitively
+            // whether *this* token, in *this* sentence, is a particle.
+            // format()'s own entry.partOfSpeech check stays as a second,
+            // independent safety net for a ReadingProvider that doesn't set
+            // this flag.
+            if (token.isParticle) return@map null
             val key = token.baseForm ?: token.surface
             val entry = dictionary.lookup(key) ?: return@map null
             format(entry)?.let { GlossResult(it, entry.partOfSpeech) }
         }
 
     private fun format(entry: DictionaryEntry): String? {
-        if (entry.headword in OMITTED_ABSTRACT_PARTICLES) return null
-        val pos = entry.partOfSpeech?.abbreviation.orEmpty()
-        return if (pos.isEmpty()) entry.gloss else "$pos ${entry.gloss}"
-    }
-
-    companion object {
-        /**
-         * は/が/を mark a sentence's grammatical role (topic/subject/object)
-         * but don't carry independent lexical meaning the way a preposition
-         * does -- forcing them into a one- or two-word gloss ("topic
-         * marker") tends to read as filler rather than genuine help.
-         * Particles with an actual semantic correlate keep their gloss
-         * (へ → "to; toward", と → "and; with", から → "from", etc.) since
-         * those translations are concrete and unambiguous, not abstract.
-         * A curated set, not a POS-code rule: JMdict's "prt" tag covers
-         * both kinds equally, and there's no automatic way to tell "pure
-         * grammatical marker" from "particle with real meaning" from the
-         * data alone.
-         */
-        private val OMITTED_ABSTRACT_PARTICLES = setOf("は", "が", "を")
+        // Every particle is omitted, not just the abstract-marker subset
+        // (は/が/を) an earlier version of this curated by hand. Found live
+        // via real device UAT: の's actual JMdict gloss ("possessive /
+        // nominalizing particle" plus, for some entries, a much longer
+        // explanatory definition) reads as an entire sentence crammed into
+        // one word's slot -- unusable regardless of whether の counts as
+        // "abstract" or "concrete." A JMdict gloss is written for a
+        // dictionary entry, not for a one-line annotation under a single
+        // character, and that mismatch isn't particular to a handful of
+        // grammatical-role markers -- it affects particles generally, so
+        // the whole category is omitted rather than trying to hand-curate
+        // which particles' dictionary glosses happen to be short enough.
+        if (entry.partOfSpeech == PartOfSpeech.PARTICLE) return null
+        // No "n."/"v."/etc. prefix -- a direct translation, not a dictionary
+        // entry with lexicographic metadata attached. Tried showing it only
+        // when a headword's senses genuinely disagreed on part of speech;
+        // still read as unwanted commentary rather than help, per direct
+        // feedback, so it's gone unconditionally rather than narrowed further.
+        return entry.gloss
     }
 }

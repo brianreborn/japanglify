@@ -253,6 +253,50 @@ class TripleScriptRendererTest {
     }
 
     @Test
+    fun interlinearNeverWrapsBetweenAdjacentKanaWordsWithNoParticleBetween() {
+        // お+ねがい+します: three separate Kuromoji tokens, all pure kana,
+        // none flagged as a particle -- with no kanji or particle boundary
+        // anywhere, none of them should be a valid wrap point, even at a
+        // width narrow enough that every one of them would otherwise
+        // overflow. A slightly-over-budget line is the accepted tradeoff
+        // (see packCellsIntoRows), not a mid-word split.
+        val segments = listOf(
+            AnnotatedSegment("お", null, "o", false),
+            AnnotatedSegment("ねがい", null, "negai", false),
+            AnnotatedSegment("します", null, "shimasu", false)
+        )
+        val settings = JapanglifySettings(
+            outputFormat = OutputFormat.INTERLINEAR,
+            romajiPosition = RomajiPosition.BELOW,
+            maxLineWidthFullwidth = 1
+        )
+        val out = renderer.render(segments, settings)
+        assertFalse("expected a single unbroken block:\n$out", out.contains("\n\n"))
+    }
+
+    @Test
+    fun interlinearAllowsWrapRightAfterAParticleWithinAKanaRun() {
+        // を is a real particle boundary -- wrapping right after it is fine
+        // even though both sides are pure kana with no kanji involved.
+        val segments = listOf(
+            AnnotatedSegment("これ", null, "kore", false),
+            AnnotatedSegment("を", null, "o", false, isParticle = true),
+            AnnotatedSegment("ください", null, "kudasai", false)
+        )
+        val settings = JapanglifySettings(
+            outputFormat = OutputFormat.INTERLINEAR,
+            romajiPosition = RomajiPosition.BELOW,
+            maxLineWidthFullwidth = 2
+        )
+        val out = renderer.render(segments, settings)
+        assertTrue("expected a wrap after を:\n$out", out.contains("\n\n"))
+        val firstBlock = out.split("\n\n").first()
+        assertTrue(firstBlock.stripWordJoiner().contains("これ"))
+        assertTrue(firstBlock.stripWordJoiner().contains("を"))
+        assertFalse(firstBlock.stripWordJoiner().contains("ください"))
+    }
+
+    @Test
     fun interlinearPunctuationHiddenFromFuriganaRowByDefault() {
         // Punctuation has no reading, so by default (FuriganaPunctuationStyle.NONE)
         // it should not appear on the furigana row at all — and since nothing
@@ -376,15 +420,15 @@ class TripleScriptRendererTest {
             furigana = "にほんご",
             romaji = "nihongo",
             needsFurigana = true,
-            gloss = "n. Japanese"
+            gloss = "Japanese"
         )
     )
 
     private val sentenceWithGloss = listOf(
-        AnnotatedSegment("日本語", "にほんご", "nihongo", true, gloss = "n. Japanese"),
-        AnnotatedSegment("を", null, "o", false, isParticle = true, gloss = "part. object marker"),
-        AnnotatedSegment("勉強", "べんきょう", "benkyou", true, gloss = "n. study"),
-        AnnotatedSegment("する", null, "suru", false, gloss = "v. to do")
+        AnnotatedSegment("日本語", "にほんご", "nihongo", true, gloss = "Japanese"),
+        AnnotatedSegment("を", null, "o", false, isParticle = true, gloss = "object marker"),
+        AnnotatedSegment("勉強", "べんきょう", "benkyou", true, gloss = "study"),
+        AnnotatedSegment("する", null, "suru", false, gloss = "to do")
     )
 
     @Test
@@ -407,7 +451,7 @@ class TripleScriptRendererTest {
             includeGlosses = true
         )
         val out = renderer.render(nihongoWithGloss, settings)
-        assertEquals("日本語（にほんご / nihongo / n. Japanese）", out)
+        assertEquals("日本語（にほんご / nihongo / Japanese）", out)
     }
 
     @Test
@@ -418,14 +462,14 @@ class TripleScriptRendererTest {
             includeGlosses = true
         )
         val out = renderer.render(nihongoWithGloss, settings)
-        assertEquals("日本語《にほんご》\nnihongo\nn. Japanese", out)
+        assertEquals("日本語《にほんご》\nnihongo\nJapanese", out)
     }
 
     @Test
     fun compactBracketsAddsGlossBraces() {
         val settings = JapanglifySettings(outputFormat = OutputFormat.COMPACT, includeGlosses = true)
         val out = renderer.render(nihongoWithGloss, settings)
-        assertEquals("日本語〔にほんご〕[nihongo]{n. Japanese}", out)
+        assertEquals("日本語〔にほんご〕[nihongo]{Japanese}", out)
     }
 
     @Test
@@ -440,10 +484,10 @@ class TripleScriptRendererTest {
         val lines = out.lines()
         assertEquals(4, lines.size)
         val glossLine = lines[3]
-        assertTrue(glossLine.contains("n. Japanese"))
-        assertTrue(glossLine.contains("part. object marker"))
-        assertTrue(glossLine.contains("n. study"))
-        assertTrue(glossLine.contains("v. to do"))
+        assertTrue(glossLine.contains("Japanese"))
+        assertTrue(glossLine.contains("object marker"))
+        assertTrue(glossLine.contains("study"))
+        assertTrue(glossLine.contains("to do"))
     }
 
     @Test
@@ -485,9 +529,9 @@ class TripleScriptRendererTest {
         assertTrue(out.contains("<ruby>日本語<rt>にほんご</rt></ruby>"))
         assertFalse(out.contains("<rtc"))
         assertTrue(out.contains("nihongo"))
-        assertTrue(out.contains("n. Japanese"))
+        assertTrue(out.contains("Japanese"))
         // Gloss always trails, after wherever romaji landed (BELOW here).
-        assertTrue(out.indexOf("nihongo") < out.indexOf("n. Japanese"))
+        assertTrue(out.indexOf("nihongo") < out.indexOf("Japanese"))
     }
 
     @Test
@@ -500,7 +544,7 @@ class TripleScriptRendererTest {
         val out = renderer.render(nihongoWithGloss, settings)
         // romaji before the ruby element, but gloss still comes last overall.
         assertTrue(out.indexOf("nihongo") < out.indexOf("<ruby>"))
-        assertTrue(out.indexOf("<ruby>") < out.indexOf("n. Japanese"))
+        assertTrue(out.indexOf("<ruby>") < out.indexOf("Japanese"))
     }
 
     @Test
@@ -514,7 +558,7 @@ class TripleScriptRendererTest {
         val out = renderer.render(nihongoWithGloss, settings)
         assertFalse(out.contains("<ruby>"))
         assertTrue(out.contains("日本語"))
-        assertTrue(out.contains("n. Japanese"))
+        assertTrue(out.contains("Japanese"))
     }
 
     // ── Emoji (English→emoji annotation) ────────────────────────────
@@ -541,16 +585,16 @@ class TripleScriptRendererTest {
             furigana = "にほんご",
             romaji = "nihongo",
             needsFurigana = true,
-            gloss = "n. Japanese",
+            gloss = "Japanese",
             emoji = "🇯🇵"
         )
     )
 
     private val sentenceWithEmoji = listOf(
         AnnotatedSegment("日本語", "にほんご", "nihongo", true, gloss = null, emoji = "🇯🇵"),
-        AnnotatedSegment("を", null, "o", false, isParticle = true, gloss = "part. object marker"),
-        AnnotatedSegment("勉強", "べんきょう", "benkyou", true, gloss = "n. study"),
-        AnnotatedSegment("する", null, "suru", false, gloss = "v. to do")
+        AnnotatedSegment("を", null, "o", false, isParticle = true, gloss = "object marker"),
+        AnnotatedSegment("勉強", "べんきょう", "benkyou", true, gloss = "study"),
+        AnnotatedSegment("する", null, "suru", false, gloss = "to do")
     )
 
     @Test
@@ -573,7 +617,7 @@ class TripleScriptRendererTest {
             includeEmoji = true
         )
         val out = renderer.render(nihongoWithGlossAndEmoji, settings)
-        assertEquals("日本語（にほんご / nihongo / n. Japanese / 🇯🇵）", out)
+        assertEquals("日本語（にほんご / nihongo / Japanese / 🇯🇵）", out)
     }
 
     @Test
@@ -585,7 +629,7 @@ class TripleScriptRendererTest {
             includeEmoji = true
         )
         val out = renderer.render(nihongoWithGlossAndEmoji, settings)
-        assertEquals("日本語《にほんご》\nnihongo\nn. Japanese\n🇯🇵", out)
+        assertEquals("日本語《にほんご》\nnihongo\nJapanese\n🇯🇵", out)
     }
 
     @Test
@@ -608,7 +652,7 @@ class TripleScriptRendererTest {
             includeEmoji = true
         )
         val out = renderer.render(nihongoWithGlossAndEmoji, settings)
-        assertEquals("日本語〔にほんご〕[nihongo]{n. Japanese}🇯🇵", out)
+        assertEquals("日本語〔にほんご〕[nihongo]{Japanese}🇯🇵", out)
     }
 
     @Test
@@ -623,7 +667,7 @@ class TripleScriptRendererTest {
         val out = renderer.render(sentenceWithEmoji, settings).stripWordJoiner()
         val lines = out.lines()
         assertEquals(5, lines.size)
-        assertTrue(lines[3].contains("part. object marker"))
+        assertTrue(lines[3].contains("object marker"))
         assertTrue(lines[4].contains("🇯🇵"))
     }
 
@@ -664,9 +708,9 @@ class TripleScriptRendererTest {
         )
         val out = renderer.render(nihongoWithGlossAndEmoji, settings)
         assertTrue(out.contains("<ruby>日本語<rt>にほんご</rt></ruby>"))
-        assertTrue(out.contains("n. Japanese"))
+        assertTrue(out.contains("Japanese"))
         assertTrue(out.contains("🇯🇵"))
         // Order: romaji, then ruby, then gloss, then emoji (BELOW here).
-        assertTrue(out.indexOf("n. Japanese") < out.indexOf("🇯🇵"))
+        assertTrue(out.indexOf("Japanese") < out.indexOf("🇯🇵"))
     }
 }

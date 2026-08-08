@@ -534,7 +534,7 @@ class TripleScriptRenderer {
         settings: JapanglifySettings
     ): List<InterlinearCell> {
         val out = ArrayList<InterlinearCell>()
-        for (seg in segments) {
+        segments.forEachIndexed { index, seg ->
             val surface = seg.surface
             val furi = if (settings.includeFurigana) seg.furigana else null
             // Mora-hyphenated when available (see AnnotatedSegment.romajiSyllables)
@@ -550,8 +550,19 @@ class TripleScriptRenderer {
 
             val isWordStart = !seg.isBoundToPrevious
             // Particles get their word-gap but can never be a wrap point —
-            // see [InterlinearCell.canWrapBefore].
-            val canWrapBefore = isWordStart && !seg.isParticle
+            // see [InterlinearCell.canWrapBefore]. Beyond that: a kana-only
+            // word directly following another kana-only word carries no
+            // visual boundary for a reader the way kanji or punctuation do,
+            // so a line break there reads as a mid-word split even though
+            // Kuromoji drew a token boundary. Only wrap there when the
+            // preceding word actually is a particle -- a real phrase
+            // boundary in Japanese -- not just any adjacent kana word.
+            val prev = segments.getOrNull(index - 1)
+            val kanaToKanaGap = prev != null &&
+                !KanaConverter.containsKanji(surface) &&
+                !KanaConverter.containsKanji(prev.surface) &&
+                !KanaConverter.isMostlyPunctuation(prev.surface)
+            val canWrapBefore = isWordStart && !seg.isParticle && (!kanaToKanaGap || prev?.isParticle == true)
             when {
                 // Punctuation: same mark on the base row always; the furigana
                 // row's copy is optional — punctuation has no reading, so a

@@ -13,12 +13,16 @@ class GlossAnnotatorTest {
     private fun texts(result: List<GlossAnnotator.GlossResult?>): List<String?> = result.map { it?.text }
 
     @Test
-    fun formatsPartOfSpeechAndGloss() {
+    fun formatsGlossDirectlyWithNoPartOfSpeechPrefix() {
+        // No "n."/"v."/etc. abbreviation in the shown text -- direct
+        // feedback that it read as unwanted metadata commentary, not help.
+        // partOfSpeech is still carried on the result (see [GlossResult])
+        // for logic that needs it, just never shown.
         val annotator = fakeDictionary(
             "紙" to DictionaryEntry("紙", "かみ", PartOfSpeech.NOUN, "paper")
         )
         val result = annotator.annotate(listOf(JapaneseAnalyzer.SurfaceReading("紙", "かみ", baseForm = "紙")))
-        assertEquals(listOf("n. paper"), texts(result))
+        assertEquals(listOf("paper"), texts(result))
         assertEquals(PartOfSpeech.NOUN, result[0]?.partOfSpeech)
     }
 
@@ -32,35 +36,94 @@ class GlossAnnotatorTest {
         val result = annotator.annotate(
             listOf(JapaneseAnalyzer.SurfaceReading("行きました", "いきました", baseForm = "行く"))
         )
-        assertEquals(listOf("v. to go"), texts(result))
+        assertEquals(listOf("to go"), texts(result))
     }
 
     @Test
     fun fallsBackToSurfaceWhenNoBaseForm() {
         val annotator = fakeDictionary(
-            "へ" to DictionaryEntry("へ", null, PartOfSpeech.PARTICLE, "to; toward")
+            "大きい" to DictionaryEntry("大きい", "おおきい", PartOfSpeech.ADJECTIVE, "big; large")
         )
-        val result = annotator.annotate(listOf(JapaneseAnalyzer.SurfaceReading("へ", "エ", baseForm = null)))
-        assertEquals(listOf("part. to; toward"), texts(result))
+        val result = annotator.annotate(listOf(JapaneseAnalyzer.SurfaceReading("大きい", "おおきい", baseForm = null)))
+        assertEquals(listOf("big; large"), texts(result))
     }
 
     @Test
-    fun omitsGlossForAbstractGrammaticalParticles() {
-        // は/が/を mark grammatical role only -- no independent lexical
-        // meaning to usefully gloss in one line, unlike へ above.
+    fun omitsGlossForEveryParticleRegardlessOfMeaning() {
+        // Found live via real device UAT: の's actual JMdict gloss reads as
+        // an entire sentence crammed into one word's slot. That mismatch
+        // (a dictionary-entry-length gloss squeezed under a single
+        // character) isn't unique to abstract grammatical-role markers like
+        // は/が/を -- it affects particles with real semantic content too
+        // (へ, と, ...), so the whole category is omitted rather than
+        // hand-curating which particles' glosses happen to be short enough.
         val annotator = fakeDictionary(
             "は" to DictionaryEntry("は", null, PartOfSpeech.PARTICLE, "topic marker"),
             "が" to DictionaryEntry("が", null, PartOfSpeech.PARTICLE, "subject marker"),
-            "を" to DictionaryEntry("を", null, PartOfSpeech.PARTICLE, "object marker")
+            "を" to DictionaryEntry("を", null, PartOfSpeech.PARTICLE, "object marker"),
+            "の" to DictionaryEntry("の", null, PartOfSpeech.PARTICLE, "possessive / nominalizing particle"),
+            "へ" to DictionaryEntry("へ", null, PartOfSpeech.PARTICLE, "to; toward")
         )
         val result = annotator.annotate(
             listOf(
                 JapaneseAnalyzer.SurfaceReading("は", "ワ", baseForm = "は"),
                 JapaneseAnalyzer.SurfaceReading("が", "ガ", baseForm = "が"),
-                JapaneseAnalyzer.SurfaceReading("を", "オ", baseForm = "を")
+                JapaneseAnalyzer.SurfaceReading("を", "オ", baseForm = "を"),
+                JapaneseAnalyzer.SurfaceReading("の", "ノ", baseForm = "の"),
+                JapaneseAnalyzer.SurfaceReading("へ", "エ", baseForm = "へ")
             )
         )
-        assertEquals(listOf(null, null, null), texts(result))
+        assertEquals(listOf(null, null, null, null, null), texts(result))
+    }
+
+    @Test
+    fun omittedParticleStillCarriesNoGlossResultAtAllNotJustHiddenText() {
+        // format() returning null makes annotate() skip GlossResult entirely
+        // for that token (see annotate()'s use of ?.let) -- confirms a
+        // particle doesn't just hide its *text* while still producing a
+        // GlossResult an EmojiAnnotator downstream could match against.
+        val annotator = fakeDictionary(
+            "の" to DictionaryEntry("の", null, PartOfSpeech.PARTICLE, "possessive / nominalizing particle")
+        )
+        val result = annotator.annotate(listOf(JapaneseAnalyzer.SurfaceReading("の", "ノ", baseForm = "の")))
+        assertNull(result[0])
+    }
+
+    @Test
+    fun omitsGlossForBoundToPreviousTokensEvenWithARealDictionaryEntry() {
+        // Found live via real device UAT: だ (copula, bound to the previous
+        // word) isn't tagged PARTICLE by JMdict (copula is its own "cop"
+        // code, which format()'s PARTICLE-only check never catches), so it
+        // kept its real dictionary gloss and rendered as a stray word jammed
+        // with zero gap against the previous word's gloss (bound-to-previous
+        // cells get no word-gap) -- e.g. "wonderfuldui" for 不思議な. The
+        // dictionary entry here deliberately has a real, non-particle
+        // gloss/POS to prove omission comes from isBoundToPrevious itself,
+        // not from re-deriving it out of the dictionary lookup.
+        val annotator = fakeDictionary(
+            "だ" to DictionaryEntry("だ", null, PartOfSpeech.OTHER, "dui")
+        )
+        val result = annotator.annotate(
+            listOf(JapaneseAnalyzer.SurfaceReading("だ", "ダ", isBoundToPrevious = true, baseForm = "だ"))
+        )
+        assertNull(result[0])
+    }
+
+    @Test
+    fun omitsGlossForContextualParticleEvenWhenDictionaryEntryDisagrees() {
+        // Kuromoji's own isParticle tag reflects this exact token in this
+        // exact sentence; a dictionary lookup is keyed on baseForm/surface
+        // alone and can land on the wrong same-spelling headword. This
+        // entry deliberately claims a non-particle POS to prove the
+        // contextual tag wins rather than being silently overridden by a
+        // mismatched dictionary classification.
+        val annotator = fakeDictionary(
+            "な" to DictionaryEntry("な", null, PartOfSpeech.OTHER, "not a real particle gloss")
+        )
+        val result = annotator.annotate(
+            listOf(JapaneseAnalyzer.SurfaceReading("な", "ナ", isParticle = true, baseForm = "な"))
+        )
+        assertNull(result[0])
     }
 
     @Test
@@ -83,11 +146,11 @@ class GlossAnnotatorTest {
             JapaneseAnalyzer.SurfaceReading("する", "する", baseForm = "する")
         )
         val result = annotator.annotate(tokens)
-        assertEquals(listOf("n. Japanese", null, "v. to do"), texts(result))
+        assertEquals(listOf("Japanese", null, "to do"), texts(result))
     }
 
     @Test
-    fun noPartOfSpeechOmitsAbbreviationPrefix() {
+    fun noPartOfSpeechStillFormatsGloss() {
         val annotator = fakeDictionary(
             "謎" to DictionaryEntry("謎", "なぞ", null, "mystery")
         )

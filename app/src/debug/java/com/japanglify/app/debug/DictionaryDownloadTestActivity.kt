@@ -138,7 +138,7 @@ class DictionaryDownloadTestActivity : Activity() {
     companion object {
         private const val EXTRA_SOURCE_ID = "source_id"
         private const val POLL_INTERVAL_MS = 2000L
-        private val SPOT_CHECK_WORDS_JA = listOf("日本語", "勉強", "する", "食べる", "犬")
+        private val SPOT_CHECK_WORDS_JA = listOf("日本語", "勉強", "する", "食べる", "犬", "な", "だ", "より", "も", "かけ", "かける", "わし")
         private val SPOT_CHECK_WORDS_EN = listOf("dog", "water", "paper", "book", "study", "animal", "hole", "mountain")
         private val SPOT_CHECK_SYNONYM_WORDS = listOf("automobile", "car", "study", "sofa")
         private val MEDIUM_TEST_WORDS = listOf("car", "couch", "automobile", "bike", "phone", "kid", "jacket")
