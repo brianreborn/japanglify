@@ -25,7 +25,8 @@ package com.japanglify.app.domain
  *   romaji row so a multi-kanji word's reading isn't one unbroken run
  *   hiding which part matches which kana/kanji; every other renderer keeps
  *   using [romaji] as-is.
- * @property gloss English dictionary gloss (e.g. "n. paper"), formatted
+ * @property gloss English dictionary gloss (e.g. "paper"), direct with no
+ * part-of-speech prefix, formatted
  *   ready to render by [com.japanglify.app.domain.dictionary.GlossAnnotator]
  *   — null when glosses are off, no dictionary is downloaded, no entry was
  *   found for this token, or [emoji] made it redundant (see [emoji]).

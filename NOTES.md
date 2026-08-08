@@ -5,6 +5,51 @@ Working state as of 2026-08-06. This file tracks what's left before a real
 
 ## Open items
 
+- **Dictionary homograph collisions should prefer the more common word, not
+  whichever row happens to sort first — not started, needs real design.**
+  Found live via real device UAT: わし (archaic first-person pronoun "I",
+  common in fiction/games) and 和紙 (washi paper) both read わし with no
+  kanji to tell them apart, both get inserted as a kana-keyed row (see
+  `DictionaryDownloadManager.insertWord`'s doc comment on why kana-only
+  words are keyed by reading), and `SqliteDictionaryProvider`'s lookup is a
+  bare `SELECT ... LIMIT 1` with no `ORDER BY` — whichever row the import
+  happened to insert first wins, arbitrarily. In this case it picked 和紙,
+  giving "washi" (the accepted English loanword for the paper) as the
+  gloss for what a reader almost always means as the pronoun. This is a
+  different problem from the already-documented "sense disambiguation"
+  backlog item (picking the right *sense* within one JMdict entry, already
+  handled by taking `sense[0]`) — this is picking the right *entry* among
+  several competing ones that collide on the same reading. JMdict itself
+  carries priority signals per entry (`news1`/`news2`/`ichi1`/`spec1`/
+  `spec2`/`gai1`/`gai2`, roughly "common in news/basic vocab/specialized
+  lists") that aren't currently imported at all (see `insertWord`'s own
+  note that it deliberately drops fields with no v1 consumer) — the real
+  fix is almost certainly importing and sorting by that, not a hand-curated
+  word list, but the exact design (a new column? tie-break precedence
+  between the tags? what happens when neither entry has any priority tag,
+  as may well be true for an archaic pronoun like わし?) hasn't been
+  worked out yet.
+
+- **Word/particle glosses and English→emoji annotation are marked
+  Experimental in Settings and remain off by default — full polish is 1.1
+  scope, not 1.0.** Both already defaulted to off in code before this note
+  (`includeGlosses`/`includeEmoji` = false); this makes that explicit in the
+  UI too (category/toggle titles now say "(Experimental)", summaries note
+  it) so it reads as an intentional preview, not a forgotten half-finished
+  feature. Real quality issues found this session that justify not calling
+  this done for 1.0: the gloss line has needed several live-discovered
+  correctness passes already (POS-abbreviation noise, particle-gloss
+  omission, nested-parenthetical stripping, no-abbreviation-at-all per
+  direct feedback) and the emoji Medium tier has at least one confirmed bad
+  resolution (jacket → 👑 via an obscure WordNet sense, see the "Further
+  emoji-annotation refinement" item below) plus an X/Twitter Copy-hook
+  interaction that's still unexplained (silent even with genuine Japanese
+  text and Accessibility confirmed on — ruled out the obvious
+  non-Japanese-text explanation live, root cause not yet found). None of
+  these are fatal, but the pattern (still finding real bugs on each fresh
+  pass) means this isn't "done," just "working under supervision" — hence
+  Experimental rather than a shipped, on-by-default feature.
+
 - **Loose emoji-precision tier — post-1.0, backburner.** Not started. Named
   and selectable in Settings (`EmojiPrecisionTier.LOOSE`) so the setting's
   shape is stable, but currently behaves identically to Strict — real

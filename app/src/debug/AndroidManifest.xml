@@ -24,5 +24,11 @@
             android:exported="true"
             android:noHistory="true"
             android:theme="@style/Theme.Japanglify.Transparent" />
+        <activity
+            android:name=".debug.SetClipboardTestActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:noHistory="true"
+            android:theme="@style/Theme.Japanglify.Transparent" />
     </application>
 </manifest>

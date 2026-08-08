@@ -80,7 +80,7 @@ class JapaneseAnalyzerTest {
         )
         val analyzer = JapaneseAnalyzer(provider, annotator)
         val segments = analyzer.annotate("紙", JapanglifySettings(includeGlosses = true))
-        assertEquals("n. paper", segments[0].gloss)
+        assertEquals("paper", segments[0].gloss)
         assertTrue(segments[0].hasGloss)
     }
 
@@ -111,7 +111,7 @@ class JapaneseAnalyzerTest {
         val analyzer = paperAnalyzer(emojiAnnotator)
         val segments = analyzer.annotate("紙", JapanglifySettings(includeGlosses = true))
         assertNull(segments[0].emoji)
-        assertEquals("n. paper", segments[0].gloss)
+        assertEquals("paper", segments[0].gloss)
     }
 
     @Test
@@ -135,7 +135,7 @@ class JapaneseAnalyzerTest {
             JapanglifySettings(includeGlosses = true, includeEmoji = true, emojiAlwaysShowBoth = true)
         )
         assertEquals("📄", segments[0].emoji)
-        assertEquals("n. paper", segments[0].gloss)
+        assertEquals("paper", segments[0].gloss)
     }
 
     @Test
@@ -151,7 +151,7 @@ class JapaneseAnalyzerTest {
             )
         )
         assertNull(segments[0].emoji)
-        assertEquals("n. paper", segments[0].gloss)
+        assertEquals("paper", segments[0].gloss)
     }
 
     @Test
@@ -162,7 +162,7 @@ class JapaneseAnalyzerTest {
             JapanglifySettings(includeGlosses = true, includeEmoji = true)
         )
         assertNull(segments[0].emoji)
-        assertEquals("n. paper", segments[0].gloss)
+        assertEquals("paper", segments[0].gloss)
     }
 
     @Test

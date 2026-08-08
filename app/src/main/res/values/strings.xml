@@ -50,12 +50,12 @@
     <string name="dictionary_delete_confirm_message">This removes the downloaded %1$s dictionary from this device. You can download it again later.</string>
     <string name="dictionary_delete_confirm_action">Delete</string>
     <string name="dictionary_delete_cancel_action">Cancel</string>
-    <string name="pref_include_glosses">Word/particle glosses</string>
-    <string name="pref_include_glosses_summary">Show a brief English meaning under each word and particle. Needs a downloaded dictionary above.</string>
+    <string name="pref_include_glosses">Word/particle glosses (Experimental)</string>
+    <string name="pref_include_glosses_summary">Show a brief English meaning under each word and particle. Needs a downloaded dictionary above. Experimental — still being refined; off by default.</string>
 
-    <string name="pref_category_emoji">Emoji</string>
+    <string name="pref_category_emoji">Emoji (Experimental)</string>
     <string name="pref_include_emoji">English→emoji annotation</string>
-    <string name="pref_include_emoji_summary">Show a precise emoji under a word\'s gloss when one exists, e.g. 紙 → paper → 📄. Needs word/particle glosses on above, and the emoji data downloaded here.</string>
+    <string name="pref_include_emoji_summary">Show a precise emoji under a word\'s gloss when one exists, e.g. 紙 → paper → 📄. Needs word/particle glosses on above, and the emoji data downloaded here. Experimental — still being refined; off by default.</string>
     <string name="pref_emoji_precision_tier">Match precision</string>
     <string name="pref_emoji_always_show_both">Always show gloss and emoji</string>
     <string name="pref_emoji_always_show_both_summary">Normally a precise emoji match replaces its now-redundant English word. Enable to keep both.</string>
