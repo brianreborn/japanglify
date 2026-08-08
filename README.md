@@ -182,7 +182,7 @@ until you explicitly unlock it:
 
 (The Accessibility list also shows a stock Android "shortcut" toggle — that's an OS-level quick-toggle gesture common to every accessibility service, not something Japanglify adds; it isn't part of the setup above.)
 
-<details>
+<details open>
 <summary><b>Screenshots — every tap, start to finish</b></summary>
 <br>
 
