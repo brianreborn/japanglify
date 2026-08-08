@@ -1,9 +1,28 @@
-# Japanglify — pre-1.0 status
+# Japanglify — status
 
-Working state as of 2026-08-06. This file tracks what's left before a real
-1.0 release; it's a plan/status doc, not user-facing documentation.
+**1.0 BETA shipped 2026-08-07** (commit `93b1c36`, tagged in the commit
+message, not a git tag object). This file now tracks what's left for a
+stable/final 1.0 and 1.1 scope, not a pre-1.0 checklist — treat items below
+accordingly; some earlier entries predate the BETA and describe work already
+shipped.
 
 ## Open items
+
+- **X/Twitter Copy-hook: completely silent on genuine Japanese text —
+  investigation started, root cause NOT found, abandoned mid-session.**
+  User reported Copy/Cut in X does nothing at all (no notification, no
+  toast) with confirmed-Japanese selected text. Ruled out live: the
+  `containsJapanese()` no-op gate (the obvious first suspect) isn't it,
+  since the user confirmed genuine Japanese was copied. The clipboard-poll
+  mechanism itself is app-agnostic (confirmed working in this same session
+  via a synthetic clipboard-set triggering a real notification), so there's
+  no known reason X specifically would differ from Discord, where the same
+  poll path works. Session ended (user: "forget it") before finding the
+  actual cause. Needs a fresh live session with X specifically to
+  diagnose — check Accessibility event delivery for X's window
+  (`onAccessibilityEvent` never firing for that package?), and whether X
+  marks clipboard content as sensitive in a way that affects a background
+  reader.
 
 - **Emoji Strict tier misses due to gloss/tts phrasing mismatches — post-1.0,
   backburner.** Found live: 電話's real JMdict gloss is "telephone call",
@@ -120,9 +139,23 @@ Working state as of 2026-08-06. This file tracks what's left before a real
   put it literally "under" the base line the way the setting's UI text
   ("Below base") implies — worth a documentation/wording pass on that
   string at some point, not urgent.
-- **Pre-release stability validation.** Not scoped yet — user flagged this
-  needs some real validation pass before 1.0, deliberately held open rather
-  than defined on the spot. Revisit once the current bug-fixing pass settles.
+- **Pre-release stability validation — done for 1.0 BETA, 2026-08-07.** The
+  human-in-the-loop workflow this file already recommended below (real
+  device holder reports exactly what looks wrong, agent fixes + re-renders
+  + shows the result, iterate) is exactly what shipped the BETA: real bugs
+  found and fixed this way include particle/auxiliary gloss leakage (だ/な/
+  よ homograph collisions producing "dui"/"load"/"greens"), the POS-
+  abbreviation prefix read as noise and was removed entirely, redundant
+  okurigana repeated in furigana (「なつかしい」instead of「なつ」for
+  懐かしい), punctuation misaligned between the base and romaji rows
+  (different glyph widths centered independently), gloss/emoji text shoved
+  left of their own column once a wide English gloss widened it, and
+  JMdict's "to " infinitive-marker convention on verb glosses (now stripped,
+  gated on `PartOfSpeech.VERB` only). All verified via real rendered
+  screenshots across several sentences of increasing complexity, not just
+  unit tests. Not exhaustive (time-boxed, per explicit instruction to stop
+  and ship) — see the X/Twitter Copy-hook item above for the one known gap
+  this pass didn't close.
 
 - **Human-loop UAT on precise formatting.** Live device automation (adb
   input/uiautomator) has become unreliable for fine-grained repro this
