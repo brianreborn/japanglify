@@ -193,6 +193,47 @@ class TripleScriptRendererTest {
     }
 
     @Test
+    fun interlinearFuriganaOmitsAlreadyVisibleOkuriganaWhenKeepingWordIntact() {
+        // Found live via real device UAT: with romaji on, 懐かしい (kanji 懐 +
+        // okurigana かしい) kept the *whole* word's reading -- 「なつかしい」
+        // -- as its furigana, redundantly repeating かしい (already plainly
+        // visible as hiragana on the base row) above itself. Real furigana
+        // convention only annotates the kanji, so the furigana row here
+        // should be just 「なつ」, not the full word reading, even though
+        // "keep word intact" (romaji on) means the base row still shows the
+        // whole 懐かしい as one unbroken cell -- only the furigana content
+        // itself should be trimmed, not the word split apart.
+        val segments = listOf(
+            AnnotatedSegment("懐かしい", "なつかしい", "natsukashii", needsFurigana = true)
+        )
+        val settings = JapanglifySettings(
+            outputFormat = OutputFormat.INTERLINEAR,
+            romajiPosition = RomajiPosition.BELOW
+        )
+        val rows = renderer.buildInterlinearRows(segments, settings)
+        assertEquals(1, rows.size)
+        assertEquals(1, rows[0].cells.size)
+        val cell = rows[0].cells[0]
+        assertEquals("懐かしい", cell.base)
+        assertEquals("なつ", cell.furigana)
+    }
+
+    @Test
+    fun interlinearFuriganaKeepsFullReadingWhenNoOkuriganaToTrim() {
+        // 紙 alone (no okurigana) -- nothing to peel, furigana stays the
+        // full reading exactly as before this fix.
+        val segments = listOf(
+            AnnotatedSegment("紙", "かみ", "kami", needsFurigana = true)
+        )
+        val settings = JapanglifySettings(
+            outputFormat = OutputFormat.INTERLINEAR,
+            romajiPosition = RomajiPosition.BELOW
+        )
+        val rows = renderer.buildInterlinearRows(segments, settings)
+        assertEquals("かみ", rows[0].cells[0].furigana)
+    }
+
+    @Test
     fun interlinearLeadingPadSurvivesDiscordStyleTrim() {
         // First furigana cell empty over pure-kana "を" would create "leading"
         // blanks — must not be U+0020/NBSP (Discord strips those).

@@ -36,7 +36,28 @@ class GlossAnnotatorTest {
         val result = annotator.annotate(
             listOf(JapaneseAnalyzer.SurfaceReading("行きました", "いきました", baseForm = "行く"))
         )
-        assertEquals(listOf("to go"), texts(result))
+        // "to " stripped -- see stripsLeadingToOnlyForVerbs below.
+        assertEquals(listOf("go"), texts(result))
+    }
+
+    @Test
+    fun stripsLeadingToOnlyForVerbs() {
+        // JMdict's "to " infinitive-marker convention on verb glosses is a
+        // citation-form artifact, not information -- but only for verbs.
+        // An expression/adverb gloss that legitimately starts with "to " as
+        // real content ("to a certain extent") must NOT be touched, or
+        // stripping would corrupt the meaning instead of decluttering it.
+        val annotator = fakeDictionary(
+            "行く" to DictionaryEntry("行く", "いく", PartOfSpeech.VERB, "to go"),
+            "程度" to DictionaryEntry("程度", "ていど", PartOfSpeech.EXPRESSION, "to a certain extent")
+        )
+        val result = annotator.annotate(
+            listOf(
+                JapaneseAnalyzer.SurfaceReading("行く", "いく", baseForm = "行く"),
+                JapaneseAnalyzer.SurfaceReading("程度", "ていど", baseForm = "程度")
+            )
+        )
+        assertEquals(listOf("go", "to a certain extent"), texts(result))
     }
 
     @Test
@@ -146,7 +167,7 @@ class GlossAnnotatorTest {
             JapaneseAnalyzer.SurfaceReading("する", "する", baseForm = "する")
         )
         val result = annotator.annotate(tokens)
-        assertEquals(listOf("Japanese", null, "to do"), texts(result))
+        assertEquals(listOf("Japanese", null, "do"), texts(result))
     }
 
     @Test

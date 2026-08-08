@@ -5,6 +5,15 @@ Working state as of 2026-08-06. This file tracks what's left before a real
 
 ## Open items
 
+- **Emoji Strict tier misses due to gloss/tts phrasing mismatches — post-1.0,
+  backburner.** Found live: 電話's real JMdict gloss is "telephone call",
+  not "telephone" -- CLDR's ☎ has `tts="telephone"` exactly, so the exact-
+  string-match design correctly declines rather than guessing, but a human
+  would obviously want the emoji here. This is a real gap in Strict's exact-
+  match approach for glosses that are a short phrase rather than a bare
+  noun, distinct from the already-documented Medium-tier WordNet-synonym
+  gaps. Not fixed now -- worth revisiting alongside Medium/Loose tier work.
+
 - **Dictionary homograph collisions should prefer the more common word, not
   whichever row happens to sort first — not started, needs real design.**
   Found live via real device UAT: わし (archaic first-person pronoun "I",

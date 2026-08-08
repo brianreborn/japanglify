@@ -85,6 +85,16 @@ class GlossAnnotator(private val dictionary: DictionaryProvider) {
         // when a headword's senses genuinely disagreed on part of speech;
         // still read as unwanted commentary rather than help, per direct
         // feedback, so it's gone unconditionally rather than narrowed further.
-        return entry.gloss
+        // Same reasoning for JMdict's own "to " infinitive-marker convention
+        // on verb glosses ("to see", "to become") -- it's a citation-form
+        // artifact of how JMdict writes verb entries, not information: 見る
+        // means "see," full stop, and marking that as an infinitive adds
+        // nothing a reader uses. Gated on VERB specifically, not applied to
+        // every gloss: an expression/adverb gloss can legitimately start
+        // with "to " as real content ("to a certain extent," "to no end"),
+        // where stripping it would corrupt the meaning rather than
+        // declutter it -- only a verb's leading "to " is purely a citation-
+        // form marker with nothing lost by removing it.
+        return if (entry.partOfSpeech == PartOfSpeech.VERB) entry.gloss.removePrefix("to ") else entry.gloss
     }
 }

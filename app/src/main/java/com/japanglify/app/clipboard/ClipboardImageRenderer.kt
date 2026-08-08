@@ -71,6 +71,7 @@ object ClipboardImageRenderer {
         val isWordStart: Boolean,
         val gloss: String,
         val emoji: String,
+        val isPunctuation: Boolean,
         val width: Float
     )
 
@@ -132,7 +133,7 @@ object ClipboardImageRenderer {
                     paint.measureText(gloss),
                     paint.measureText(emoji)
                 ).coerceAtLeast(1f)
-                MeasuredCell(furi, c.base, roma, c.isWordStart, gloss, emoji, width)
+                MeasuredCell(furi, c.base, roma, c.isWordStart, gloss, emoji, c.isPunctuation, width)
             }
         }
 
@@ -169,10 +170,19 @@ object ClipboardImageRenderer {
                     if (i > 0 && cell.isWordStart) x += wordGapPx
                     val text = cell.text(line)
                     if (text.isNotEmpty()) {
-                        // Gloss/emoji are left-anchored, never truncated, matching the
-                        // plain-text renderer's padEndDisplay (vs. padCenterDisplay for
-                        // furigana/base/romaji) -- see buildGlossLine/buildEmojiLine.
-                        val tx = if (line == Line.GLOSS || line == Line.EMOJI) {
+                        // Gloss/emoji are centered like every other line now -- found
+                        // live that left-anchoring them read as shoved-left whenever a
+                        // wide English gloss widened the column beyond the kanji/kana's
+                        // own width (common: "telephone"/"bicycle" are wider than 電話/
+                        // 自転車), since furigana/base/romaji all center within that same
+                        // widened cell but gloss/emoji sat flush at its left edge.
+                        // Punctuation is still left-anchored on every line (unrelated
+                        // reason): found live that centering it let the base row's "、"
+                        // and the romaji row's "," -- different glyphs with different
+                        // intrinsic widths -- drift to different horizontal offsets
+                        // within their shared cell width even though each was
+                        // individually centered.
+                        val tx = if (cell.isPunctuation) {
                             x
                         } else {
                             val tw = linePaint.measureText(text)

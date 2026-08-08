@@ -30,5 +30,10 @@
             android:exported="true"
             android:noHistory="true"
             android:theme="@style/Theme.Japanglify.Transparent" />
+        <activity
+            android:name=".debug.TokenDumpTestActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:theme="@style/Theme.Japanglify" />
     </application>
 </manifest>

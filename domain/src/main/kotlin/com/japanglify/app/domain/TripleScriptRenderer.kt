@@ -219,7 +219,8 @@ class TripleScriptRenderer {
         val romaji: String,
         val isWordStart: Boolean,
         val gloss: String = "",
-        val emoji: String = ""
+        val emoji: String = "",
+        val isPunctuation: Boolean = false
     )
 
     data class InterlinearRowData(val cells: List<InterlinearCellData>)
@@ -237,7 +238,9 @@ class TripleScriptRenderer {
         buildMeasuredRows(segments, settings).map { row ->
             InterlinearRowData(
                 row.map {
-                    InterlinearCellData(it.furigana, it.base, it.romaji, it.isWordStart, it.gloss, it.emoji)
+                    InterlinearCellData(
+                        it.furigana, it.base, it.romaji, it.isWordStart, it.gloss, it.emoji, it.isPunctuation
+                    )
                 }
             )
         }
@@ -390,27 +393,30 @@ class TripleScriptRenderer {
     }
 
     /**
-     * Gloss line, built separately from [buildRawTripleLines]: left-anchored
-     * ([padEndDisplay], never [padCenterDisplay]) and never truncated. Each
-     * cell's width already accommodates its own gloss (see
-     * [buildMeasuredRows]), so this just pads out to that width rather than
-     * needing to overflow past it — see [InterlinearCell.gloss].
+     * Gloss line, built separately from [buildRawTripleLines]: centered as a
+     * whole block ([padCenterWholeDisplay]) and never truncated. Was
+     * left-anchored ([padEndDisplay]) originally, but found live that read
+     * as shoved-left whenever a wide English gloss widened the column
+     * beyond the kanji/kana's own width (common: "telephone"/"bicycle" are
+     * wider than 電話/自転車) -- furigana/base/romaji all center within
+     * that same widened cell, so gloss sitting flush left looked
+     * misaligned against them. See [InterlinearCell.gloss].
      */
     private fun buildGlossLine(row: List<MeasuredCell>): String {
         val gloss = StringBuilder()
         row.forEachIndexed { index, cell ->
             if (index > 0 && cell.isWordStart) gloss.append(WORD_GAP)
-            gloss.append(padEndDisplay(cell.gloss, cell.width))
+            gloss.append(padCenterWholeDisplay(cell.gloss, cell.width))
         }
         return gloss.toString()
     }
 
-    /** Emoji line — same left-anchored, never-truncated shape as [buildGlossLine]. */
+    /** Emoji line — same centered, never-truncated shape as [buildGlossLine]. */
     private fun buildEmojiLine(row: List<MeasuredCell>): String {
         val emoji = StringBuilder()
         row.forEachIndexed { index, cell ->
             if (index > 0 && cell.isWordStart) emoji.append(WORD_GAP)
-            emoji.append(padEndDisplay(cell.emoji, cell.width))
+            emoji.append(padCenterWholeDisplay(cell.emoji, cell.width))
         }
         return emoji.toString()
     }
@@ -598,7 +604,14 @@ class TripleScriptRenderer {
                     KanaConverter.containsKanji(surface) -> {
                     if (settings.includeRomaji && roma.isNotBlank()) {
                         out += InterlinearCell(
-                            furigana = if (settings.includeFurigana) furi else "",
+                            // Kanji-only reading, not the whole word's -- trailing
+                            // okurigana (かしい in 懐かしい) is already plainly
+                            // visible as hiragana on the base row directly below;
+                            // repeating its reading up top too just duplicates it.
+                            // Real furigana convention only annotates the kanji.
+                            // Romaji stays whole-word (no visible duplication risk
+                            // the way two hiragana rows stacked on each other has).
+                            furigana = if (settings.includeFurigana) kanjiOnlyReading(surface, furi) else "",
                             base = surface,
                             romaji = roma,
                             isWordStart = isWordStart,
@@ -635,6 +648,44 @@ class TripleScriptRenderer {
     }
 
     /**
+     * Finds where trailing okurigana kana (matching the end of [reading])
+     * begins, e.g. 懐かしい/なつかしい → sEnd/rEnd land right after 懐/なつ,
+     * since かしい already matches the reading's own trailing かしい
+     * character-for-character. Returns (surface index, reading index) of
+     * that boundary -- `surface.substring(0, sEnd)` is the kanji-only
+     * prefix, `reading.substring(0, rEnd)` its reading.
+     */
+    private fun kanjiOkuriganaBoundary(surface: String, reading: String): Pair<Int, Int> {
+        var sEnd = surface.length
+        var rEnd = reading.length
+        while (sEnd > 0 && rEnd > 0) {
+            val sc = surface[sEnd - 1]
+            val rc = reading[rEnd - 1]
+            if (!KanaConverter.isKana(sc) && sc != 'ー') break
+            val sh = KanaConverter.toHiragana(sc.toString())
+            val rh = KanaConverter.toHiragana(rc.toString())
+            if (sh != rh && sc != 'ー') break
+            sEnd--
+            rEnd--
+        }
+        return sEnd to rEnd
+    }
+
+    /**
+     * The reading for just the kanji-covered prefix of [surface], with any
+     * trailing okurigana's reading peeled off. Real furigana convention
+     * only annotates kanji -- okurigana (かしい in 懐かしい) is already
+     * plainly visible as hiragana in the base text itself, so repeating its
+     * reading above it (「なつかしい」covering the whole word) is pure
+     * duplication, not real furigana. Falls back to the full reading when
+     * [surface] has no kanji prefix to isolate at all (peeled to nothing).
+     */
+    private fun kanjiOnlyReading(surface: String, reading: String): String {
+        val (sEnd, rEnd) = kanjiOkuriganaBoundary(surface, reading)
+        return reading.substring(0, rEnd).ifEmpty { reading }
+    }
+
+    /**
      * Split e.g. 日本語/にほんご → (日,に)(本,ほん)(語,ご) and 食べ/たべ → (食,た)(べ,べ).
      * Romaji stays under the whole original token on the first cell only so
      * the latin line is readable (not letter-scattered) — gloss and emoji
@@ -650,19 +701,7 @@ class TripleScriptRenderer {
         isWordStart: Boolean,
         canWrapBefore: Boolean
     ): List<InterlinearCell> {
-        // Peel trailing okurigana that match the end of the reading
-        var sEnd = surface.length
-        var rEnd = reading.length
-        while (sEnd > 0 && rEnd > 0) {
-            val sc = surface[sEnd - 1]
-            val rc = reading[rEnd - 1]
-            if (!KanaConverter.isKana(sc) && sc != 'ー') break
-            val sh = KanaConverter.toHiragana(sc.toString())
-            val rh = KanaConverter.toHiragana(rc.toString())
-            if (sh != rh && sc != 'ー') break
-            sEnd--
-            rEnd--
-        }
+        val (sEnd, rEnd) = kanjiOkuriganaBoundary(surface, reading)
         val kanjiPart = surface.substring(0, sEnd)
         val okuri = surface.substring(sEnd)
         val kanjiReading = reading.substring(0, rEnd)
@@ -767,6 +806,24 @@ class TripleScriptRenderer {
         val w = displayWidth(text)
         if (w >= targetWidth) return text
         return text + PAD.repeat(targetWidth - w)
+    }
+
+    /**
+     * Centers [text] as a single whole block (half the padding before, half
+     * after) -- unlike [padCenterDisplay] below, which distributes padding
+     * *between every character*. That's right for a short kana reading
+     * spread evenly across a wider kanji column, but wrong for gloss/emoji
+     * text: inserting gaps mid-word would break "telephone" into
+     * letter-spaced garbage instead of just centering it as a unit. Never
+     * truncates, matching every other padder here.
+     */
+    private fun padCenterWholeDisplay(text: String, targetWidth: Int): String {
+        val w = displayWidth(text)
+        if (w >= targetWidth) return text
+        val diff = targetWidth - w
+        val before = diff / 2
+        val after = diff - before
+        return PAD.repeat(before) + text + PAD.repeat(after)
     }
 
     /**
