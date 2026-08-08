@@ -176,13 +176,26 @@ Android blocks apps installed **outside** an app store (which is how you got
 this APK, since Japanglify isn't on the Play Store) from using Accessibility
 until you explicitly unlock it:
 
-1. **Settings → Apps → Japanglify Copy assist** (or **Japanglify**).
-2. Tap the **⋮** overflow menu in the top-right corner:
+1. Open **Settings**, tap **Apps**:
+
+   <img src="docs/screenshots/settings-home.png" width="300" alt="Android Settings home screen, with the Apps entry highlighted">
+
+2. Tap **See all N apps**:
+
+   <img src="docs/screenshots/apps-list.png" width="300" alt="Android Settings Apps screen, with recently opened apps and the See all apps link">
+
+3. Scroll the full app list to find **Japanglify** (alphabetical):
+
+   <img src="docs/screenshots/all-apps-list.png" width="300" alt="Android Settings All apps list, scrolled to apps starting with A">
+
+   <img src="docs/screenshots/all-apps-japanglify.png" width="300" alt="Android Settings All apps list, scrolled down to show the Japanglify entry">
+
+4. Tap **Japanglify** to open its App info page, then tap the **⋮** overflow menu in the top-right corner:
 
    <img src="docs/screenshots/app-info.png" width="300" alt="Japanglify App info page in Android Settings, with the overflow menu icon in the top-right corner">
 
-3. Tap **Allow restricted settings**.
-4. Now go enable it as below — the toggle will work.
+5. Tap **Allow restricted settings**.
+6. Now go enable it as below — the toggle will work.
 
 Enabling step 2, in Android Settings → Accessibility → Downloaded apps:
 
