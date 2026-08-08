@@ -77,6 +77,10 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         setPreferencesFromResource(R.xml.preferences, rootKey)
+        findPreference<Preference>(KEY_RESET_SERVICES)?.setOnPreferenceClickListener {
+            resetBackgroundServices()
+            true
+        }
         bindList(
             PreferencesRepository.KEY_ROMANIZATION,
             com.japanglify.app.domain.RomanizationSystem.entries.map { it.id to it.displayName }
@@ -652,6 +656,43 @@ class SettingsFragment : PreferenceFragmentCompat() {
         startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
     }
 
+    /**
+     * "Restart everything" button. Honest about what an app process can
+     * actually restart on its own vs. not:
+     * - The conversion engine (dictionary/emoji annotators, settings) is
+     *   fully ours -- [JapanglifyApp.rebuildEngine] just rebuilds it.
+     * - The Copy-assist foreground-service fallback is fully ours -- stop
+     *   then start it if the user has it enabled.
+     * - The Accessibility service (the *main* Copy hook) is **not**
+     *   something an app can enable/restart itself -- only
+     *   `WRITE_SECURE_SETTINGS` (a system-app-only permission) can toggle
+     *   `ENABLED_ACCESSIBILITY_SERVICES`. If it's off, the honest "reset"
+     *   is to take the user straight to the system screen where they can
+     *   turn it back on, not to pretend a code-level restart is possible.
+     */
+    private fun resetBackgroundServices() {
+        val context = requireContext()
+        val app = context.applicationContext as JapanglifyApp
+        app.rebuildEngine()
+
+        val fgsEnabled = findPreference<SwitchPreferenceCompat>(
+            PreferencesRepository.KEY_CLIPBOARD_FGS_FALLBACK
+        )?.isChecked == true
+        if (fgsEnabled) {
+            ClipboardAssistService.stop(context)
+            ClipboardAssistService.start(context)
+        }
+
+        val a11yRunning = JapanglifyAccessibilityService.isRunning() || isA11yEnabledInSettings()
+        Toast.makeText(context, R.string.reset_services_done, Toast.LENGTH_SHORT).show()
+        if (!a11yRunning) {
+            Toast.makeText(context, R.string.clipboard_assist_need_a11y, Toast.LENGTH_LONG).show()
+            openAccessibilitySettings()
+        }
+        refreshA11yStatus()
+        refreshStatusCard()
+    }
+
     private fun bindList(key: String, entries: List<Pair<String, String>>) {
         val pref = findPreference<ListPreference>(key) ?: return
         pref.entryValues = entries.map { it.first }.toTypedArray()
@@ -661,6 +702,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
     companion object {
         const val ARG_SHARED_TEXT = "shared_text"
+        private const val KEY_RESET_SERVICES = "reset_services"
         private const val KEY_STATUS_CARD = "status_card"
         private const val KEY_TRY_IT_CARD = "try_it_card"
         private const val KEY_OUTPUT_FORMAT_PREVIEW = "output_format_preview"

@@ -194,5 +194,10 @@ HTML double-sided ruby (paste into HTML-capable hosts):
 
 ## License
 
-App code: use freely for personal or product work.  
-Kuromoji / IPADIC: see upstream project licenses.
+App code is licensed under the [BSD 3-Clause License](LICENSE).
+
+Bundled/downloaded third-party data and libraries keep their own upstream
+licenses — see [ARCHITECTURE.md](ARCHITECTURE.md) and the in-app About →
+Credits screen for the full list (Kuromoji/IPADIC: Apache License 2.0;
+JMdict/EDICT: CC BY-SA 4.0; Unicode CLDR: Unicode-3.0; Princeton WordNet:
+WordNet License).

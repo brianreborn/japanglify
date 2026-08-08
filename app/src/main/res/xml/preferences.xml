@@ -8,6 +8,11 @@
         app:selectable="false"
         app:title="@string/options_heading" />
 
+    <Preference
+        app:key="reset_services"
+        app:title="@string/pref_reset_services"
+        app:summary="@string/pref_reset_services_summary" />
+
     <PreferenceCategory app:title="@string/pref_category_scripts">
         <SwitchPreferenceCompat
             app:defaultValue="true"
