@@ -95,28 +95,36 @@ object DictionarySources {
      * word with no exact CLDR match (e.g. "automobile") can still resolve
      * if exactly one of its real WordNet synonyms (e.g. "car") has one (see
      * [com.japanglify.app.domain.emoji.EmojiAnnotator]'s STRICT-then-MEDIUM
-     * fallback). Verified live this session: Princeton's own tarball
-     * (wordnetcode.princeton.edu) needs on-device TAR parsing Android has no
-     * built-in support for and was very slow from this network; the
-     * `ekaf/wordnet-prolog` GitHub mirror re-publishes the same file
-     * (WordNet license, unmodified) as a single plain-text file needing no
-     * archive handling at all, with jsdelivr's GitHub-mirroring CDN as a
-     * real second host (not a load balancer -- literally a different
-     * origin) if raw.githubusercontent.com has a bad day.
+     * fallback). [downloadUrl]/[fallbackDownloadUrl] here cover only that
+     * synset file -- `WordNetDownloadManager` separately downloads the same
+     * mirror's `wn_hyp.pl` (immediate-hypernym relations, ~2 MB) to back
+     * LOOSE's further one-hop-broader fallback (e.g. "jacket" via its
+     * category "coat"); not modeled as a second [DictionarySource] since
+     * both files are one inseparable download/status card, not something a
+     * user would ever want independently. Verified live this session:
+     * Princeton's own tarball (wordnetcode.princeton.edu) needs on-device
+     * TAR parsing Android has no built-in support for and was very slow
+     * from this network; the `ekaf/wordnet-prolog` GitHub mirror
+     * re-publishes both files individually (WordNet license, unmodified) as
+     * plain text needing no archive handling at all, with jsdelivr's
+     * GitHub-mirroring CDN as a real second host (not a load balancer --
+     * literally a different origin) if raw.githubusercontent.com has a bad
+     * day.
      */
     val WORDNET_SYNONYMS = DictionarySource(
         id = "wordnet_synonyms_en",
         displayName = "Synonyms (English)",
-        description = "Princeton WordNet's English synonym sets, used to " +
-            "widen emoji matching (Medium precision) beyond exact names " +
-            "-- e.g. \"automobile\" matching via its synonym \"car\". " +
-            "~7 MB download, fully offline afterward.",
+        description = "Princeton WordNet's English synonym and category " +
+            "data, used to widen emoji matching (Medium/Loose precision) " +
+            "beyond exact names -- e.g. \"automobile\" matching via its " +
+            "synonym \"car\", or \"jacket\" via its category \"coat\". " +
+            "~9 MB download, fully offline afterward.",
         downloadUrl = "https://raw.githubusercontent.com/ekaf/wordnet-prolog/" +
             "WNprolog-3.0BF/prolog/wn_s.pl",
         fallbackDownloadUrl = "https://cdn.jsdelivr.net/gh/ekaf/wordnet-prolog@" +
             "WNprolog-3.0BF/prolog/wn_s.pl",
-        approxDownloadSizeBytes = 7_300_000L,
-        approxOnDiskSizeBytes = 9_000_000L,
+        approxDownloadSizeBytes = 9_600_000L,
+        approxOnDiskSizeBytes = 11_500_000L,
         license = "WordNet 3.0 (Princeton University)",
         format = DictionarySourceFormat.WORDNET_PROLOG
     )

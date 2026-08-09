@@ -41,6 +41,17 @@ class EmojiAnnotator(private val provider: EmojiProvider) {
             // one (null) shouldn't be silently blocked by a scope filter it
             // can't meaningfully be checked against.
             if (result.partOfSpeech != null && result.partOfSpeech !in posScope) return@map null
-            provider.lookup(result.text.lowercase(), tier)
+            val word = result.text.lowercase()
+            provider.lookup(word, tier) ?: categoryFallback(word, tier)
         }
+
+    /**
+     * [CategoryEmoji]'s hand-reviewed category clusters ("animal" -> a
+     * worm, a bird, a fish) -- pure static data, no download needed, so it
+     * lives here rather than behind [provider]. Absolute last resort: only
+     * consulted at LOOSE, after [provider] itself already tried STRICT,
+     * MEDIUM, and its own further LOOSE fallbacks and found nothing.
+     */
+    private fun categoryFallback(word: String, tier: EmojiPrecisionTier): String? =
+        if (tier == EmojiPrecisionTier.LOOSE) CategoryEmoji.TABLE[word] else null
 }

@@ -145,34 +145,44 @@ class EmojiDownloadManager(private val context: Context) {
     }
 
     /**
-     * Reads CLDR's `<annotation cp="🐕" type="tts">dog</annotation>`
-     * elements (only the `type="tts"` short-name ones). The untyped
-     * `<annotation cp="🐕">animal | animals | dog | ...</annotation>`
-     * keyword-list siblings were tried as a second ("MEDIUM") tier in an
-     * earlier version of this class and abandoned: CLDR assigns a `tts` to
-     * essentially every emoji (verified live: 1967 of 1967), so a
-     * keyword-derived candidate for a *different* word almost always
-     * collides with an emoji already claimed by its own `tts` word, and
-     * "no symbol reused for a different word" correctly drops it -- net
-     * result was real coverage of ~0. MEDIUM's real fallback now comes from
-     * [WordNetDownloadManager]'s synonym expansion instead (see
-     * [SqliteEmojiProvider]), which is a genuine synonym relation rather
-     * than CLDR's mostly-hyponym keyword lists.
+     * Reads every `<annotation cp="🐕" ...>` element and builds two tiers:
      *
-     * Builds an in-memory word→emoji map (a few thousand entries at most --
-     * no memory concern at this scale) and drops any word claimed by more
-     * than one distinct emoji, so the persisted map stays genuinely 1:1.
+     * - STRICT: only `type="tts"` short-name elements (CLDR's one canonical
+     *   name per emoji), exact match, word -> emoji.
+     * - LOOSE: the untyped `<annotation cp="🐕">animal | animals | dog |
+     *   dogs | pet</annotation>` keyword-list siblings, split into exact
+     *   tokens (not substring matching -- "hat" must equal a whole keyword,
+     *   not appear inside "what"). A first attempt at using these for MEDIUM
+     *   required a candidate's emoji not already be some other word's exact
+     *   `tts` match, on a "one emoji, one word, ever" theory -- and that
+     *   theory is what killed it: CLDR assigns a `tts` to essentially every
+     *   emoji (verified live: 1967 of 1967), so nearly every keyword-derived
+     *   candidate got excluded this way, leaving real coverage at ~0.
+     *   Rebuilt as LOOSE with that constraint dropped entirely (only reached
+     *   when STRICT and [WordNetDatabase]'s synonym/hypernym relations all
+     *   miss -- see [SqliteEmojiProvider]): "couch" resolving to 🛋 even
+     *   though 🛋's own `tts` is "couch and lamp", not "couch", is fine --
+     *   there's no rule against two related words sharing a symbol, only
+     *   against picking arbitrarily *among competing candidates for the
+     *   same word*. That's still enforced: a word's keyword-derived
+     *   candidate must be the single emoji whose keyword list contains that
+     *   exact word, same as STRICT's `claimUnique` below.
+     *
+     * Both tiers still drop any *word* claimed by more than one distinct
+     * emoji (genuine ambiguity about what that word itself means); STRICT
+     * words are excluded from LOOSE's map purely because STRICT already
+     * wins first at query time, not to protect STRICT's symbols from reuse.
      */
     private fun parseAndInsert(reader: java.io.Reader, stmt: SQLiteStatement): Int {
+        data class Annotation(val cp: String, val isTts: Boolean, val text: String)
+
         val parser: XmlPullParser = Xml.newPullParser()
         parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
         parser.setInput(reader)
 
-        val claimedBy = HashMap<String, String>()
-        val ambiguous = HashSet<String>()
+        val annotations = ArrayList<Annotation>()
         var currentCp: String? = null
         var currentIsTts = false
-
         var eventType = parser.eventType
         while (eventType != XmlPullParser.END_DOCUMENT) {
             when (eventType) {
@@ -182,16 +192,9 @@ class EmojiDownloadManager(private val context: Context) {
                 }
                 XmlPullParser.TEXT -> {
                     val cp = currentCp
-                    if (currentIsTts && cp != null) {
-                        val word = parser.text?.trim()?.lowercase()?.takeIf { it.isNotBlank() }
-                        if (word != null) {
-                            val existing = claimedBy[word]
-                            if (existing == null) {
-                                claimedBy[word] = cp
-                            } else if (existing != cp) {
-                                ambiguous += word
-                            }
-                        }
+                    if (cp != null) {
+                        val text = parser.text
+                        if (!text.isNullOrBlank()) annotations += Annotation(cp, currentIsTts, text)
                     }
                 }
                 XmlPullParser.END_TAG -> if (parser.name == "annotation") {
@@ -202,16 +205,41 @@ class EmojiDownloadManager(private val context: Context) {
             eventType = parser.next()
         }
 
-        var inserted = 0
-        for ((word, emoji) in claimedBy) {
-            if (word in ambiguous) continue
-            stmt.clearBindings()
-            stmt.bindString(1, word)
-            stmt.bindString(2, emoji)
-            stmt.bindString(3, EmojiDatabase.TIER_STRICT)
-            stmt.executeInsert()
-            inserted++
+        fun claimUnique(pairs: List<Pair<String, String>>): Map<String, String> {
+            val claimedBy = HashMap<String, String>()
+            val ambiguous = HashSet<String>()
+            for ((word, cp) in pairs) {
+                val existing = claimedBy[word]
+                if (existing == null) claimedBy[word] = cp
+                else if (existing != cp) ambiguous += word
+            }
+            return claimedBy.filterKeys { it !in ambiguous }
         }
+
+        val strict = claimUnique(
+            annotations.filter { it.isTts }
+                .map { it.text.trim().lowercase() to it.cp }
+                .filter { it.first.isNotBlank() }
+        )
+
+        val looseCandidates = annotations.filter { !it.isTts }
+            .flatMap { ann -> ann.text.split('|').map { it.trim().lowercase() to ann.cp } }
+            .filter { it.first.isNotBlank() }
+        val loose = claimUnique(looseCandidates).filterKeys { it !in strict.keys }
+
+        var inserted = 0
+        fun insertAll(map: Map<String, String>, tier: String) {
+            for ((word, emoji) in map) {
+                stmt.clearBindings()
+                stmt.bindString(1, word)
+                stmt.bindString(2, emoji)
+                stmt.bindString(3, tier)
+                stmt.executeInsert()
+                inserted++
+            }
+        }
+        insertAll(strict, EmojiDatabase.TIER_STRICT)
+        insertAll(loose, EmojiDatabase.TIER_LOOSE)
         return inserted
     }
 

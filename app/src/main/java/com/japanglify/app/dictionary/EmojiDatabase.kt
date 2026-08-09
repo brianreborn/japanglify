@@ -37,8 +37,15 @@ class EmojiDatabase(
 
         /** Exact match against CLDR's `tts` short name -- see [EmojiDownloadManager]. */
         const val TIER_STRICT = "strict"
-        /** Best single keyword picked from CLDR's broader annotation list -- see [EmojiDownloadManager]. */
-        const val TIER_MEDIUM = "medium"
+        /**
+         * A word claimed by exactly one emoji's broader CLDR keyword list
+         * (not its `tts`) -- see [EmojiDownloadManager]. Deliberately looser
+         * than STRICT/MEDIUM: unlike [WordNetDatabase]'s synonym/hypernym
+         * relations, this isn't a lexically verified relationship, just "no
+         * other emoji's keyword list also claims this word." Only consulted
+         * by [EmojiPrecisionTier.LOOSE] -- MEDIUM never reads this tier.
+         */
+        const val TIER_LOOSE = "loose"
 
         const val CREATE_TABLE_SQL = """
             CREATE TABLE $TABLE (

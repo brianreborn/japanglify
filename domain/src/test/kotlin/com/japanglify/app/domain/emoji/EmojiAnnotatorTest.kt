@@ -119,4 +119,37 @@ class EmojiAnnotatorTest {
         )
         assertEquals("🐕", result[0])
     }
+
+    @Test
+    fun looseTierFallsBackToCategoryEmojiWhenProviderMisses() {
+        val annotator = fakeProvider() // no matches at all
+        val result = annotator.annotate(
+            listOf(GlossAnnotator.GlossResult("animal", PartOfSpeech.NOUN)),
+            allPos,
+            EmojiPrecisionTier.LOOSE
+        )
+        assertEquals(CategoryEmoji.TABLE.getValue("animal"), result[0])
+    }
+
+    @Test
+    fun mediumTierDoesNotConsultCategoryEmoji() {
+        val annotator = fakeProvider() // no matches at all
+        val result = annotator.annotate(
+            listOf(GlossAnnotator.GlossResult("animal", PartOfSpeech.NOUN)),
+            allPos,
+            EmojiPrecisionTier.MEDIUM
+        )
+        assertNull(result[0])
+    }
+
+    @Test
+    fun looseTierPrefersProviderMatchOverCategoryEmoji() {
+        val annotator = fakeProvider("animal" to "🦄") // provider itself resolves it
+        val result = annotator.annotate(
+            listOf(GlossAnnotator.GlossResult("animal", PartOfSpeech.NOUN)),
+            allPos,
+            EmojiPrecisionTier.LOOSE
+        )
+        assertEquals("🦄", result[0])
+    }
 }

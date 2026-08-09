@@ -16,6 +16,9 @@ import com.japanglify.app.domain.EmojiPrecisionTier
 import com.japanglify.app.domain.dictionary.DictionarySource
 import com.japanglify.app.domain.dictionary.DictionarySourceFormat
 import com.japanglify.app.domain.dictionary.DictionarySources
+import com.japanglify.app.domain.dictionary.GlossAnnotator
+import com.japanglify.app.domain.dictionary.PartOfSpeech
+import com.japanglify.app.domain.emoji.EmojiAnnotator
 
 /**
  * Debug-build-only seam for live-testing [DictionaryDownloadService] end to
@@ -84,17 +87,31 @@ class DictionaryDownloadTestActivity : Activity() {
                 }
             }
             val provider = SqliteEmojiProvider(applicationContext, source.id)
+            val annotator = EmojiAnnotator(provider)
+            val allPos = PartOfSpeech.entries.toSet()
             val tiered = MEDIUM_TEST_WORDS.joinToString("\n") { word ->
                 val strict = provider.lookup(word, EmojiPrecisionTier.STRICT)
                 val medium = provider.lookup(word, EmojiPrecisionTier.MEDIUM)
-                "tiered($word) strict=$strict medium=$medium"
+                val loose = provider.lookup(word, EmojiPrecisionTier.LOOSE)
+                // annotate() wraps provider.lookup() with CategoryEmoji's
+                // static fallback -- only visible through this path, not
+                // through provider.lookup() directly (see EmojiAnnotator).
+                val viaAnnotator = annotator.annotate(
+                    listOf(GlossAnnotator.GlossResult(word, PartOfSpeech.NOUN)),
+                    allPos,
+                    EmojiPrecisionTier.LOOSE
+                )[0]
+                "tiered($word) strict=$strict medium=$medium loose=$loose viaAnnotator=$viaAnnotator"
             }
             "counts: $counts\n$lookups\n$tiered"
         }
         DictionarySourceFormat.WORDNET_PROLOG -> {
             val helper = WordNetDatabase(applicationContext, WordNetDatabase.fileNameFor(source.id))
             val db = helper.readableDatabase
-            val total = db.rawQuery("SELECT COUNT(*) FROM ${WordNetDatabase.TABLE}", null).use { cursor ->
+            val synCount = db.rawQuery("SELECT COUNT(*) FROM ${WordNetDatabase.TABLE}", null).use { cursor ->
+                cursor.moveToFirst(); cursor.getInt(0)
+            }
+            val hypCount = db.rawQuery("SELECT COUNT(*) FROM ${WordNetDatabase.TABLE_HYPERNYMS}", null).use { cursor ->
                 cursor.moveToFirst(); cursor.getInt(0)
             }
             val lookups = SPOT_CHECK_SYNONYM_WORDS.joinToString("\n") { word ->
@@ -109,7 +126,19 @@ class DictionaryDownloadTestActivity : Activity() {
                     "synonyms($word) = ${if (results.isEmpty()) "none" else results.joinToString(", ")}"
                 }
             }
-            "counts: pairs=$total\n$lookups"
+            val hypLookups = SPOT_CHECK_HYPERNYM_WORDS.joinToString("\n") { word ->
+                db.rawQuery(
+                    "SELECT ${WordNetDatabase.COL_HYPERNYM_SIBLING} FROM ${WordNetDatabase.TABLE_HYPERNYMS} " +
+                        "WHERE ${WordNetDatabase.COL_WORD} = ?",
+                    arrayOf(word)
+                ).use { cursor ->
+                    val results = generateSequence { if (cursor.moveToNext()) cursor else null }
+                        .map { it.getString(0) }
+                        .toList()
+                    "hypernymSiblings($word) = ${if (results.isEmpty()) "none" else results.joinToString(", ")}"
+                }
+            }
+            "counts: pairs=$synCount hypernymPairs=$hypCount\n$lookups\n$hypLookups"
         }
     }
 
@@ -141,6 +170,11 @@ class DictionaryDownloadTestActivity : Activity() {
         private val SPOT_CHECK_WORDS_JA = listOf("日本語", "勉強", "する", "食べる", "犬", "な", "だ", "より", "も", "かけ", "かける", "わし")
         private val SPOT_CHECK_WORDS_EN = listOf("dog", "water", "paper", "book", "study", "animal", "hole", "mountain")
         private val SPOT_CHECK_SYNONYM_WORDS = listOf("automobile", "car", "study", "sofa")
-        private val MEDIUM_TEST_WORDS = listOf("car", "couch", "automobile", "bike", "phone", "kid", "jacket")
+        private val SPOT_CHECK_HYPERNYM_WORDS = listOf("jacket", "sofa", "building")
+        private val MEDIUM_TEST_WORDS =
+            listOf(
+                "car", "couch", "automobile", "bike", "phone", "kid", "jacket", "plate", "study", "table",
+                "animal", "vehicle", "worker", "bicycle", "insect"
+            )
     }
 }
