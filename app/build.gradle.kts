@@ -55,7 +55,13 @@ android {
         }
         create("bundled") {
             dimension = "distribution"
-            applicationIdSuffix = ".bundled"
+            // Deliberately NOT applicationIdSuffix'd — same applicationId as
+            // "downloadable" on purpose, so installing one replaces the other
+            // instead of both coexisting. Two japanglify entries with the
+            // same label showed up simultaneously in Android's Accessibility
+            // panel with mismatched IDs; same-ID makes that class of bug
+            // structurally impossible instead of relying on remembering to
+            // uninstall the other flavor first.
             versionNameSuffix = "-bundled"
             buildConfigField("boolean", "DICTIONARIES_BUNDLED", "true")
         }
@@ -248,10 +254,9 @@ val acceptanceSmokeTest by tasks.registering(Exec::class) {
     }.getOrDefault(false)
 
     if (deviceConnected) {
-        // The "downloadable" flavor specifically -- its applicationId
-        // matches PKG="com.japanglify.app" below unmodified, unlike
-        // "bundled" (applicationIdSuffix ".bundled"), which this script's
-        // hardcoded package name wouldn't find.
+        // Both flavors share applicationId "com.japanglify.app" (no
+        // applicationIdSuffix on "bundled"), matching this script's
+        // hardcoded PKG -- installing either flavor here works the same.
         dependsOn("installDownloadableDebug")
     }
 

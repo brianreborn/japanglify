@@ -8,6 +8,25 @@ shipped.
 
 ## Open items
 
+- **Duplicate "Japanglify" entries in Android's Accessibility panel —
+  found and fixed this session.** Root cause: the `bundled` product flavor
+  had `applicationIdSuffix = ".bundled"`, so `downloadable` and `bundled`
+  installed as two entirely separate packages (`com.japanglify.app` and
+  `com.japanglify.app.bundled`) that could coexist on the same device —
+  confirmed live via `dumpsys accessibility`, both registered as separate
+  clients, both surfacing their own "Japanglify"-labeled row in the
+  system Accessibility settings list. Not a one-off bad install: any
+  device where both flavors were ever sideloaded would hit this
+  permanently, since Android has no reason to know they're "the same app."
+  Fixed by dropping the `applicationIdSuffix` (`app/build.gradle.kts`) so
+  both flavors now share `com.japanglify.app` — installing one now
+  replaces the other via normal Android package-manager semantics instead
+  of relying on remembering to uninstall the other flavor first.
+  `versionNameSuffix = "-bundled"` is kept (still useful for telling the
+  two apart in an APK filename/About screen; harmless since it doesn't
+  affect installability). Both stale packages uninstalled live from the
+  test device as part of this fix.
+
 - **Cancel button + poll-loop staleness, both found and fixed live this
   session (after the two items below shipped).** Live device testing (a
   Pixel 8, real network + a real leftover pre-fix stuck-download install)
