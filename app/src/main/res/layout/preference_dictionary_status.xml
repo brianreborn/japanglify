@@ -34,6 +34,16 @@
             app:backgroundTint="@color/jp_red" />
 
         <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_dictionary_cancel"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/dictionary_action_cancel"
+            android:textColor="@color/jp_red"
+            app:strokeColor="@color/jp_red" />
+
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_dictionary_delete"
             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
             android:layout_width="match_parent"

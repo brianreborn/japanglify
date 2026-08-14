@@ -124,24 +124,27 @@ class SettingsFragment : PreferenceFragmentCompat() {
         findPreference<DictionaryStatusPreference>(KEY_DICTIONARY_STATUS)?.apply {
             onDownloadClicked = {
                 DictionaryDownloadService.start(requireContext(), selectedDictionarySource())
-                scheduleDictionaryPoll()
+                scheduleDictionaryPoll(justTriggeredDownload = true)
             }
             onDeleteClicked = { deleteDictionary(selectedDictionarySource()) }
+            onCancelClicked = { cancelDictionary(selectedDictionarySource()) }
         }
 
         findPreference<DictionaryStatusPreference>(KEY_EMOJI_STATUS)?.apply {
             onDownloadClicked = {
                 DictionaryDownloadService.start(requireContext(), DictionarySources.CLDR_EMOJI)
-                scheduleDictionaryPoll()
+                scheduleDictionaryPoll(justTriggeredDownload = true)
             }
             onDeleteClicked = { deleteDictionary(DictionarySources.CLDR_EMOJI) }
+            onCancelClicked = { cancelDictionary(DictionarySources.CLDR_EMOJI) }
         }
         findPreference<DictionaryStatusPreference>(KEY_WORDNET_STATUS)?.apply {
             onDownloadClicked = {
                 DictionaryDownloadService.start(requireContext(), DictionarySources.WORDNET_SYNONYMS)
-                scheduleDictionaryPoll()
+                scheduleDictionaryPoll(justTriggeredDownload = true)
             }
             onDeleteClicked = { deleteDictionary(DictionarySources.WORDNET_SYNONYMS) }
+            onCancelClicked = { cancelDictionary(DictionarySources.WORDNET_SYNONYMS) }
         }
         bindList(
             PreferencesRepository.KEY_EMOJI_PRECISION_TIER,
@@ -457,14 +460,39 @@ class SettingsFragment : PreferenceFragmentCompat() {
      * near-identical ones, and it self-stops once *neither* is still
      * DOWNLOADING/PARSING instead of needing two independent stop
      * conditions.
+     *
+     * [justTriggeredDownload] (only true from the three `onDownloadClicked`
+     * call sites, never from the [onResume] catch-all) additionally floors
+     * how long this keeps polling at [MIN_POLL_DURATION_MS], regardless of
+     * what any single tick observes. Confirmed live this session: a real
+     * JMdict download+import can complete in well under
+     * [DICTIONARY_POLL_INTERVAL_MS] on a fast connection/small file (and
+     * instantly for a bundled-flavor import). [DictionaryDownloadService.start]
+     * returns immediately -- the background executor thread that actually
+     * flips status to DOWNLOADING hasn't necessarily run yet -- so this
+     * poll's very first tick can see every source still at its
+     * pre-download status, conclude nothing is in progress, and self-stop
+     * for good before ever observing the DOWNLOADING/PARSING window,
+     * silently stranding the card on stale text (the real status/DB write
+     * both land correctly the whole time; only this UI polling loop misses
+     * it) until the screen is left and reopened. Scoped to the
+     * download-triggered call sites only, not [onResume]'s catch-all poll
+     * for a download already in flight from before the screen opened --
+     * unconditionally flooring *that* poll too would re-run
+     * [countEntries]'s `SELECT COUNT(*)` every tick for
+     * [MIN_POLL_DURATION_MS] on every Settings open even when nothing at
+     * all is happening, for no benefit (nothing races against *that* call
+     * site the way it does against a just-issued
+     * [DictionaryDownloadService.start]).
      */
-    private fun scheduleDictionaryPoll() {
+    private fun scheduleDictionaryPoll(justTriggeredDownload: Boolean = false) {
         dictRunnable?.let { dictHandler.removeCallbacks(it) }
         // A source can reach READY on one tick while the other source is
         // still in progress on a later tick -- track which ones already
         // triggered rebuildEngine() so a still-running sibling source
         // doesn't cause it to be called again every tick.
         val alreadyRebuilt = mutableSetOf<String>()
+        val startedAt = android.os.SystemClock.elapsedRealtime()
         val r = object : Runnable {
             override fun run() {
                 val app = requireContext().applicationContext as JapanglifyApp
@@ -488,11 +516,35 @@ class SettingsFragment : PreferenceFragmentCompat() {
                         else -> Unit
                     }
                 }
-                if (anyInProgress) dictHandler.postDelayed(this, DICTIONARY_POLL_INTERVAL_MS)
+                val withinGracePeriod = justTriggeredDownload &&
+                    android.os.SystemClock.elapsedRealtime() - startedAt < MIN_POLL_DURATION_MS
+                if (anyInProgress || withinGracePeriod) {
+                    dictHandler.postDelayed(this, DICTIONARY_POLL_INTERVAL_MS)
+                }
             }
         }
         dictRunnable = r
         dictHandler.post(r)
+    }
+
+    /**
+     * Signals any live download thread to stop (via
+     * [DictionaryDownloadService.cancel]) *and* immediately clears the
+     * persisted status itself, rather than waiting for that thread to
+     * notice and do it. The two-step version (signal-only) has a real gap,
+     * confirmed live this session: a status can be stuck at
+     * DOWNLOADING/PARSING with no live thread left to ever notice the
+     * cancel flag at all -- e.g. the process was force-stopped or killed
+     * mid-download in a past app run, leaving [PreferencesRepository]'s
+     * persisted status orphaned forever, since nothing survives to write
+     * NOT_DOWNLOADED/FAILED over it. Tapping Cancel on a card in that state
+     * must still work, not silently no-op.
+     */
+    private fun cancelDictionary(source: DictionarySource) {
+        DictionaryDownloadService.cancel(source)
+        val app = requireContext().applicationContext as JapanglifyApp
+        app.preferences.setDictionaryStatus(source.id, DictionaryDownloadStatus.NOT_DOWNLOADED)
+        refreshDictionaryStatus(source)
     }
 
     private fun deleteDictionary(source: DictionarySource) {
@@ -714,5 +766,8 @@ class SettingsFragment : PreferenceFragmentCompat() {
         private const val KEY_EMOJI_STATUS = "emoji_status"
         private const val KEY_WORDNET_STATUS = "wordnet_status"
         private const val DICTIONARY_POLL_INTERVAL_MS = 1000L
+        // See scheduleDictionaryPoll()'s comment -- guarantees the loop is
+        // still running whenever even a very fast download+import lands.
+        private const val MIN_POLL_DURATION_MS = 15_000L
     }
 }

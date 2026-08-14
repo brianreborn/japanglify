@@ -30,6 +30,37 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // Two distributions of the same app, differing only in how the
+    // optional dictionaries (see com.japanglify.app.dictionary) get onto
+    // the device:
+    //  - "downloadable" (default): current behavior, fetched over the
+    //    network into DictionaryDownloadService on demand.
+    //  - "bundled": the same source files (JMdict zip, CLDR XML, WordNet
+    //    text) ship as APK assets under src/bundled/assets/dictionaries/,
+    //    so DictionaryDownloadManager/EmojiDownloadManager/
+    //    WordNetDownloadManager copy from assets instead of opening a
+    //    socket -- everything downstream of that (parsing, SQLite import,
+    //    atomic swap) is exactly the same code path either way, so this is
+    //    a small branch at the top of each acquisition step, not a
+    //    parallel implementation. Adds ~21 MB to the APK (11 MB JMdict +
+    //    0.3 MB CLDR + 9.6 MB WordNet, all verified-live real source files,
+    //    same ones "downloadable" fetches from the same upstream URLs) in
+    //    exchange for those dictionaries working with zero network
+    //    dependency and no "hangs forever" failure mode at all.
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("downloadable") {
+            dimension = "distribution"
+            buildConfigField("boolean", "DICTIONARIES_BUNDLED", "false")
+        }
+        create("bundled") {
+            dimension = "distribution"
+            applicationIdSuffix = ".bundled"
+            versionNameSuffix = "-bundled"
+            buildConfigField("boolean", "DICTIONARIES_BUNDLED", "true")
+        }
+    }
+
     signingConfigs {
         if (keystorePropertiesFile.exists()) {
             create("release") {
@@ -68,6 +99,18 @@ android {
 
     buildFeatures {
         viewBinding = false
+        buildConfig = true
+    }
+
+    // The bundled flavor's dictionary assets are already LZMA2 (.xz)
+    // compressed (see BundledDictionaryAssets) -- letting aapt2
+    // additionally deflate-compress an already-high-entropy .xz stream
+    // wastes build time for no size benefit (and occasionally grows it
+    // slightly from container overhead), so it's excluded the same way
+    // apps normally exclude already-compressed media (.mp3/.jpg/etc, which
+    // AGP excludes by default -- .xz just isn't in that default list).
+    androidResources {
+        noCompress += "xz"
     }
 
     packaging {
@@ -115,6 +158,26 @@ dependencies {
 
     // Offline morphological analysis for kanji readings (furigana source)
     implementation("com.atilika.kuromoji:kuromoji-ipadic:0.9.0")
+
+    // Decompresses the "bundled" flavor's pre-compressed dictionary assets
+    // (see BundledDictionaryAssets) -- needed by both flavors' code paths
+    // since DictionaryDownloadManager/EmojiDownloadManager/
+    // WordNetDownloadManager are flavor-agnostic classes that branch on
+    // BuildConfig.DICTIONARIES_BUNDLED at runtime, not separate per-flavor
+    // source sets.
+    //
+    // Pure-Java LZMA2 (XZ format), not com.github.luben:zstd-jni -- tried
+    // zstd-jni first and rejected it after inspecting the actual built APK
+    // live: its published artifact only bundles desktop natives
+    // (darwin/*.dylib, win/*.dll, linux/*.so meant for JVM-desktop temp-dir
+    // extraction), not Android's `lib/<abi>/*.so` jniLibs convention -- it
+    // would have shipped completely non-functional native libs and crashed
+    // on first use on a real device. org.tukaani:xz has none of that risk
+    // (plain JAR, no JNI), and empirically beat zstd anyway once LZMA2's
+    // literal-context params were tuned for this data (see the asset-prep
+    // note in BundledDictionaryAssets / NOTES.md): 7.47 MB vs zstd -19's
+    // 7.79 MB for JMdict's JSON.
+    implementation("org.tukaani:xz:1.12")
 }
 
 val staticAnalysis by tasks.registering {
@@ -185,7 +248,11 @@ val acceptanceSmokeTest by tasks.registering(Exec::class) {
     }.getOrDefault(false)
 
     if (deviceConnected) {
-        dependsOn("installDebug")
+        // The "downloadable" flavor specifically -- its applicationId
+        // matches PKG="com.japanglify.app" below unmodified, unlike
+        // "bundled" (applicationIdSuffix ".bundled"), which this script's
+        // hardcoded package name wouldn't find.
+        dependsOn("installDownloadableDebug")
     }
 
     doFirst {
@@ -208,15 +275,22 @@ val acceptanceSmokeTest by tasks.registering(Exec::class) {
 // hand) instead of creating a new one every run.
 val publishApks by tasks.registering {
     group = "distribution"
-    description = "Builds and publishes debug + release APKs as assets on a GitHub Release."
-    dependsOn("assembleDebug", "assembleRelease")
+    description = "Builds and publishes all flavor/build-type APKs (downloadable + bundled, debug + release) as assets on a GitHub Release."
+    dependsOn(
+        "assembleDownloadableDebug", "assembleDownloadableRelease",
+        "assembleBundledDebug", "assembleBundledRelease"
+    )
 
     doLast {
         val tag = (project.findProperty("releaseTag") as String?)
             ?: "v${android.defaultConfig.versionName}"
-        val debugApk = layout.buildDirectory.file("outputs/apk/debug/app-debug.apk").get().asFile
-        val releaseApk = layout.buildDirectory.file("outputs/apk/release/app-release.apk").get().asFile
-        listOf(debugApk, releaseApk).forEach {
+        val apks = listOf(
+            "outputs/apk/downloadable/debug/app-downloadable-debug.apk",
+            "outputs/apk/downloadable/release/app-downloadable-release.apk",
+            "outputs/apk/bundled/debug/app-bundled-debug.apk",
+            "outputs/apk/bundled/release/app-bundled-release.apk"
+        ).map { layout.buildDirectory.file(it).get().asFile }
+        apks.forEach {
             require(it.exists()) { "Expected APK not found: ${it.path}" }
         }
 
@@ -245,10 +319,10 @@ val publishApks by tasks.registering {
 
         val uploaded = run(
             "gh", "release", "upload", tag,
-            debugApk.path, releaseApk.path,
+            *apks.map { it.path }.toTypedArray(),
             "--clobber"
         )
         require(uploaded == 0) { "gh release upload failed for tag $tag" }
-        println("==> Published debug + release APKs to GitHub Release $tag")
+        println("==> Published downloadable + bundled (debug + release) APKs to GitHub Release $tag")
     }
 }

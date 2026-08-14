@@ -6,6 +6,7 @@ import android.database.sqlite.SQLiteStatement
 import android.os.Handler
 import android.os.Looper
 import android.util.Xml
+import com.japanglify.app.BuildConfig
 import com.japanglify.app.data.PreferencesRepository
 import com.japanglify.app.domain.dictionary.DictionarySource
 import org.xmlpull.v1.XmlPullParser
@@ -41,6 +42,7 @@ class EmojiDownloadManager(private val context: Context) {
             fun persist(status: DictionaryDownloadStatus, errorMessage: String? = null) {
                 prefs.setDictionaryStatus(source.id, status, errorMessage)
             }
+            DictionaryDownloadCancellation.reset(source.id)
             try {
                 persist(DictionaryDownloadStatus.DOWNLOADING)
                 post(DictionaryDownloadProgress(DictionaryDownloadStatus.DOWNLOADING, percent = 0))
@@ -71,31 +73,48 @@ class EmojiDownloadManager(private val context: Context) {
 
                 persist(DictionaryDownloadStatus.READY)
                 post(DictionaryDownloadProgress(DictionaryDownloadStatus.READY, wordsImported = wordCount))
+            } catch (e: DownloadCancelledException) {
+                persist(DictionaryDownloadStatus.NOT_DOWNLOADED)
+                post(DictionaryDownloadProgress(DictionaryDownloadStatus.NOT_DOWNLOADED))
             } catch (e: Exception) {
                 val message = "${e::class.simpleName}: ${e.message}"
                 persist(DictionaryDownloadStatus.FAILED, message)
                 post(DictionaryDownloadProgress(DictionaryDownloadStatus.FAILED, errorMessage = message))
+            } finally {
+                DictionaryDownloadCancellation.reset(source.id)
             }
         }
     }
 
     private fun downloadXml(source: DictionarySource, onProgress: (Int) -> Unit): File {
+        if (BuildConfig.DICTIONARIES_BUNDLED) {
+            val file = BundledDictionaryAssets.decompressToCache(context, "${source.id}.xml.xz", "${source.id}.xml.part")
+            onProgress(100)
+            return file
+        }
+        if (DictionaryDownloadCancellation.isCancelled(source.id)) throw DownloadCancelledException()
         val cacheDir = File(context.cacheDir, "dictionaries").apply { mkdirs() }
         val xmlFile = File(cacheDir, "${source.id}.xml.part")
         val connection = URL(source.downloadUrl).openConnection() as HttpURLConnection
         connection.connectTimeout = CONNECT_TIMEOUT_MS
         connection.readTimeout = READ_TIMEOUT_MS
         connection.instanceFollowRedirects = true
+        DictionaryDownloadCancellation.beginAttempt(source.id, connection)
         try {
             val code = connection.responseCode
             check(code == HttpURLConnection.HTTP_OK) { "HTTP $code downloading emoji data" }
             val total = connection.contentLength
             var downloaded = 0
             var lastPercent = -1
+            val deadline = android.os.SystemClock.elapsedRealtime() + ABSOLUTE_TIMEOUT_MS
             connection.inputStream.use { input ->
                 xmlFile.outputStream().use { output ->
                     val buffer = ByteArray(64 * 1024)
                     while (true) {
+                        if (DictionaryDownloadCancellation.isCancelled(source.id)) throw DownloadCancelledException()
+                        check(android.os.SystemClock.elapsedRealtime() < deadline) {
+                            "Download stalled past ${ABSOLUTE_TIMEOUT_MS / 1000}s"
+                        }
                         val n = input.read(buffer)
                         if (n < 0) break
                         output.write(buffer, 0, n)
@@ -111,6 +130,7 @@ class EmojiDownloadManager(private val context: Context) {
                 }
             }
         } finally {
+            DictionaryDownloadCancellation.endAttempt(source.id, connection)
             connection.disconnect()
         }
         return xmlFile
@@ -246,6 +266,7 @@ class EmojiDownloadManager(private val context: Context) {
     companion object {
         private const val CONNECT_TIMEOUT_MS = 15_000
         private const val READ_TIMEOUT_MS = 30_000
+        private const val ABSOLUTE_TIMEOUT_MS = 5 * 60_000L
 
         private const val INSERT_SQL =
             "INSERT INTO ${EmojiDatabase.TABLE} (" +

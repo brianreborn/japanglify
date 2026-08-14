@@ -5,11 +5,14 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteStatement
 import android.os.Handler
 import android.os.Looper
+import com.japanglify.app.BuildConfig
 import com.japanglify.app.data.PreferencesRepository
 import com.japanglify.app.domain.dictionary.DictionarySource
 import com.japanglify.app.domain.dictionary.PartOfSpeech
 import org.json.JSONObject
+import org.tukaani.xz.XZInputStream
 import java.io.File
+import java.io.InputStream
 import java.io.InputStreamReader
 import java.io.Reader
 import java.net.HttpURLConnection
@@ -57,23 +60,44 @@ class DictionaryDownloadManager(private val context: Context) {
             fun persist(status: DictionaryDownloadStatus, errorMessage: String? = null) {
                 prefs.setDictionaryStatus(source.id, status, errorMessage)
             }
+            DictionaryDownloadCancellation.reset(source.id)
             try {
-                persist(DictionaryDownloadStatus.DOWNLOADING)
-                post(DictionaryDownloadProgress(DictionaryDownloadStatus.DOWNLOADING, percent = 0))
-                val zipFile = downloadZip(source) { percent ->
-                    post(DictionaryDownloadProgress(DictionaryDownloadStatus.DOWNLOADING, percent = percent))
-                }
-
-                persist(DictionaryDownloadStatus.PARSING)
-                post(DictionaryDownloadProgress(DictionaryDownloadStatus.PARSING))
                 val buildingFile = File(
                     context.getDatabasePath(DictionaryDatabase.fileNameFor(source.id)).path + ".building"
                 )
                 buildingFile.delete() // stale leftover from a previous failed attempt
-                val wordCount = importZipIntoDatabase(zipFile, buildingFile) { count ->
-                    post(DictionaryDownloadProgress(DictionaryDownloadStatus.PARSING, wordsImported = count))
+
+                // The bundled flavor skips the network (and the ZIP
+                // container -- see BundledDictionaryAssets' doc comment on
+                // why the asset is the bare LZMA2-compressed JSON, not a
+                // re-zipped one) entirely, decompressing straight from the
+                // APK asset into the importer with no intermediate
+                // decompressed-JSON file ever touching disk.
+                val wordCount = if (BuildConfig.DICTIONARIES_BUNDLED) {
+                    persist(DictionaryDownloadStatus.PARSING)
+                    post(DictionaryDownloadProgress(DictionaryDownloadStatus.PARSING))
+                    context.assets.open("dictionaries/${source.id}.json.xz").use { raw ->
+                        XZInputStream(raw).use { decompressed ->
+                            importJsonStreamIntoDatabase(decompressed, buildingFile) { count ->
+                                post(DictionaryDownloadProgress(DictionaryDownloadStatus.PARSING, wordsImported = count))
+                            }
+                        }
+                    }
+                } else {
+                    persist(DictionaryDownloadStatus.DOWNLOADING)
+                    post(DictionaryDownloadProgress(DictionaryDownloadStatus.DOWNLOADING, percent = 0))
+                    val zipFile = downloadZip(source) { percent ->
+                        post(DictionaryDownloadProgress(DictionaryDownloadStatus.DOWNLOADING, percent = percent))
+                    }
+
+                    persist(DictionaryDownloadStatus.PARSING)
+                    post(DictionaryDownloadProgress(DictionaryDownloadStatus.PARSING))
+                    val count = importZipIntoDatabase(zipFile, buildingFile) { count ->
+                        post(DictionaryDownloadProgress(DictionaryDownloadStatus.PARSING, wordsImported = count))
+                    }
+                    zipFile.delete()
+                    count
                 }
-                zipFile.delete()
 
                 val liveFile = context.getDatabasePath(DictionaryDatabase.fileNameFor(source.id))
                 // Same-directory rename is atomic on Android's filesystem, so a
@@ -92,31 +116,74 @@ class DictionaryDownloadManager(private val context: Context) {
 
                 persist(DictionaryDownloadStatus.READY)
                 post(DictionaryDownloadProgress(DictionaryDownloadStatus.READY, wordsImported = wordCount))
+            } catch (e: DownloadCancelledException) {
+                // A user-initiated cancel, not a failure -- leave it exactly
+                // as if the download had never been started, so the status
+                // card offers "Download" again rather than "Retry" with a
+                // scary error message.
+                persist(DictionaryDownloadStatus.NOT_DOWNLOADED)
+                post(DictionaryDownloadProgress(DictionaryDownloadStatus.NOT_DOWNLOADED))
             } catch (e: Exception) {
                 val message = "${e::class.simpleName}: ${e.message}"
                 persist(DictionaryDownloadStatus.FAILED, message)
                 post(DictionaryDownloadProgress(DictionaryDownloadStatus.FAILED, errorMessage = message))
+            } finally {
+                DictionaryDownloadCancellation.reset(source.id)
             }
         }
     }
 
+    /**
+     * Tries [DictionarySource.downloadUrl] first, [DictionarySource.fallbackDownloadUrl] only if that fails outright.
+     * Only called for the "downloadable" flavor -- "bundled" never reaches this (see [download]'s branch).
+     */
     private fun downloadZip(source: DictionarySource, onProgress: (Int) -> Unit): File {
+        val urls = listOfNotNull(source.downloadUrl, source.fallbackDownloadUrl)
+        var lastError: Exception? = null
+        for (url in urls) {
+            if (DictionaryDownloadCancellation.isCancelled(source.id)) throw DownloadCancelledException()
+            try {
+                return downloadZipFrom(url, source.id, onProgress)
+            } catch (e: DownloadCancelledException) {
+                throw e
+            } catch (e: Exception) {
+                lastError = e
+            }
+        }
+        throw lastError ?: IllegalStateException("No download URL configured")
+    }
+
+    private fun downloadZipFrom(url: String, sourceId: String, onProgress: (Int) -> Unit): File {
         val cacheDir = File(context.cacheDir, "dictionaries").apply { mkdirs() }
-        val zipFile = File(cacheDir, "${source.id}.zip.part")
-        val connection = URL(source.downloadUrl).openConnection() as HttpURLConnection
+        val zipFile = File(cacheDir, "$sourceId.zip.part")
+        val connection = URL(url).openConnection() as HttpURLConnection
         connection.connectTimeout = CONNECT_TIMEOUT_MS
         connection.readTimeout = READ_TIMEOUT_MS
         connection.instanceFollowRedirects = true
+        DictionaryDownloadCancellation.beginAttempt(sourceId, connection)
         try {
             val code = connection.responseCode
             check(code == HttpURLConnection.HTTP_OK) { "HTTP $code downloading dictionary" }
             val total = connection.contentLength
             var downloaded = 0
             var lastPercent = -1
+            // Per-read idle timeout (readTimeout above) only fires when the
+            // socket goes fully silent -- a connection that keeps trickling
+            // a byte or two just often enough to reset that timer never
+            // trips it and downloads "forever" in practice. Confirmed as the
+            // actual failure mode live: a stalled-but-not-silent GitHub
+            // release-asset connection sat in DOWNLOADING at a fixed percent
+            // for 20+ minutes with no timeout ever firing. This wall-clock
+            // deadline is what actually bounds worst-case download time.
+            val deadline = android.os.SystemClock.elapsedRealtime() + ABSOLUTE_TIMEOUT_MS
             connection.inputStream.use { input ->
                 zipFile.outputStream().use { output ->
                     val buffer = ByteArray(64 * 1024)
                     while (true) {
+                        if (DictionaryDownloadCancellation.isCancelled(sourceId)) throw DownloadCancelledException()
+                        check(android.os.SystemClock.elapsedRealtime() < deadline) {
+                            "Download stalled past ${ABSOLUTE_TIMEOUT_MS / 1000}s"
+                        }
                         val n = input.read(buffer)
                         if (n < 0) break
                         output.write(buffer, 0, n)
@@ -132,6 +199,7 @@ class DictionaryDownloadManager(private val context: Context) {
                 }
             }
         } finally {
+            DictionaryDownloadCancellation.endAttempt(sourceId, connection)
             connection.disconnect()
         }
         return zipFile
@@ -139,6 +207,38 @@ class DictionaryDownloadManager(private val context: Context) {
 
     /** Returns the total number of words imported. */
     private fun importZipIntoDatabase(zipFile: File, dbFile: File, onProgress: (Int) -> Unit): Int {
+        return withFreshDatabase(dbFile) { db ->
+            var wordCount = 0
+            ZipInputStream(zipFile.inputStream().buffered(1 shl 16)).use { zis ->
+                var entry = zis.nextEntry
+                var found = false
+                while (entry != null) {
+                    if (!entry.isDirectory && entry.name.endsWith(".json")) {
+                        found = true
+                        wordCount = importWordsFromStream(zis, db, onProgress)
+                        break
+                    }
+                    entry = zis.nextEntry
+                }
+                check(found) { "No .json entry found in downloaded archive" }
+            }
+            wordCount
+        }
+    }
+
+    /** Bundled-flavor counterpart of [importZipIntoDatabase] -- same word stream, no ZIP wrapper to unwrap first. */
+    private fun importJsonStreamIntoDatabase(jsonStream: InputStream, dbFile: File, onProgress: (Int) -> Unit): Int {
+        return withFreshDatabase(dbFile) { db -> importWordsFromStream(jsonStream, db, onProgress) }
+    }
+
+    /**
+     * Shared scaffolding around either import path: create the table
+     * (with `user_version` set -- see the comment this used to carry
+     * inline, preserved on [DictionaryDatabase.DB_VERSION]'s assignment
+     * below), run [body] to actually populate it, then build the index and
+     * ambiguity-marking pass once at the end rather than incrementally.
+     */
+    private fun withFreshDatabase(dbFile: File, body: (SQLiteDatabase) -> Int): Int {
         val db = SQLiteDatabase.openOrCreateDatabase(dbFile, null)
         try {
             // Raw SQLiteDatabase.openOrCreateDatabase() never touches SQLite's
@@ -151,31 +251,7 @@ class DictionaryDownloadManager(private val context: Context) {
             // dictionary that had genuinely finished importing successfully.
             db.version = DictionaryDatabase.DB_VERSION
             db.execSQL(DictionaryDatabase.CREATE_TABLE_SQL)
-            var wordCount = 0
-            ZipInputStream(zipFile.inputStream().buffered(1 shl 16)).use { zis ->
-                var entry = zis.nextEntry
-                var found = false
-                while (entry != null) {
-                    if (!entry.isDirectory && entry.name.endsWith(".json")) {
-                        found = true
-                        db.beginTransaction()
-                        try {
-                            val stmt = db.compileStatement(INSERT_SQL)
-                            val source = CharSource(InputStreamReader(zis, Charsets.UTF_8))
-                            streamWordObjects(source) { word ->
-                                wordCount += insertWord(word, stmt)
-                                if (wordCount % PROGRESS_REPORT_INTERVAL == 0) onProgress(wordCount)
-                            }
-                            db.setTransactionSuccessful()
-                        } finally {
-                            db.endTransaction()
-                        }
-                        break
-                    }
-                    entry = zis.nextEntry
-                }
-                check(found) { "No .json entry found in downloaded archive" }
-            }
+            val wordCount = body(db)
             // Built once, after the bulk insert -- indexing incrementally
             // during ~200k inserts would be far slower than indexing once.
             db.execSQL(DictionaryDatabase.CREATE_INDEX_SQL)
@@ -186,6 +262,23 @@ class DictionaryDownloadManager(private val context: Context) {
         } finally {
             db.close()
         }
+    }
+
+    private fun importWordsFromStream(stream: InputStream, db: SQLiteDatabase, onProgress: (Int) -> Unit): Int {
+        var wordCount = 0
+        db.beginTransaction()
+        try {
+            val stmt = db.compileStatement(INSERT_SQL)
+            val source = CharSource(InputStreamReader(stream, Charsets.UTF_8))
+            streamWordObjects(source) { word ->
+                wordCount += insertWord(word, stmt)
+                if (wordCount % PROGRESS_REPORT_INTERVAL == 0) onProgress(wordCount)
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        return wordCount
     }
 
     /**
@@ -407,6 +500,9 @@ class DictionaryDownloadManager(private val context: Context) {
     companion object {
         private const val CONNECT_TIMEOUT_MS = 15_000
         private const val READ_TIMEOUT_MS = 30_000
+        // ~10-15 MB should complete in well under this on any real
+        // connection; generous headroom over that, not a tight bound.
+        private const val ABSOLUTE_TIMEOUT_MS = 5 * 60_000L
         private const val PROGRESS_REPORT_INTERVAL = 2_000
 
         private const val INSERT_SQL =

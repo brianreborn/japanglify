@@ -58,8 +58,13 @@ class DictionaryDownloadService : Service() {
 
         var lastNotifiedAt = 0L
         val onProgress: (DictionaryDownloadProgress) -> Unit = { progress ->
+            // NOT_DOWNLOADED here means a cancel came back through, not that
+            // the download never started -- see DictionaryDownloadManager's
+            // (and its siblings') DownloadCancelledException handling, which
+            // deliberately reuses this status rather than adding a new one.
             val terminal = progress.status == DictionaryDownloadStatus.READY ||
-                progress.status == DictionaryDownloadStatus.FAILED
+                progress.status == DictionaryDownloadStatus.FAILED ||
+                progress.status == DictionaryDownloadStatus.NOT_DOWNLOADED
             val now = android.os.SystemClock.elapsedRealtime()
             // Android silently drops notification updates past ~5/sec per
             // app (confirmed live: "Shedding notify ... rate limit (5.0)
@@ -100,6 +105,19 @@ class DictionaryDownloadService : Service() {
             } else {
                 context.startService(intent)
             }
+        }
+
+        /**
+         * Doesn't need to reach this Service instance at all -- the
+         * cancellation flag/connection registry
+         * ([DictionaryDownloadCancellation]) is a plain in-process singleton,
+         * and this app never runs the service in a separate `:process` (see
+         * AndroidManifest), so setting it here is visible to whichever
+         * executor thread the running [DictionaryDownloadManager]/
+         * [EmojiDownloadManager]/[WordNetDownloadManager] is blocked in.
+         */
+        fun cancel(source: DictionarySource) {
+            DictionaryDownloadCancellation.cancel(source.id)
         }
     }
 }

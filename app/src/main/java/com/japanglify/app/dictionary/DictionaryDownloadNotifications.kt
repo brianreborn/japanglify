@@ -60,9 +60,13 @@ object DictionaryDownloadNotifications {
                 .setOngoing(false)
                 .setAutoCancel(true)
 
+            // Only reached with a non-null progress -- i.e. a user cancel
+            // came back through (see DictionaryDownloadService.onProgress),
+            // never the pre-download state, which is the `null` branch above.
             DictionaryDownloadStatus.NOT_DOWNLOADED -> builder
-                .setContentTitle(context.getString(R.string.notif_dictionary_downloading_title, source.displayName))
-                .setOngoing(true)
+                .setContentTitle(context.getString(R.string.notif_dictionary_cancelled_title, source.displayName))
+                .setOngoing(false)
+                .setAutoCancel(true)
         }
         return builder.build()
     }

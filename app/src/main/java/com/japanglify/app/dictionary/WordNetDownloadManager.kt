@@ -5,6 +5,7 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteStatement
 import android.os.Handler
 import android.os.Looper
+import com.japanglify.app.BuildConfig
 import com.japanglify.app.data.PreferencesRepository
 import com.japanglify.app.domain.dictionary.DictionarySource
 import java.io.BufferedReader
@@ -40,6 +41,7 @@ class WordNetDownloadManager(private val context: Context) {
             fun persist(status: DictionaryDownloadStatus, errorMessage: String? = null) {
                 prefs.setDictionaryStatus(source.id, status, errorMessage)
             }
+            DictionaryDownloadCancellation.reset(source.id)
             try {
                 persist(DictionaryDownloadStatus.DOWNLOADING)
                 post(DictionaryDownloadProgress(DictionaryDownloadStatus.DOWNLOADING, percent = 0))
@@ -77,21 +79,33 @@ class WordNetDownloadManager(private val context: Context) {
 
                 persist(DictionaryDownloadStatus.READY)
                 post(DictionaryDownloadProgress(DictionaryDownloadStatus.READY, wordsImported = pairCount))
+            } catch (e: DownloadCancelledException) {
+                persist(DictionaryDownloadStatus.NOT_DOWNLOADED)
+                post(DictionaryDownloadProgress(DictionaryDownloadStatus.NOT_DOWNLOADED))
             } catch (e: Exception) {
                 val message = "${e::class.simpleName}: ${e.message}"
                 persist(DictionaryDownloadStatus.FAILED, message)
                 post(DictionaryDownloadProgress(DictionaryDownloadStatus.FAILED, errorMessage = message))
+            } finally {
+                DictionaryDownloadCancellation.reset(source.id)
             }
         }
     }
 
     /** Tries [primaryUrl] first, [fallbackUrl] only if that fails outright. */
     private fun downloadText(primaryUrl: String, fallbackUrl: String?, fileId: String, onProgress: (Int) -> Unit): File {
+        if (BuildConfig.DICTIONARIES_BUNDLED) {
+            val file = BundledDictionaryAssets.decompressToCache(context, "$fileId.txt.xz", "$fileId.txt.part")
+            onProgress(100)
+            return file
+        }
         val urls = listOfNotNull(primaryUrl, fallbackUrl)
         var lastError: Exception? = null
         for (url in urls) {
             try {
                 return downloadFrom(url, fileId, onProgress)
+            } catch (e: DownloadCancelledException) {
+                throw e
             } catch (e: Exception) {
                 lastError = e
             }
@@ -100,22 +114,29 @@ class WordNetDownloadManager(private val context: Context) {
     }
 
     private fun downloadFrom(url: String, sourceId: String, onProgress: (Int) -> Unit): File {
+        if (DictionaryDownloadCancellation.isCancelled(sourceId)) throw DownloadCancelledException()
         val cacheDir = File(context.cacheDir, "dictionaries").apply { mkdirs() }
         val textFile = File(cacheDir, "$sourceId.txt.part")
         val connection = URL(url).openConnection() as HttpURLConnection
         connection.connectTimeout = CONNECT_TIMEOUT_MS
         connection.readTimeout = READ_TIMEOUT_MS
         connection.instanceFollowRedirects = true
+        DictionaryDownloadCancellation.beginAttempt(sourceId, connection)
         try {
             val code = connection.responseCode
             check(code == HttpURLConnection.HTTP_OK) { "HTTP $code downloading $url" }
             val total = connection.contentLength
             var downloaded = 0
             var lastPercent = -1
+            val deadline = android.os.SystemClock.elapsedRealtime() + ABSOLUTE_TIMEOUT_MS
             connection.inputStream.use { input ->
                 textFile.outputStream().use { output ->
                     val buffer = ByteArray(64 * 1024)
                     while (true) {
+                        if (DictionaryDownloadCancellation.isCancelled(sourceId)) throw DownloadCancelledException()
+                        check(android.os.SystemClock.elapsedRealtime() < deadline) {
+                            "Download stalled past ${ABSOLUTE_TIMEOUT_MS / 1000}s"
+                        }
                         val n = input.read(buffer)
                         if (n < 0) break
                         output.write(buffer, 0, n)
@@ -131,6 +152,7 @@ class WordNetDownloadManager(private val context: Context) {
                 }
             }
         } finally {
+            DictionaryDownloadCancellation.endAttempt(sourceId, connection)
             connection.disconnect()
         }
         return textFile
@@ -292,6 +314,7 @@ class WordNetDownloadManager(private val context: Context) {
     companion object {
         private const val CONNECT_TIMEOUT_MS = 15_000
         private const val READ_TIMEOUT_MS = 60_000
+        private const val ABSOLUTE_TIMEOUT_MS = 5 * 60_000L
         private const val MAX_SYNSET_SIZE = 25
 
         // s(100001740,1,'entity',n,1,11). -- group 1 = synset id, group 2 =

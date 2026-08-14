@@ -8,6 +8,86 @@ shipped.
 
 ## Open items
 
+- **Cancel button + poll-loop staleness, both found and fixed live this
+  session (after the two items below shipped).** Live device testing (a
+  Pixel 8, real network + a real leftover pre-fix stuck-download install)
+  surfaced two more bugs the first pass missed:
+  1. The Cancel button only signaled a *live* download thread's
+     cancellation flag; a status stuck at DOWNLOADING/PARSING with no live
+     thread left to notice it (e.g. the process was force-stopped
+     mid-download in a past run) just sat there forever even after tapping
+     Cancel -- confirmed live against a genuinely orphaned status from
+     before this fix existed. `SettingsFragment.cancelDictionary()` now
+     also optimistically clears the persisted status itself immediately,
+     not just signals.
+  2. `scheduleDictionaryPoll()` could self-stop on its very first tick if
+     a download completed faster than `DICTIONARY_POLL_INTERVAL_MS`
+     (confirmed live: a real JMdict download+import finished in a few
+     seconds on this network) -- `DictionaryDownloadService.start()`
+     returns before its background thread's first `persist(DOWNLOADING)`
+     write, so the poll's first tick can see nothing in progress and stop
+     for good, stranding the card on stale text even though the real
+     status/DB write both land correctly. Fixed with a
+     `justTriggeredDownload`-gated `MIN_POLL_DURATION_MS` (15s) floor,
+     scoped to the three download-click call sites only -- deliberately
+     *not* applied to `onResume()`'s catch-all poll, which would otherwise
+     re-run `countEntries()`'s `SELECT COUNT(*)` every tick for 15s on
+     every Settings open even when nothing is happening.
+
+- **Dictionary download hang + no cancel — fixed this session.** JMdict
+  downloads could sit at a fixed `DOWNLOADING` percent indefinitely: the
+  per-read idle timeout (`readTimeout`) only fires on a fully silent
+  socket, and a connection trickling a byte every so often never trips it.
+  Fixed with a wall-clock deadline (`ABSOLUTE_TIMEOUT_MS`, 5 min) checked
+  every read in `DictionaryDownloadManager`/`EmojiDownloadManager`/
+  `WordNetDownloadManager`. Also added real cancellation
+  (`DictionaryDownloadCancellation`, an in-process flag + connection
+  registry — `disconnect()` from another thread unblocks a stalled
+  `read()`) and a Cancel button on all three dictionary status cards, and
+  wired `DictionarySources.JMDICT_ENGLISH`'s existing-but-unused
+  `fallbackDownloadUrl` field the same way `WordNetDownloadManager` already
+  did (JMdict itself has no verified second host for the release binary —
+  jsdelivr's `gh` GitHub mirror only serves committed repo-tree files, not
+  release assets; confirmed live, 404).
+
+- **Two build flavors + LZMA2-compressed bundled dictionaries — added this
+  session.** `app/build.gradle.kts` now has `downloadable` (default, same
+  network behavior as before) and `bundled` (dictionaries ship as APK
+  assets, no network needed) product flavors, gated by
+  `BuildConfig.DICTIONARIES_BUNDLED`. Bundled assets live under
+  `app/src/bundled/assets/dictionaries/` as the real upstream source files
+  (verified live, same URLs `DictionarySources` already used).
+  Compressed as `.xz` (LZMA2) via pure-Java `org.tukaani:xz` --
+  **first tried `com.github.luben:zstd-jni` and rejected it after
+  inspecting the actual built APK live**: that artifact only bundles
+  desktop natives (`darwin/*.dylib`, `win/*.dll`, `linux/*.so` under paths
+  meant for JVM-desktop temp-dir extraction), not a single `.so` under
+  Android's `lib/<abi>/` jniLibs convention — it would have shipped
+  completely non-functional native libs and crashed on first real-device
+  use. Switched to `org.tukaani:xz` (pure Java, zero native/JNI risk) and
+  tuned LZMA2's literal-context params for this repo's actual data (a
+  parameter sweep on a 20 MB slice of JMdict's JSON, mixed
+  ASCII/Japanese-UTF-8/emoji text over JSON structure) rather than using
+  un-tuned defaults: `pb=0` (no positional byte alignment to exploit in
+  text), `lc=4` (beat the default `lc=3` on every sample tried). Verified
+  live that `org.tukaani.xz.XZInputStream` round-trips these
+  custom-parameter streams byte-for-byte (SHA-256-verified against the raw
+  source files) before committing them — this matters because LZMA2's
+  `lc`/`lp`/`pb` are stream-header fields any standard decoder should
+  honor, but "should" isn't "verified." End result beat every deflate/zstd
+  alternative also benchmarked live: JMdict's raw 117 MB JSON -> 11.47 MB
+  with the release's own zip (deflate), 8.04 MB with un-tuned `xz -6`,
+  7.79 MB with `zstd -19`, 7.24 MB with `zstd --ultra -22` (not usable, see
+  above) — tuned `xz -9e` lands at **7.47 MB**, beating even zstd -19
+  despite the native-library dealbreaker ruling zstd out entirely. Total
+  bundled assets (all 4 dictionaries): ~8.7 MB. There's no such thing as an
+  LZMA2 mode "for Japanese text with emoji" specifically — it's a
+  general-purpose byte-stream compressor with no script/language
+  awareness, only the generic `lc`/`lp`/`pb` literal-context tunables
+  above, which affect all byte sequences uniformly rather than
+  recognizing particular scripts. `publishApks` now builds+uploads all
+  four (flavor × build type) APKs.
+
 - **X/Twitter Copy-hook: completely silent on genuine Japanese text —
   investigation started, root cause NOT found, abandoned mid-session.**
   User reported Copy/Cut in X does nothing at all (no notification, no

@@ -44,7 +44,7 @@
     <string name="dictionary_status_ready">%1$s ready — %2$d words</string>
     <string name="dictionary_status_failed">%1$s download failed: %2$s</string>
     <string name="dictionary_action_download">Download</string>
-    <string name="dictionary_action_downloading">Downloading…</string>
+    <string name="dictionary_action_cancel">Cancel download</string>
     <string name="dictionary_action_delete">Delete downloaded dictionary</string>
     <string name="dictionary_delete_confirm_title">Delete dictionary?</string>
     <string name="dictionary_delete_confirm_message">This removes the downloaded %1$s dictionary from this device. You can download it again later.</string>
@@ -152,6 +152,7 @@
     <string name="notif_dictionary_parsing_text">%1$d words imported so far</string>
     <string name="notif_dictionary_ready_title">%1$s ready</string>
     <string name="notif_dictionary_failed_title">%1$s download failed</string>
+    <string name="notif_dictionary_cancelled_title">%1$s download cancelled</string>
     <string name="notif_hook_paused_title">Copy hook paused</string>
     <string name="notif_hook_paused_text">Copy and Cut work normally for now. Tap Resume to turn auto-convert back on.</string>
     <string name="notif_action_pause">Pause</string>

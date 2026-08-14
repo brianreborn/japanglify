@@ -22,6 +22,7 @@ class DictionaryStatusPreference(context: Context, attrs: AttributeSet?) : Prefe
 
     var onDownloadClicked: (() -> Unit)? = null
     var onDeleteClicked: (() -> Unit)? = null
+    var onCancelClicked: (() -> Unit)? = null
 
     init {
         layoutResource = R.layout.preference_dictionary_status
@@ -31,6 +32,7 @@ class DictionaryStatusPreference(context: Context, attrs: AttributeSet?) : Prefe
     private var statusView: TextView? = null
     private var downloadButton: MaterialButton? = null
     private var deleteButton: MaterialButton? = null
+    private var cancelButton: MaterialButton? = null
     private var pendingState: State? = null
 
     data class State(
@@ -49,6 +51,9 @@ class DictionaryStatusPreference(context: Context, attrs: AttributeSet?) : Prefe
         }
         deleteButton = (holder.findViewById(R.id.btn_dictionary_delete) as? MaterialButton)?.apply {
             setOnClickListener { onDeleteClicked?.invoke() }
+        }
+        cancelButton = (holder.findViewById(R.id.btn_dictionary_cancel) as? MaterialButton)?.apply {
+            setOnClickListener { onCancelClicked?.invoke() }
         }
         pendingState?.let { applyState(it) }
     }
@@ -79,11 +84,9 @@ class DictionaryStatusPreference(context: Context, attrs: AttributeSet?) : Prefe
         val downloadable = state.status == DictionaryDownloadStatus.NOT_DOWNLOADED ||
             state.status == DictionaryDownloadStatus.FAILED
 
-        downloadButton?.visibility = if (downloadable || busy) View.VISIBLE else View.GONE
-        downloadButton?.isEnabled = !busy
-        downloadButton?.setText(
-            if (busy) R.string.dictionary_action_downloading else R.string.dictionary_action_download
-        )
+        downloadButton?.visibility = if (downloadable) View.VISIBLE else View.GONE
+        downloadButton?.setText(R.string.dictionary_action_download)
+        cancelButton?.visibility = if (busy) View.VISIBLE else View.GONE
         deleteButton?.visibility = if (state.status == DictionaryDownloadStatus.READY) View.VISIBLE else View.GONE
     }
 }
