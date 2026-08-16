@@ -1,13 +1,11 @@
 package com.japanglify.app
 
 import android.content.ComponentName
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.os.bundleOf
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -16,9 +14,9 @@ import com.japanglify.app.ui.SettingsFragment
 
 /**
  * Launcher / options screen. Context-menu actions never open this for options;
- * PROCESS_TEXT is handled by [ProcessTextActivity]. Share (ACTION_SEND) and
- * the in-app convert / clipboard buttons are fallbacks when a host never
- * exposes PROCESS_TEXT (no overflow menu at all).
+ * PROCESS_TEXT is handled by [ProcessTextActivity], Share (ACTION_SEND) by
+ * [ShareTargetActivity]. The in-app convert / clipboard buttons on the
+ * Try-It card are the fallback when a host never exposes either.
  *
  * This activity is just a shell around [SettingsFragment] — the status card,
  * try-it card, and every preference all live in one Preference RecyclerView
@@ -65,19 +63,9 @@ class SettingsActivity : AppCompatActivity() {
         ensureProcessTextEnabled()
 
         if (savedInstanceState == null) {
-            val sharedText = if (Intent.ACTION_SEND == intent?.action &&
-                intent.type?.startsWith("text/") == true
-            ) {
-                intent.getStringExtra(Intent.EXTRA_TEXT)?.takeIf { it.isNotBlank() }
-            } else {
-                null
-            }
-            val fragment = SettingsFragment().apply {
-                arguments = sharedText?.let { bundleOf(SettingsFragment.ARG_SHARED_TEXT to it) }
-            }
             supportFragmentManager
                 .beginTransaction()
-                .replace(R.id.settings_container, fragment)
+                .replace(R.id.settings_container, SettingsFragment())
                 .commit()
         }
     }

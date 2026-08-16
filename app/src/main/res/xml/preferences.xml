@@ -193,4 +193,15 @@
             app:summary="@string/pref_about_credits_summary"
             app:title="@string/pref_about_credits" />
     </PreferenceCategory>
+
+    <PreferenceCategory app:title="@string/pref_category_support">
+        <Preference
+            app:key="donate"
+            app:summary="@string/pref_donate_summary"
+            app:title="@string/pref_donate_title" />
+        <Preference
+            app:key="license_link"
+            app:summary="@string/pref_license_summary"
+            app:title="@string/pref_license_title" />
+    </PreferenceCategory>
 </PreferenceScreen>

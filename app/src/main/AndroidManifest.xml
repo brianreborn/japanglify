@@ -44,10 +44,37 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+        </activity>
+
+        <!--
+          Share target: the reliable alternative to PROCESS_TEXT requested
+          explicitly because PROCESS_TEXT's selection-menu item is entirely
+          host-controlled (see ShareTargetActivity's doc comment). Share is
+          a first-class OS surface essentially every app supports. The only
+          "Japanglify" entry in the system Share sheet: SettingsActivity used
+          to also declare ACTION_SEND (opening full Settings with the text
+          pre-filled, requiring an extra manual tap to convert), which would
+          have shown as a confusing second, differently-behaving entry
+          alongside this one, removed in favor of this single, instant,
+          always-reliable target.
+        -->
+        <activity
+            android:name=".ShareTargetActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:label="@string/share_target_label"
+            android:launchMode="standard"
+            android:noHistory="true"
+            android:theme="@style/Theme.Japanglify.Transparent">
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/*" />
             </intent-filter>
         </activity>
 
@@ -88,6 +115,13 @@
 
         <activity
             android:name=".clipboard.ProcessClipboardActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:noHistory="true"
+            android:theme="@style/Theme.Japanglify.Transparent" />
+
+        <activity
+            android:name=".clipboard.ClipboardWriteActivity"
             android:excludeFromRecents="true"
             android:exported="false"
             android:noHistory="true"

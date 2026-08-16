@@ -25,6 +25,17 @@
             android:textIsSelectable="true"
             android:textSize="13sp" />
 
+        <ProgressBar
+            android:id="@+id/dictionary_progress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:max="100"
+            android:progressTint="@color/jp_red"
+            android:indeterminateTint="@color/jp_red"
+            android:visibility="gone" />
+
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_dictionary_download"
             android:layout_width="match_parent"

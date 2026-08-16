@@ -274,14 +274,15 @@ class TripleScriptRenderer {
         // "never overlaps," worth live-testing rather than tuning further
         // analytically up front (matches how furigana/romaji/HTML ruby were
         // all actually fixed this session).
+        val cjkWidth = settings.cjkDisplayWidthUnits
         val measured = cells.map { cell ->
             val furiCompact = compactFurigana(cell.furigana)
             val width = maxOf(
-                displayWidth(cell.base),
-                displayWidth(furiCompact),
-                displayWidth(cell.romaji),
-                displayWidth(cell.gloss),
-                displayWidth(cell.emoji)
+                displayWidth(cell.base, cjkWidth),
+                displayWidth(furiCompact, cjkWidth),
+                displayWidth(cell.romaji, cjkWidth),
+                displayWidth(cell.gloss, cjkWidth),
+                displayWidth(cell.emoji, cjkWidth)
             ).coerceAtLeast(1)
             MeasuredCell(
                 furiCompact, cell.base, cell.romaji, width,
@@ -372,7 +373,7 @@ class TripleScriptRenderer {
             InterlinearDisplayRow(buildDisplayLines(it, settings, preventWrap = true))
         }
 
-    private fun buildRawTripleLines(row: List<MeasuredCell>): Triple<String, String, String> {
+    private fun buildRawTripleLines(row: List<MeasuredCell>, cjkWidth: Int): Triple<String, String, String> {
         val base = StringBuilder()
         val furi = StringBuilder()
         val roma = StringBuilder()
@@ -384,7 +385,8 @@ class TripleScriptRenderer {
                 furi.append(WORD_GAP)
                 roma.append(WORD_GAP)
             }
-            val pad = if (cell.isPunctuation) ::padEndDisplay else ::padCenterDisplay
+            fun pad(text: String, width: Int) =
+                if (cell.isPunctuation) padEndDisplay(text, width, cjkWidth) else padCenterDisplay(text, width, cjkWidth)
             base.append(pad(cell.base, cell.width))
             furi.append(pad(cell.furigana, cell.width))
             roma.append(pad(cell.romaji, cell.width))
@@ -402,21 +404,21 @@ class TripleScriptRenderer {
      * that same widened cell, so gloss sitting flush left looked
      * misaligned against them. See [InterlinearCell.gloss].
      */
-    private fun buildGlossLine(row: List<MeasuredCell>): String {
+    private fun buildGlossLine(row: List<MeasuredCell>, cjkWidth: Int): String {
         val gloss = StringBuilder()
         row.forEachIndexed { index, cell ->
             if (index > 0 && cell.isWordStart) gloss.append(WORD_GAP)
-            gloss.append(padCenterWholeDisplay(cell.gloss, cell.width))
+            gloss.append(padCenterWholeDisplay(cell.gloss, cell.width, cjkWidth))
         }
         return gloss.toString()
     }
 
     /** Emoji line — same centered, never-truncated shape as [buildGlossLine]. */
-    private fun buildEmojiLine(row: List<MeasuredCell>): String {
+    private fun buildEmojiLine(row: List<MeasuredCell>, cjkWidth: Int): String {
         val emoji = StringBuilder()
         row.forEachIndexed { index, cell ->
             if (index > 0 && cell.isWordStart) emoji.append(WORD_GAP)
-            emoji.append(padCenterWholeDisplay(cell.emoji, cell.width))
+            emoji.append(padCenterWholeDisplay(cell.emoji, cell.width, cjkWidth))
         }
         return emoji.toString()
     }
@@ -426,9 +428,10 @@ class TripleScriptRenderer {
         settings: JapanglifySettings,
         preventWrap: Boolean
     ): List<InterlinearDisplayLine> {
-        val (baseLine, furiLine, romaLine) = buildRawTripleLines(row)
-        val glossLine = if (settings.includeGlosses) buildGlossLine(row) else ""
-        val emojiLine = if (settings.includeEmoji) buildEmojiLine(row) else ""
+        val cjkWidth = settings.cjkDisplayWidthUnits
+        val (baseLine, furiLine, romaLine) = buildRawTripleLines(row, cjkWidth)
+        val glossLine = if (settings.includeGlosses) buildGlossLine(row, cjkWidth) else ""
+        val emojiLine = if (settings.includeEmoji) buildEmojiLine(row, cjkWidth) else ""
         fun finish(line: String): String {
             val protectedLine = protectLineStart(line)
             return if (preventWrap) preventLineWrap(protectedLine) else protectedLine
@@ -802,8 +805,8 @@ class TripleScriptRenderer {
      * Left-justify [text] into a field of [targetWidth] display cells using
      * [PAD] (U+2800). Empty cells still occupy full width so columns stack.
      */
-    private fun padEndDisplay(text: String, targetWidth: Int): String {
-        val w = displayWidth(text)
+    private fun padEndDisplay(text: String, targetWidth: Int, cjkWidth: Int): String {
+        val w = displayWidth(text, cjkWidth)
         if (w >= targetWidth) return text
         return text + PAD.repeat(targetWidth - w)
     }
@@ -817,8 +820,8 @@ class TripleScriptRenderer {
      * letter-spaced garbage instead of just centering it as a unit. Never
      * truncates, matching every other padder here.
      */
-    private fun padCenterWholeDisplay(text: String, targetWidth: Int): String {
-        val w = displayWidth(text)
+    private fun padCenterWholeDisplay(text: String, targetWidth: Int, cjkWidth: Int): String {
+        val w = displayWidth(text, cjkWidth)
         if (w >= targetWidth) return text
         val diff = targetWidth - w
         val before = diff / 2
@@ -850,8 +853,8 @@ class TripleScriptRenderer {
      * at the edges, same as today, rather than doing token, uneven
      * micro-spacing that wouldn't read as intentional.
      */
-    private fun padCenterDisplay(text: String, targetWidth: Int): String {
-        val w = displayWidth(text)
+    private fun padCenterDisplay(text: String, targetWidth: Int, cjkWidth: Int): String {
+        val w = displayWidth(text, cjkWidth)
         if (w >= targetWidth) return text
         val diff = targetWidth - w
 
@@ -893,20 +896,25 @@ class TripleScriptRenderer {
 
     /**
      * Approximate terminal / monospace display width:
-     * halfwidth (Latin, halfwidth kana, …) = 1; wide CJK / fullwidth = 2.
+     * halfwidth (Latin, halfwidth kana, …) = 1; wide CJK / fullwidth =
+     * [cjkWidth] (2 by default — see [JapanglifySettings.cjkDisplayWidthUnits]
+     * for why that's an approximation, not a guarantee, on a real host).
      */
-    internal fun displayWidth(text: String): Int {
+    internal fun displayWidth(
+        text: String,
+        cjkWidth: Int = JapanglifySettings.DEFAULT_CJK_DISPLAY_WIDTH_UNITS
+    ): Int {
         var width = 0
         var i = 0
         while (i < text.length) {
             val cp = text.codePointAt(i)
-            width += codePointDisplayWidth(cp)
+            width += codePointDisplayWidth(cp, cjkWidth)
             i += Character.charCount(cp)
         }
         return width
     }
 
-    private fun codePointDisplayWidth(cp: Int): Int {
+    private fun codePointDisplayWidth(cp: Int, cjkWidth: Int): Int {
         if (cp <= 0x1F) return 0
         // Word Joiner (see preventLineWrap) is zero-width by definition.
         if (cp == 0x2060) return 0
@@ -917,17 +925,17 @@ class TripleScriptRenderer {
         // Latin-1 and most Western
         if (cp < 0x1100) return 1
         // Hangul Jamo leading consonants (wide)
-        if (cp in 0x1100..0x115F) return 2
+        if (cp in 0x1100..0x115F) return cjkWidth
         // CJK radicals, punctuation, kana, ideographs, Hangul syllables, …
-        if (cp in 0x2E80..0xA4CF) return 2
-        if (cp in 0xAC00..0xD7A3) return 2
-        if (cp in 0xF900..0xFAFF) return 2
-        if (cp in 0xFE10..0xFE19) return 2
-        if (cp in 0xFE30..0xFE6F) return 2
-        if (cp in 0xFF01..0xFF60) return 2
-        if (cp in 0xFFE0..0xFFE6) return 2
+        if (cp in 0x2E80..0xA4CF) return cjkWidth
+        if (cp in 0xAC00..0xD7A3) return cjkWidth
+        if (cp in 0xF900..0xFAFF) return cjkWidth
+        if (cp in 0xFE10..0xFE19) return cjkWidth
+        if (cp in 0xFE30..0xFE6F) return cjkWidth
+        if (cp in 0xFF01..0xFF60) return cjkWidth
+        if (cp in 0xFFE0..0xFFE6) return cjkWidth
         // CJK Extension B and beyond (common SIP range)
-        if (cp in 0x20000..0x3FFFD) return 2
+        if (cp in 0x20000..0x3FFFD) return cjkWidth
         // Emoji / symbols: treat as 2 so columns don't crush
         if (cp in 0x1F300..0x1FAFF) return 2
         return 1

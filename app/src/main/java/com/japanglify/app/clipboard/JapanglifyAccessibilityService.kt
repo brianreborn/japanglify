@@ -162,7 +162,9 @@ class JapanglifyAccessibilityService : AccessibilityService() {
     private data class HostContext(
         val packageName: String?,
         val fieldWidthPx: Int?,
-        val fieldEditable: Boolean
+        val fieldEditable: Boolean,
+        /** On-screen bounds of whatever field [fieldWidthPx] came from — see [HostFontProfiler]. */
+        val fieldBoundsInScreen: Rect?
     )
 
     /** Best-effort host package + on-screen input width, for sizing/prioritizing "Copy Image". */
@@ -171,7 +173,7 @@ class JapanglifyAccessibilityService : AccessibilityService() {
             rootInActiveWindow
         } catch (_: Exception) {
             null
-        } ?: return HostContext(null, null, false)
+        } ?: return HostContext(null, null, false, null)
         return try {
             val pkg = root.packageName?.toString()
             val rect = Rect()
@@ -180,19 +182,19 @@ class JapanglifyAccessibilityService : AccessibilityService() {
             } catch (_: Exception) {
                 null
             }
-            val focusedWidth = focused?.let {
+            val focusedBounds = focused?.let {
                 try {
                     it.getBoundsInScreen(rect)
-                    rect.width().takeIf { w -> w > 0 }
+                    if (rect.width() > 0) Rect(rect) else null
                 } finally {
                     recycleSafely(it)
                 }
             }
-            val width = focusedWidth ?: run {
+            val bounds = focusedBounds ?: run {
                 root.getBoundsInScreen(rect)
-                rect.width().takeIf { w -> w > 0 }
+                if (rect.width() > 0) Rect(rect) else null
             }
-            HostContext(pkg, width, focused?.isEditable == true)
+            HostContext(pkg, bounds?.width(), focused?.isEditable == true, bounds)
         } finally {
             recycleSafely(root)
         }
@@ -244,6 +246,12 @@ class JapanglifyAccessibilityService : AccessibilityService() {
         }
 
         val hostContext = captureHostContext()
+        // Best-effort, async, never blocks this pipeline — see
+        // HostFontProfiler's doc comment. Only benefits this host's *next*
+        // copy, not this one.
+        if (hostContext.fieldBoundsInScreen != null) {
+            HostFontProfiler.profileAsync(this, hostContext.packageName, hostContext.fieldBoundsInScreen)
+        }
         LastResultStore.rememberHost(
             hostContext.packageName,
             hostContext.fieldWidthPx,

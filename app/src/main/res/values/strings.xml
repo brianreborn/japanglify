@@ -2,10 +2,21 @@
 <resources>
     <string name="app_name">Japanglify</string>
     <string name="process_text_label">Japanglify</string>
+    <string name="share_target_label">Japanglify</string>
+    <string name="share_target_no_text">Nothing to Japanglify — no text was shared</string>
     <string name="settings_title">Japanglify settings</string>
     <string name="clipboard_label">Japanglify</string>
     <string name="copied_to_clipboard">Japanglified text copied to clipboard</string>
     <string name="error_processing">Could not Japanglify text: %1$s</string>
+
+    <string name="license_dialog_title">Japanglify is free</string>
+    <string name="license_dialog_message">Light-ware licensed (free to use, copy, modify, redistribute — source on GitHub). If you find it useful and are able to, a small contribution toward rent, groceries, or keeping the lights on is always appreciated — never required.</string>
+    <string name="license_dialog_donate">Donate</string>
+    <string name="license_dialog_dismiss">Got it</string>
+    <string name="pref_donate_title">Support Japanglify</string>
+    <string name="pref_donate_summary">Cash App: $electrobrians — optional, never required</string>
+    <string name="pref_license_title">License</string>
+    <string name="pref_license_summary">Light-ware — view on GitHub</string>
 
     <string name="pref_category_scripts">Scripts</string>
     <string name="pref_include_furigana">Include furigana</string>
@@ -63,6 +74,7 @@
     <string name="pref_emoji_pos_scope_summary">Which parts of speech are eligible for an emoji match — default is all, though concrete nouns match far more often than verbs or particles.</string>
 
     <string name="pref_category_about">About</string>
+    <string name="pref_category_support">Support &amp; license</string>
     <string name="pref_about_summary">Select Japanese text anywhere, tap Japanglify in the selection menu. Editable fields are replaced; read-only selections are copied. Change options here — the menu action never prompts.</string>
     <string name="pref_about_team">Team</string>
     <string name="pref_about_team_summary">Brian Fundakowski Feldman — Project Lead, Lead Developer, Tester\nClaude Sonnet 5 — Test Lead\ngrok-build — Head Designer, Lead Developer\nGoogle Antigravity — Developer</string>
@@ -98,7 +110,6 @@
     <string name="clipboard_done">Clipboard converted into the field</string>
     <string name="try_it_empty">Nothing to convert</string>
     <string name="try_it_done">Converted</string>
-    <string name="shared_text_loaded">Shared text loaded — tap Japanglify below</string>
     <string name="options_heading">Options</string>
     <string name="pref_reset_services">Reset background services</string>
     <string name="pref_reset_services_summary">Restarts the Copy-assist foreground service (if enabled) and refreshes the conversion engine. If Accessibility (the main Copy hook) is off, opens Accessibility settings so you can turn it back on — apps can\'t re-enable it automatically.</string>

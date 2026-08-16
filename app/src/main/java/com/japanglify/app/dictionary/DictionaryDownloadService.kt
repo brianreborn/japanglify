@@ -65,6 +65,14 @@ class DictionaryDownloadService : Service() {
             val terminal = progress.status == DictionaryDownloadStatus.READY ||
                 progress.status == DictionaryDownloadStatus.FAILED ||
                 progress.status == DictionaryDownloadStatus.NOT_DOWNLOADED
+            // See DictionaryDownloadProgressHolder's doc comment -- this is
+            // the one place every format's progress ticks pass through, so
+            // it's the natural single write site for it.
+            if (terminal) {
+                DictionaryDownloadProgressHolder.clear(source.id)
+            } else {
+                DictionaryDownloadProgressHolder.update(source.id, progress)
+            }
             val now = android.os.SystemClock.elapsedRealtime()
             // Android silently drops notification updates past ~5/sec per
             // app (confirmed live: "Shedding notify ... rate limit (5.0)

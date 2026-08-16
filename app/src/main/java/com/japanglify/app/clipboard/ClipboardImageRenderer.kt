@@ -234,7 +234,16 @@ object ClipboardImageRenderer {
     /** Writes [bitmap] under the app cache dir and returns a FileProvider content Uri for it. */
     fun saveAndGetUri(context: Context, bitmap: Bitmap): Uri {
         val dir = File(context.cacheDir, "images").apply { mkdirs() }
-        val file = File(dir, "japanglify_result.png")
+        // Unique per call, not a fixed "japanglify_result.png" -- a second
+        // Copy-image tap (a new result replacing an old one still on the
+        // clipboard, or the same result copied twice) used to overwrite the
+        // same file another app could still be mid-read on for a URI grant
+        // that's still valid. Never cleaned up proactively here: an app that
+        // received the URI may still legitimately hold a read grant on it
+        // (e.g. queued in a draft that hasn't uploaded yet) -- like this
+        // app's other cache usage, left for the OS to reclaim under storage
+        // pressure rather than deleted the moment a newer one is written.
+        val file = File(dir, "japanglify_result_${System.currentTimeMillis()}.png")
         FileOutputStream(file).use { out -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, out) }
         return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
     }

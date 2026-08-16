@@ -165,6 +165,12 @@ dependencies {
     // Offline morphological analysis for kanji readings (furigana source)
     implementation("com.atilika.kuromoji:kuromoji-ipadic:0.9.0")
 
+    // On-device OCR (see HostFontProfiler) -- measures a host app's actual
+    // rendered CJK glyph width from an accessibility-service screenshot,
+    // instead of guessing it. Japanese-script-specific recognizer, not the
+    // generic Latin-only com.google.mlkit:text-recognition.
+    implementation("com.google.mlkit:text-recognition-japanese:16.0.1")
+
     // Decompresses the "bundled" flavor's pre-compressed dictionary assets
     // (see BundledDictionaryAssets) -- needed by both flavors' code paths
     // since DictionaryDownloadManager/EmojiDownloadManager/

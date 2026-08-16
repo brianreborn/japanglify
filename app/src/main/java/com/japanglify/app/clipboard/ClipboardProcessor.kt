@@ -99,14 +99,27 @@ object ClipboardProcessor {
 
         val app = context.applicationContext as? JapanglifyApp
             ?: return ProcessOutcome.ERROR
+        // Applies whatever HostFontProfiler learned about this host from a
+        // *previous* copy, if anything -- see its doc comment for why this
+        // copy can't wait on a fresh profile of its own. Falls back to
+        // JapanglifySettings' own default when nothing's cached yet.
+        val settings = HostFontProfiler.cachedUnitsFor(LastResultStore.lastHostPackage)?.let {
+            app.preferences.load().copy(cjkDisplayWidthUnits = it)
+        } ?: app.preferences.load()
         val result = runCatching {
-            app.engine.expand(text, app.preferences.load())
+            app.engine.expand(text, settings)
         }.getOrElse {
             return ProcessOutcome.ERROR
         }
 
         lastHandledRaw = text
         LastResultStore.save(context, text, result)
+        // Kicked off now, in parallel with showing the result -- rendering
+        // the "Copy image" bitmap is real work (see
+        // ClipboardImageRenderCache's doc comment), and by the time a user
+        // notices the notification and taps "Copy image" this is normally
+        // already done, instead of running synchronously at tap time.
+        ClipboardImageRenderCache.prerender(context, text)
         ClipboardNotifications.cancelTapToProcess(context)
         ClipboardNotifications.showResult(context, result)
 

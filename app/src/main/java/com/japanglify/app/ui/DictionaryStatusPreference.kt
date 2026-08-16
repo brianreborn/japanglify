@@ -3,6 +3,7 @@ package com.japanglify.app.ui
 import android.content.Context
 import android.util.AttributeSet
 import android.view.View
+import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
@@ -30,6 +31,7 @@ class DictionaryStatusPreference(context: Context, attrs: AttributeSet?) : Prefe
     }
 
     private var statusView: TextView? = null
+    private var progressBar: ProgressBar? = null
     private var downloadButton: MaterialButton? = null
     private var deleteButton: MaterialButton? = null
     private var cancelButton: MaterialButton? = null
@@ -46,6 +48,7 @@ class DictionaryStatusPreference(context: Context, attrs: AttributeSet?) : Prefe
     override fun onBindViewHolder(holder: PreferenceViewHolder) {
         super.onBindViewHolder(holder)
         statusView = holder.findViewById(R.id.dictionary_status_text) as? TextView
+        progressBar = holder.findViewById(R.id.dictionary_progress) as? ProgressBar
         downloadButton = (holder.findViewById(R.id.btn_dictionary_download) as? MaterialButton)?.apply {
             setOnClickListener { onDownloadClicked?.invoke() }
         }
@@ -88,5 +91,19 @@ class DictionaryStatusPreference(context: Context, attrs: AttributeSet?) : Prefe
         downloadButton?.setText(R.string.dictionary_action_download)
         cancelButton?.visibility = if (busy) View.VISIBLE else View.GONE
         deleteButton?.visibility = if (state.status == DictionaryDownloadStatus.READY) View.VISIBLE else View.GONE
+
+        progressBar?.apply {
+            visibility = if (busy) View.VISIBLE else View.GONE
+            // DOWNLOADING has a real Content-Length-derived percent to show
+            // as soon as one has actually arrived (see DictionaryStatusPreference's
+            // percent plumbing); PARSING never has a total (the importer
+            // deliberately streams one word at a time rather than counting
+            // the whole array first -- see DictionaryDownloadManager's class
+            // doc), so it's always the indeterminate "something is
+            // happening" spinner instead of a fake percent.
+            val determinate = state.status == DictionaryDownloadStatus.DOWNLOADING && state.percent != null
+            isIndeterminate = !determinate
+            if (determinate) progress = state.percent ?: 0
+        }
     }
 }

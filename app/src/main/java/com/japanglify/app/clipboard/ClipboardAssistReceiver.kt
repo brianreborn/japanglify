@@ -1,19 +1,19 @@
 package com.japanglify.app.clipboard
 
 import android.content.BroadcastReceiver
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
 import androidx.core.app.NotificationManagerCompat
-import com.japanglify.app.JapanglifyApp
 import com.japanglify.app.R
 import com.japanglify.app.data.PreferencesRepository
 
 /**
- * Handles notification actions for clipboard assist (stop / copy result).
- * Copy always goes through [LastResultStore.writeToClipboard] so listeners ignore it.
+ * Handles notification actions for clipboard assist that don't themselves
+ * touch the clipboard (stop / replace-field / translate / pause toggle).
+ * The two that DO write to the clipboard -- ACTION_COPY_RESULT and
+ * ACTION_COPY_IMAGE -- are handled by [ClipboardWriteActivity] instead; see
+ * its doc comment for why.
  */
 class ClipboardAssistReceiver : BroadcastReceiver() {
 
@@ -35,95 +35,10 @@ class ClipboardAssistReceiver : BroadcastReceiver() {
                 ).show()
             }
 
-            ACTION_COPY_RESULT -> {
-                val result = LastResultStore.load(context)
-                if (result.isNullOrEmpty()) {
-                    Toast.makeText(
-                        context,
-                        R.string.clipboard_assist_no_result,
-                        Toast.LENGTH_SHORT
-                    ).show()
-                    return
-                }
-                // Suppress + label + ring buffer — must happen before setPrimaryClip
-                LastResultStore.writeToClipboard(context, result)
-                NotificationManagerCompat.from(context)
-                    .cancel(ClipboardNotifications.ID_RESULT)
-                Toast.makeText(
-                    context,
-                    R.string.notif_copied_ready_to_paste,
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-
-            ACTION_COPY_IMAGE -> {
-                // load(), not the raw property: the process may have been
-                // recycled since the result was shown, which resets in-memory
-                // state — load() falls back to SharedPreferences and also
-                // repopulates lastSource as a side effect.
-                LastResultStore.load(context)
-                val source = LastResultStore.lastSource
-                val app = context.applicationContext as? JapanglifyApp
-                if (source.isNullOrEmpty() || app == null) {
-                    Toast.makeText(
-                        context,
-                        R.string.clipboard_assist_no_result,
-                        Toast.LENGTH_SHORT
-                    ).show()
-                    return
-                }
-                // Re-wrap at a column budget sized to the host's own input width when
-                // we captured one, so the pasted image looks native there rather than
-                // reusing whatever width the on-screen notification text happened to use.
-                val baseSettings = app.preferences.load()
-                val hostWidthPx = LastResultStore.lastHostFieldWidthPx
-                val unitPx = ClipboardImageRenderer.fullwidthUnitPx(context)
-                val settingsForImage = if (hostWidthPx != null && hostWidthPx > 0 && unitPx > 0f) {
-                    val usablePx = hostWidthPx - ClipboardImageRenderer.paddingPx(context) * 2
-                    val units = (usablePx / unitPx).toInt().coerceIn(6, 40)
-                    baseSettings.copy(maxLineWidthFullwidth = units)
-                } else {
-                    baseSettings
-                }
-                val bitmap = if (settingsForImage.outputFormat == com.japanglify.app.domain.OutputFormat.INTERLINEAR) {
-                    val rows = runCatching {
-                        app.engine.buildInterlinearRows(source, settingsForImage)
-                    }.getOrNull()
-                    if (rows.isNullOrEmpty()) {
-                        Toast.makeText(
-                            context,
-                            R.string.error_processing_generic,
-                            Toast.LENGTH_SHORT
-                        ).show()
-                        return
-                    }
-                    ClipboardImageRenderer.renderInterlinearToBitmap(context, rows, settingsForImage)
-                } else {
-                    val rendered = runCatching { app.engine.expand(source, settingsForImage) }.getOrNull()
-                    if (rendered.isNullOrEmpty()) {
-                        Toast.makeText(
-                            context,
-                            R.string.error_processing_generic,
-                            Toast.LENGTH_SHORT
-                        ).show()
-                        return
-                    }
-                    ClipboardImageRenderer.renderToBitmap(context, rendered)
-                }
-                val uri = ClipboardImageRenderer.saveAndGetUri(context, bitmap)
-                // Suppress + ring-buffer the URI text form so our own clipboard write
-                // is never mistaken for new user text by the Copy hook.
-                LastResultStore.beginOutgoingWrite(uri.toString())
-                val cm = context.getSystemService(ClipboardManager::class.java)
-                cm?.setPrimaryClip(ClipData.newUri(context.contentResolver, LastResultStore.CLIP_LABEL, uri))
-                NotificationManagerCompat.from(context)
-                    .cancel(ClipboardNotifications.ID_RESULT)
-                Toast.makeText(
-                    context,
-                    R.string.notif_copied_image_ready,
-                    Toast.LENGTH_LONG
-                ).show()
-            }
+            // ACTION_COPY_RESULT / ACTION_COPY_IMAGE are handled by
+            // ClipboardWriteActivity, not here -- see its doc comment for
+            // why an actual clipboard write needs a focused window rather
+            // than this headless receiver.
 
             ACTION_REPLACE_FIELD -> {
                 val result = LastResultStore.load(context)

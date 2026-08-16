@@ -87,15 +87,18 @@ object ClipboardNotifications {
         ensureChannels(context)
         LastResultStore.save(context, LastResultStore.lastSource.orEmpty(), result)
 
-        val copyPi = PendingIntent.getBroadcast(
+        // getActivity, not getBroadcast -- see ClipboardWriteActivity's doc
+        // comment for why an actual clipboard write needs a real focused
+        // window rather than a headless broadcast receiver.
+        val copyPi = PendingIntent.getActivity(
             context, 3,
-            Intent(context, ClipboardAssistReceiver::class.java)
+            Intent(context, ClipboardWriteActivity::class.java)
                 .setAction(ClipboardAssistReceiver.ACTION_COPY_RESULT),
             pendingFlags()
         )
-        val copyImagePi = PendingIntent.getBroadcast(
+        val copyImagePi = PendingIntent.getActivity(
             context, 6,
-            Intent(context, ClipboardAssistReceiver::class.java)
+            Intent(context, ClipboardWriteActivity::class.java)
                 .setAction(ClipboardAssistReceiver.ACTION_COPY_IMAGE),
             pendingFlags()
         )

@@ -46,10 +46,26 @@ data class JapanglifySettings(
      * Default 14 ≈ a couple of short words plus particles (e.g. 日本語を勉強).
      * Use 0 for no wrap (single long block).
      */
-    val maxLineWidthFullwidth: Int = DEFAULT_MAX_LINE_WIDTH_FULLWIDTH
+    val maxLineWidthFullwidth: Int = DEFAULT_MAX_LINE_WIDTH_FULLWIDTH,
+    /**
+     * How many halfwidth (Latin/romaji/PAD) units a fullwidth CJK glyph
+     * occupies, for [TripleScriptRenderer.INTERLINEAR]'s plain-text column
+     * padding. Default 2 is the traditional "CJK is exactly double-width"
+     * assumption, which real host fonts don't always honor -- a host
+     * falling back to a non-CJK-aware font for kanji/kana specifically can
+     * render them at a meaningfully different ratio, which is what breaks
+     * this format's column alignment in practice (see
+     * [com.japanglify.app.clipboard.HostFontProfiler], which measures this
+     * empirically per host via on-device OCR when available and feeds the
+     * result back in here per copy). Never affects [OutputFormat.HTML_RUBY]
+     * or the rasterized image output, which measure real glyph widths
+     * directly and have no need for this approximation at all.
+     */
+    val cjkDisplayWidthUnits: Int = DEFAULT_CJK_DISPLAY_WIDTH_UNITS
 ) {
     companion object {
         const val DEFAULT_MAX_LINE_WIDTH_FULLWIDTH = 14
+        const val DEFAULT_CJK_DISPLAY_WIDTH_UNITS = 2
         val DEFAULT = JapanglifySettings()
     }
 }

@@ -34,6 +34,7 @@ import com.japanglify.app.clipboard.JapanglifyAccessibilityService
 import com.japanglify.app.clipboard.LastResultStore
 import com.japanglify.app.data.PreferencesRepository
 import com.japanglify.app.dictionary.DictionaryDatabase
+import com.japanglify.app.dictionary.DictionaryDownloadProgressHolder
 import com.japanglify.app.dictionary.DictionaryDownloadService
 import com.japanglify.app.dictionary.DictionaryDownloadStatus
 import com.japanglify.app.dictionary.EmojiDatabase
@@ -167,17 +168,22 @@ class SettingsFragment : PreferenceFragmentCompat() {
             true
         }
 
+        findPreference<Preference>(KEY_DONATE)?.setOnPreferenceClickListener {
+            openDonateLink()
+            true
+        }
+
+        findPreference<Preference>(KEY_LICENSE_LINK)?.setOnPreferenceClickListener {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(LICENSE_URL))
+            runCatching { startActivity(intent) }
+            true
+        }
+
         findPreference<TryItCardPreference>(KEY_TRY_IT_CARD)?.apply {
             onTextChanged = { scheduleLivePreview() }
             onConvertSelectionOrAll = { japanglifyTryItField() }
             onConvertClipboard = { japanglifyClipboard() }
-            arguments?.getString(ARG_SHARED_TEXT)?.let { shared ->
-                setText(shared)
-                Toast.makeText(requireContext(), R.string.shared_text_loaded, Toast.LENGTH_SHORT).show()
-            }
         }
-        // Consume the shared-text arg so it isn't reapplied on config change / reuse.
-        arguments?.remove(ARG_SHARED_TEXT)
 
         findPreference<Preference>(PreferencesRepository.KEY_OPEN_ACCESSIBILITY)
             ?.setOnPreferenceClickListener {
@@ -216,6 +222,36 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 }
                 true
             }
+
+        showLicenseDialogIfFirstLaunch()
+    }
+
+    // ── License / donate ────────────────────────────────────────────
+
+    /**
+     * Prominent, dismissable, shown exactly once — the first thing a user
+     * sees on first launch, per explicit request. After dismissal (either
+     * button), the same information stays reachable forever as the
+     * "Support & license" section at the bottom of this screen
+     * ([KEY_DONATE]/[KEY_LICENSE_LINK]) rather than disappearing entirely.
+     */
+    private fun showLicenseDialogIfFirstLaunch() {
+        val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(requireContext())
+        if (prefs.getBoolean(PreferencesRepository.KEY_LICENSE_DIALOG_SHOWN, false)) return
+        prefs.edit().putBoolean(PreferencesRepository.KEY_LICENSE_DIALOG_SHOWN, true).apply()
+
+        androidx.appcompat.app.AlertDialog.Builder(requireContext())
+            .setTitle(R.string.license_dialog_title)
+            .setMessage(R.string.license_dialog_message)
+            .setPositiveButton(R.string.license_dialog_donate) { _, _ -> openDonateLink() }
+            .setNegativeButton(R.string.license_dialog_dismiss, null)
+            .setCancelable(true)
+            .show()
+    }
+
+    private fun openDonateLink() {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(DONATE_URL))
+        runCatching { startActivity(intent) }
     }
 
     override fun onResume() {
@@ -401,16 +437,24 @@ class SettingsFragment : PreferenceFragmentCompat() {
         val statusPref = findPreference<DictionaryStatusPreference>(statusKey) ?: return
         val app = requireContext().applicationContext as JapanglifyApp
         val status = app.preferences.dictionaryStatus(source.id)
-        // wordsImported isn't persisted anywhere (only known transiently
-        // during the download's own progress callback) -- when READY,
-        // query the real row count directly rather than show a stale or
-        // always-zero number once the user leaves and reopens Settings.
-        val wordCount = if (status == DictionaryDownloadStatus.READY) countEntries(source) else 0
+        // Live percent/words-so-far aren't persisted (no meaning to restore
+        // after the process dies, unlike the coarse status) -- read
+        // whatever DictionaryDownloadService's progress callback last wrote
+        // to DictionaryDownloadProgressHolder for this source, if anything.
+        val liveProgress = DictionaryDownloadProgressHolder.get(source.id)
+        // When READY, query the real row count directly rather than show a
+        // stale or always-zero number once the user leaves and reopens
+        // Settings (no live progress survives that).
+        val wordCount = if (status == DictionaryDownloadStatus.READY) {
+            countEntries(source)
+        } else {
+            liveProgress?.wordsImported ?: 0
+        }
         statusPref.render(
             DictionaryStatusPreference.State(
                 sourceName = source.displayName,
                 status = status,
-                percent = null,
+                percent = liveProgress?.percent,
                 wordsImported = wordCount,
                 errorMessage = app.preferences.dictionaryErrorMessage(source.id)
             )
@@ -753,7 +797,6 @@ class SettingsFragment : PreferenceFragmentCompat() {
     }
 
     companion object {
-        const val ARG_SHARED_TEXT = "shared_text"
         private const val KEY_RESET_SERVICES = "reset_services"
         private const val KEY_STATUS_CARD = "status_card"
         private const val KEY_TRY_IT_CARD = "try_it_card"
@@ -762,6 +805,12 @@ class SettingsFragment : PreferenceFragmentCompat() {
         private const val CONTACT_EMAIL = "brianfundakowskifeldman@gmail.com"
         private const val KEY_ABOUT_PROFILE = "about_profile"
         private const val PROFILE_URL = "https://x.com/born_brian85001"
+        private const val KEY_DONATE = "donate"
+        // Cash App cashtag link -- current donation destination per explicit
+        // instruction; revisit if a dedicated donation platform is set up later.
+        private const val DONATE_URL = "https://cash.app/\$electrobrians"
+        private const val KEY_LICENSE_LINK = "license_link"
+        private const val LICENSE_URL = "https://github.com/brianreborn/japanglify/blob/main/LICENSE"
         private const val KEY_DICTIONARY_STATUS = "dictionary_status"
         private const val KEY_EMOJI_STATUS = "emoji_status"
         private const val KEY_WORDNET_STATUS = "wordnet_status"

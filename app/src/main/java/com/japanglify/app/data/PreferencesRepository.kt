@@ -114,6 +114,8 @@ class PreferencesRepository(context: Context) {
         const val KEY_EMOJI_ALWAYS_SHOW_BOTH = "emoji_always_show_both"
         const val KEY_EMOJI_POS_SCOPE = "emoji_pos_scope"
         const val KEY_EMOJI_PRECISION_TIER = "emoji_precision_tier"
+        /** Whether the first-launch license/donate dialog has already been shown once. */
+        const val KEY_LICENSE_DIALOG_SHOWN = "license_dialog_shown"
 
         fun parseMaxLineWidth(raw: String?): Int {
             val n = raw?.toIntOrNull()
