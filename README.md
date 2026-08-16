@@ -246,7 +246,7 @@ HTML double-sided ruby (paste into HTML-capable hosts):
 
 ## License
 
-App code is licensed under the [BSD 3-Clause License](LICENSE).
+App code is licensed under the [Light-ware License](LICENSE) (derived from Beerware).
 
 Bundled/downloaded third-party data and libraries keep their own upstream
 licenses — see [ARCHITECTURE.md](ARCHITECTURE.md) and the in-app About →

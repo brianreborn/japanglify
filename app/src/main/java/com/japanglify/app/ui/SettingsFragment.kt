@@ -249,9 +249,28 @@ class SettingsFragment : PreferenceFragmentCompat() {
             .show()
     }
 
+    /**
+     * Explicitly a browser intent, not just a plain ACTION_VIEW -- a bare
+     * ACTION_VIEW on a cash.app https URL is exactly the kind of link
+     * Android's App Links can route straight into the Cash App app instead
+     * of a browser if it's installed, which isn't what "open a browser"
+     * means. Finds the device's actual default browser package (resolving
+     * a generic http: view intent, the standard way to ask "what's the
+     * browser here" without hardcoding a specific one) and targets it
+     * explicitly; falls back to a plain ACTION_VIEW (whatever wants to
+     * handle it, browser or not) only if no browser can be resolved at all.
+     */
     private fun openDonateLink() {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(DONATE_URL))
-        runCatching { startActivity(intent) }
+        val uri = Uri.parse(DONATE_URL)
+        val browserPackage = Intent(Intent.ACTION_VIEW, Uri.parse("http://"))
+            .resolveActivity(requireContext().packageManager)
+            ?.packageName
+        val intent = Intent(Intent.ACTION_VIEW, uri).addCategory(Intent.CATEGORY_BROWSABLE)
+        if (browserPackage != null) intent.setPackage(browserPackage)
+        val opened = runCatching { startActivity(intent) }.isSuccess
+        if (!opened) {
+            runCatching { startActivity(Intent(Intent.ACTION_VIEW, uri)) }
+        }
     }
 
     override fun onResume() {
