@@ -336,24 +336,26 @@ class DictionaryDownloadManager(private val context: Context) {
         for (rank in 0 until minOf(senses.length(), MAX_SENSES_PER_WORD)) {
             val sense = senses.getJSONObject(rank)
             val glossArr = sense.optJSONArray("gloss") ?: continue
-            var gloss: String? = null
+            // Keep the first [MAX_GLOSSES_PER_SENSE] English synonyms of the
+            // sense, joined by '/' (e.g. "Mr/Mrs/Ms"); glossCount still
+            // counts *all* of them so [SenseSelector]'s richness score is
+            // unaffected by the display cap. JMdict often qualifies a gloss
+            // with a trailing clarifier, e.g. "Japanese (language)" -- stripped
+            // per-synonym at import time (a rendered row shows one sense, so
+            // there's nothing left for the clarifier to disambiguate from).
+            val glosses = ArrayList<String>(MAX_GLOSSES_PER_SENSE)
             var glossCount = 0
             for (g in 0 until glossArr.length()) {
                 val entry = glossArr.getJSONObject(g)
                 if (entry.optString("lang") != "eng") continue
                 val text = entry.optString("text").takeIf { it.isNotBlank() } ?: continue
                 glossCount++
-                if (gloss == null) gloss = text
+                if (glosses.size < MAX_GLOSSES_PER_SENSE) {
+                    stripTrailingParenthetical(text).takeIf { it.isNotBlank() }?.let { glosses += it }
+                }
             }
-            if (gloss == null) continue
-            // JMdict often qualifies a gloss with a trailing clarifier, e.g.
-            // "Japanese (language)" -- useful when several senses need
-            // telling apart, but a single rendered row only ever shows one
-            // sense's gloss at a time, so within that row there's nothing
-            // left for it to disambiguate from; it just costs space. Strip
-            // it at import time, matching the "persist only what actually
-            // reaches a rendered row" policy rather than at render time.
-            gloss = stripTrailingParenthetical(gloss)
+            if (glosses.isEmpty()) continue
+            val gloss = glosses.joinToString("/")
 
             val posArr = sense.optJSONArray("partOfSpeech")
             val pos = if (posArr != null && posArr.length() > 0) posArr.optString(0) else null
@@ -542,6 +544,14 @@ class DictionaryDownloadManager(private val context: Context) {
 
         /** Cap on candidate senses stored per headword — see [insertWord]'s doc. */
         private const val MAX_SENSES_PER_WORD = 3
+        /**
+         * How many of a sense's English synonyms to keep in the rendered
+         * gloss, joined by '/', e.g. さん -> "Mr/Mrs/Ms". JMdict lists them
+         * in rough priority order, so the first few are the useful ones; the
+         * full count still lives in `gloss_count` for [SenseSelector]'s
+         * richness scoring even though only these are shown.
+         */
+        private const val MAX_GLOSSES_PER_SENSE = 3
 
         /** JMdict `misc` tags treated as "dated" for [SenseSelector]'s scoring. */
         private val DATED_MISC_TAGS = setOf("arch", "obs", "obsc", "dated")
