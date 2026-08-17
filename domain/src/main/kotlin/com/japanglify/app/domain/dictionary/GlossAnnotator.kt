@@ -88,7 +88,19 @@ class GlossAnnotator(private val dictionary: DictionaryProvider) {
             val surface = buildString {
                 for (j in start until start + span) append(tokens[j].surface)
             }
-            dictionary.lookup(surface, null, weights)?.let { return span to it }
+            val entry = dictionary.lookup(surface, null, weights) ?: continue
+            // Only accept the span as a real set phrase when the matched entry
+            // is an expression or interjection. Without this gate a
+            // coincidental concatenation that merely *spells* an ordinary word
+            // hijacks the gloss — found live: いい ("good") + ん collides with
+            // 医院 ("doctor's office"), turning a correct per-token gloss into a
+            // wrong one — while the phrases we actually want (ご機嫌よう, これより,
+            // よね) are exactly the exp/int entries this keeps.
+            if (entry.partOfSpeech == PartOfSpeech.EXPRESSION ||
+                entry.partOfSpeech == PartOfSpeech.INTERJECTION
+            ) {
+                return span to entry
+            }
         }
         return null
     }

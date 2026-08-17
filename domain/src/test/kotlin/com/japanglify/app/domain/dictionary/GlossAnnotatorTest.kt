@@ -189,6 +189,23 @@ class GlossAnnotatorTest {
     }
 
     @Test
+    fun phraseMatchIgnoresCoincidentalNonExpressionConcatenations() {
+        // いい ("good") + ん concatenates to いいん, which is *also* the plain
+        // noun 医院 ("doctor's office"). A greedy longest-match must NOT let
+        // that ordinary noun hijack the span — only exp/int entries count as
+        // set phrases — so いい keeps its own per-token "good".
+        val annotator = fakeDictionary(
+            "いいん" to DictionaryEntry("いいん", "いいん", PartOfSpeech.NOUN, "doctor's office"),
+            "いい" to DictionaryEntry("いい", "いい", PartOfSpeech.ADJECTIVE, "good")
+        )
+        val tokens = listOf(
+            JapaneseAnalyzer.SurfaceReading("いい", "イイ", baseForm = "いい"),
+            JapaneseAnalyzer.SurfaceReading("ん", "ン", baseForm = "ん")
+        )
+        assertEquals(listOf("good", null), texts(annotator.annotate(tokens)))
+    }
+
+    @Test
     fun forwardsTokenReadingToLookupForSameSpellingDisambiguation() {
         // 僕 read ぼく is "I, me"; read しもべ is "servant". The annotator must
         // pass the token's reading through so a reading-aware provider picks
