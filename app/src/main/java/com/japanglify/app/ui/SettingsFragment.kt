@@ -111,6 +111,26 @@ class SettingsFragment : PreferenceFragmentCompat() {
             com.japanglify.app.domain.FuriganaPunctuationStyle.entries.map { it.id to it.displayName }
         )
         bindList(
+            PreferencesRepository.KEY_ELISION_MARKER,
+            com.japanglify.app.domain.ElisionMarker.entries.map { it.id to it.displayName }
+        )
+        bindList(
+            PreferencesRepository.KEY_SENSE_SELECTION_PRESET,
+            com.japanglify.app.domain.dictionary.SenseSelectionPreset.entries.map { it.id to it.displayName }
+        )
+        updateCustomSenseWeightsVisibility(
+            (requireContext().applicationContext as JapanglifyApp).preferences.load().senseSelectionPreset
+        )
+        findPreference<ListPreference>(PreferencesRepository.KEY_SENSE_SELECTION_PRESET)
+            ?.setOnPreferenceChangeListener { _, newValue ->
+                // Same "new value arrives before it's persisted" shape as
+                // KEY_OUTPUT_FORMAT/KEY_DICTIONARY_SOURCE above.
+                updateCustomSenseWeightsVisibility(
+                    com.japanglify.app.domain.dictionary.SenseSelectionPreset.fromId(newValue as? String)
+                )
+                true
+            }
+        bindList(
             PreferencesRepository.KEY_DICTIONARY_SOURCE,
             DictionarySources.ALL.map { it.id to it.displayName }
         )
@@ -183,7 +203,20 @@ class SettingsFragment : PreferenceFragmentCompat() {
             onTextChanged = { scheduleLivePreview() }
             onConvertSelectionOrAll = { japanglifyTryItField() }
             onConvertClipboard = { japanglifyClipboard() }
+            arguments?.getString(ARG_PREFILL_TEXT)?.let { extracted ->
+                setText(extracted)
+                Toast.makeText(requireContext(), R.string.url_text_extracted, Toast.LENGTH_LONG).show()
+                // Landing at the top of a long settings list with the actual
+                // prefilled card scrolled off-screen reads as "nothing
+                // happened" -- confirmed live: a real URL share correctly
+                // fetched and prefilled this card, but was mistaken for a
+                // no-op and dismissed within seconds since the card wasn't
+                // visible without scrolling first.
+                scrollToPreference(KEY_TRY_IT_CARD)
+            }
         }
+        // Consume it so it isn't reapplied on config change / fragment reuse.
+        arguments?.remove(ARG_PREFILL_TEXT)
 
         findPreference<Preference>(PreferencesRepository.KEY_OPEN_ACCESSIBILITY)
             ?.setOnPreferenceClickListener {
@@ -815,7 +848,16 @@ class SettingsFragment : PreferenceFragmentCompat() {
         pref.setSummaryProvider(ListPreference.SimpleSummaryProvider.getInstance())
     }
 
+    /** The three custom-weight fields only mean anything under [SenseSelectionPreset.CUSTOM] — hidden otherwise rather than shown-but-inert. */
+    private fun updateCustomSenseWeightsVisibility(preset: com.japanglify.app.domain.dictionary.SenseSelectionPreset) {
+        val visible = preset == com.japanglify.app.domain.dictionary.SenseSelectionPreset.CUSTOM
+        findPreference<Preference>(PreferencesRepository.KEY_CUSTOM_SENSE_RICHNESS_WEIGHT)?.isVisible = visible
+        findPreference<Preference>(PreferencesRepository.KEY_CUSTOM_SENSE_POSITION_WEIGHT)?.isVisible = visible
+        findPreference<Preference>(PreferencesRepository.KEY_CUSTOM_SENSE_DATED_WEIGHT)?.isVisible = visible
+    }
+
     companion object {
+        const val ARG_PREFILL_TEXT = "prefill_text"
         private const val KEY_RESET_SERVICES = "reset_services"
         private const val KEY_STATUS_CARD = "status_card"
         private const val KEY_TRY_IT_CARD = "try_it_card"

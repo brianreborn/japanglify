@@ -282,49 +282,29 @@ class DictionaryDownloadManager(private val context: Context) {
     }
 
     /**
-     * Inserts one row per kanji spelling (so Kuromoji's `baseForm` matches
-     * whichever orthographic variant it returns for a given word), or one
+     * Inserts one row per (kanji spelling × candidate sense) — kanji
+     * spellings so Kuromoji's `baseForm` matches whichever orthographic
+     * variant it returns for a given word, candidate senses (up to
+     * [MAX_SENSES_PER_WORD]) so [SqliteDictionaryProvider] has more than
+     * just JMdict's sense 0 to score at query time (see
+     * [com.japanglify.app.domain.dictionary.SenseSelector]). Also inserts a
      * row keyed by the kana reading for kana-only words (particles, etc,
      * which JMdict never gives a kanji form). Returns how many rows were
-     * inserted (0 if the word had nothing usable — e.g. no English gloss).
+     * inserted (0 if the word had nothing usable — e.g. no English gloss on
+     * any sense).
      *
-     * Persists exactly the fields [SqliteDictionaryProvider] reads to build
-     * a rendered gloss row — first sense, first English gloss, first
-     * part-of-speech code — and nothing past that: JMdict's `id`, extra
-     * senses/glosses/POS codes, and the always-empty-in-practice `related`/
-     * `antonym`/`field`/`dialect`/`misc`/`info`/`languageSource` arrays never
-     * reach a rendered row in v1, so they're dropped here rather than carried
-     * as dead weight into the persisted database. (Multi-sense support is a
-     * named backlog item — "sense disambiguation" in the plan — and would
-     * be added here deliberately if picked up, not carried speculatively now.)
+     * Persists exactly the fields [SqliteDictionaryProvider] reads to score
+     * and build a rendered gloss row — each candidate sense's rank, first
+     * English gloss, gloss count, "dated" flag, and first part-of-speech
+     * code — and nothing past that: JMdict's `id` and the always-empty-in-
+     * practice `related`/`antonym`/`field`/`dialect`/`info`/
+     * `languageSource` arrays never reach a rendered row, so they're
+     * dropped here rather than carried as dead weight into the persisted
+     * database.
      */
     private fun insertWord(word: JSONObject, stmt: SQLiteStatement): Int {
         val senses = word.optJSONArray("sense") ?: return 0
         if (senses.length() == 0) return 0
-        val firstSense = senses.getJSONObject(0)
-
-        val glossArr = firstSense.optJSONArray("gloss") ?: return 0
-        var gloss: String? = null
-        for (g in 0 until glossArr.length()) {
-            val entry = glossArr.getJSONObject(g)
-            if (entry.optString("lang") == "eng") {
-                gloss = entry.optString("text").takeIf { it.isNotBlank() }
-                if (gloss != null) break
-            }
-        }
-        if (gloss == null) return 0
-        // JMdict often qualifies a gloss with a trailing clarifier, e.g.
-        // "Japanese (language)" -- useful when several senses need telling
-        // apart, but v1 only ever shows this one (first) sense, so within a
-        // single displayed row there's nothing left for it to disambiguate
-        // from; it just costs space. Strip it at import time, matching the
-        // "persist only what actually reaches a rendered row" policy
-        // (see insertWord's own doc comment) rather than at render time.
-        gloss = stripTrailingParenthetical(gloss)
-
-        val posArr = firstSense.optJSONArray("partOfSpeech")
-        val pos = if (posArr != null && posArr.length() > 0) posArr.optString(0) else null
-        val posClass = pos?.let { PartOfSpeech.fromJmdictCode(it).name }
 
         val kanaArr = word.optJSONArray("kana")
         val reading = if (kanaArr != null && kanaArr.length() > 0) {
@@ -332,27 +312,68 @@ class DictionaryDownloadManager(private val context: Context) {
         } else null
 
         val kanjiArr = word.optJSONArray("kanji")
-        var inserted = 0
+        val headwords = ArrayList<String>()
         var kanjiMatchesReading = false
         if (kanjiArr != null && kanjiArr.length() > 0) {
             for (k in 0 until kanjiArr.length()) {
                 val headword = kanjiArr.getJSONObject(k).optString("text").takeIf { it.isNotBlank() } ?: continue
-                bindAndExecute(stmt, headword, reading, pos, gloss, posClass)
-                inserted++
+                headwords += headword
                 if (headword == reading) kanjiMatchesReading = true
             }
         }
-        // Also insert a row keyed by the bare kana reading whenever it
-        // differs from every kanji spelling already inserted above -- not
-        // just when there's no kanji at all. Kuromoji/IPADIC's `baseForm`
-        // for common verbs like する ("to do") is reliably the plain-kana
-        // form even though JMdict itself files that entry under a rare
-        // kanji spelling (為る); without this, a kanji-only insert would
-        // make ordinary, extremely common words unlookupable in practice.
-        // Confirmed live: する returned nothing until this was added.
-        if (reading != null && !kanjiMatchesReading) {
-            bindAndExecute(stmt, reading, reading, pos, gloss, posClass)
-            inserted++
+        // Also key a row by the bare kana reading whenever it differs from
+        // every kanji spelling above -- not just when there's no kanji at
+        // all. Kuromoji/IPADIC's `baseForm` for common verbs like する ("to
+        // do") is reliably the plain-kana form even though JMdict itself
+        // files that entry under a rare kanji spelling (為る); without this,
+        // a kanji-only insert would make ordinary, extremely common words
+        // unlookupable in practice. Confirmed live: する returned nothing
+        // until this was added.
+        if (reading != null && !kanjiMatchesReading) headwords += reading
+        if (headwords.isEmpty()) return 0
+
+        var inserted = 0
+        for (rank in 0 until minOf(senses.length(), MAX_SENSES_PER_WORD)) {
+            val sense = senses.getJSONObject(rank)
+            val glossArr = sense.optJSONArray("gloss") ?: continue
+            var gloss: String? = null
+            var glossCount = 0
+            for (g in 0 until glossArr.length()) {
+                val entry = glossArr.getJSONObject(g)
+                if (entry.optString("lang") != "eng") continue
+                val text = entry.optString("text").takeIf { it.isNotBlank() } ?: continue
+                glossCount++
+                if (gloss == null) gloss = text
+            }
+            if (gloss == null) continue
+            // JMdict often qualifies a gloss with a trailing clarifier, e.g.
+            // "Japanese (language)" -- useful when several senses need
+            // telling apart, but a single rendered row only ever shows one
+            // sense's gloss at a time, so within that row there's nothing
+            // left for it to disambiguate from; it just costs space. Strip
+            // it at import time, matching the "persist only what actually
+            // reaches a rendered row" policy rather than at render time.
+            gloss = stripTrailingParenthetical(gloss)
+
+            val posArr = sense.optJSONArray("partOfSpeech")
+            val pos = if (posArr != null && posArr.length() > 0) posArr.optString(0) else null
+            val posClass = pos?.let { PartOfSpeech.fromJmdictCode(it).name }
+
+            val miscArr = sense.optJSONArray("misc")
+            var dated = false
+            if (miscArr != null) {
+                for (m in 0 until miscArr.length()) {
+                    if (miscArr.optString(m) in DATED_MISC_TAGS) {
+                        dated = true
+                        break
+                    }
+                }
+            }
+
+            for (headword in headwords) {
+                bindAndExecute(stmt, headword, reading, pos, gloss, posClass, rank, glossCount, dated)
+                inserted++
+            }
         }
         return inserted
     }
@@ -398,7 +419,10 @@ class DictionaryDownloadManager(private val context: Context) {
         reading: String?,
         pos: String?,
         gloss: String,
-        posClass: String?
+        posClass: String?,
+        senseRank: Int,
+        glossCount: Int,
+        dated: Boolean
     ) {
         stmt.clearBindings()
         stmt.bindString(1, headword)
@@ -406,6 +430,9 @@ class DictionaryDownloadManager(private val context: Context) {
         if (pos != null) stmt.bindString(3, pos) else stmt.bindNull(3)
         stmt.bindString(4, gloss)
         if (posClass != null) stmt.bindString(5, posClass) else stmt.bindNull(5)
+        stmt.bindLong(6, senseRank.toLong())
+        stmt.bindLong(7, glossCount.toLong())
+        stmt.bindLong(8, if (dated) 1L else 0L)
         stmt.executeInsert()
     }
 
@@ -509,6 +536,14 @@ class DictionaryDownloadManager(private val context: Context) {
             "INSERT INTO ${DictionaryDatabase.TABLE} (" +
                 "${DictionaryDatabase.COL_HEADWORD}, ${DictionaryDatabase.COL_READING}, " +
                 "${DictionaryDatabase.COL_POS}, ${DictionaryDatabase.COL_GLOSS}, " +
-                "${DictionaryDatabase.COL_POS_CLASS}) VALUES (?, ?, ?, ?, ?)"
+                "${DictionaryDatabase.COL_POS_CLASS}, ${DictionaryDatabase.COL_SENSE_RANK}, " +
+                "${DictionaryDatabase.COL_GLOSS_COUNT}, ${DictionaryDatabase.COL_DATED}" +
+                ") VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+
+        /** Cap on candidate senses stored per headword — see [insertWord]'s doc. */
+        private const val MAX_SENSES_PER_WORD = 3
+
+        /** JMdict `misc` tags treated as "dated" for [SenseSelector]'s scoring. */
+        private val DATED_MISC_TAGS = setOf("arch", "obs", "obsc", "dated")
     }
 }

@@ -1,6 +1,7 @@
 package com.japanglify.app.ui
 
 import android.content.Context
+import android.graphics.Paint
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.AttributeSet
@@ -13,7 +14,10 @@ import androidx.preference.PreferenceViewHolder
 import com.japanglify.app.JapanglifyApp
 import com.japanglify.app.R
 import com.japanglify.app.data.PreferencesRepository
+import com.japanglify.app.domain.JapanglifySettings
 import com.japanglify.app.domain.OutputFormat
+import com.japanglify.app.domain.TripleScriptRenderer
+import kotlin.math.roundToInt
 
 /**
  * Max line width as a slider + number box instead of a fixed-choice dropdown
@@ -102,19 +106,43 @@ class MaxLineWidthPreference(context: Context, attrs: AttributeSet?) : Preferenc
      * candidate width, so the effect of dragging the slider is visible
      * immediately — under a few representative fonts/sizes, since the actual
      * wrap point in any given host depends on a font/size we don't control.
+     *
+     * Each swatch is rendered separately with its own [calibratedCjkWidth],
+     * rather than sharing one string across all three: the column padding
+     * ([TripleScriptRenderer.PAD] repeats) is only ever as aligned as the
+     * assumed CJK-glyph-to-pad-glyph width ratio it was built with, and that
+     * ratio is a font/size property, not a universal constant. Measuring it
+     * per swatch, in the exact [Paint] each one will actually draw with,
+     * can't produce guaranteed alignment in a proportional font (glyph
+     * widths still vary letter to letter) but removes the dominant
+     * systematic drift, which is a real, visible improvement.
      */
     private fun updatePreview(value: Int) {
         val app = context.applicationContext as? JapanglifyApp ?: return
         val baseSettings = app.preferences.load()
-        val settings = baseSettings.copy(
-            outputFormat = OutputFormat.INTERLINEAR,
-            maxLineWidthFullwidth = value
-        )
         val sample = context.getString(R.string.try_it_sample)
-        val rendered = runCatching { app.engine.expand(sample, settings) }.getOrNull().orEmpty()
-        previewSmall?.text = rendered
-        previewDefault?.text = rendered
-        previewMonospace?.text = rendered
+        for (view in listOfNotNull(previewSmall, previewDefault, previewMonospace)) {
+            val settings = baseSettings.copy(
+                outputFormat = OutputFormat.INTERLINEAR,
+                maxLineWidthFullwidth = value,
+                cjkDisplayWidthUnits = calibratedCjkWidth(view.paint)
+            )
+            view.text = runCatching { app.engine.expand(sample, settings) }.getOrNull().orEmpty()
+        }
+    }
+
+    /**
+     * Ratio of a CJK glyph's rendered width to [TripleScriptRenderer.PAD]'s,
+     * in [paint] specifically — Android resolves font fallback (e.g. for
+     * ideographs a Latin-only typeface doesn't cover) per glyph during
+     * [Paint.measureText] itself, so this reflects whatever will actually
+     * be drawn, not an assumption about the named typeface alone.
+     */
+    private fun calibratedCjkWidth(paint: Paint): Int {
+        val padPx = paint.measureText(TripleScriptRenderer.PAD)
+        if (padPx <= 0f) return JapanglifySettings.DEFAULT_CJK_DISPLAY_WIDTH_UNITS
+        val cjkPx = paint.measureText(SAMPLE_CJK_CHAR)
+        return (cjkPx / padPx).roundToInt().coerceIn(1, 4)
     }
 
     /** Updates both widgets without re-firing each other's listeners. */
@@ -149,5 +177,8 @@ class MaxLineWidthPreference(context: Context, attrs: AttributeSet?) : Preferenc
     companion object {
         private const val MAX_SLIDER = 32
         private const val DEFAULT = 14
+
+        /** One full-width kana glyph — representative CJK width for [calibratedCjkWidth]. */
+        private const val SAMPLE_CJK_CHAR = "あ"
     }
 }

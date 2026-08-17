@@ -25,12 +25,16 @@
             app:summary="@string/pref_include_romaji_summary"
             app:title="@string/pref_include_romaji" />
         <SwitchPreferenceCompat
+            android:layout="@layout/preference_indented"
             app:defaultValue="true"
+            app:dependency="include_furigana"
             app:key="furigana_kanji_only"
             app:summary="@string/pref_furigana_kanji_only_summary"
             app:title="@string/pref_furigana_kanji_only" />
         <SwitchPreferenceCompat
+            android:layout="@layout/preference_indented"
             app:defaultValue="false"
+            app:dependency="include_romaji"
             app:key="capitalize_romaji"
             app:summary="@string/pref_capitalize_romaji_summary"
             app:title="@string/pref_capitalize_romaji" />
@@ -40,6 +44,13 @@
             app:dependency="include_furigana"
             app:key="furigana_punctuation_style"
             app:title="@string/pref_furigana_punctuation_style"
+            app:useSimpleSummaryProvider="true" />
+        <ListPreference
+            android:layout="@layout/preference_indented"
+            app:defaultValue="ditto"
+            app:dependency="include_romaji"
+            app:key="elision_marker"
+            app:title="@string/pref_elision_marker"
             app:useSimpleSummaryProvider="true" />
     </PreferenceCategory>
 
@@ -122,6 +133,33 @@
             app:key="include_glosses"
             app:summary="@string/pref_include_glosses_summary"
             app:title="@string/pref_include_glosses" />
+        <ListPreference
+            app:defaultValue="modern"
+            app:dependency="include_glosses"
+            app:key="sense_selection_preset"
+            app:summary="@string/pref_sense_selection_preset_summary"
+            app:title="@string/pref_sense_selection_preset" />
+        <EditTextPreference
+            android:layout="@layout/preference_indented"
+            android:inputType="numberDecimal|numberSigned"
+            app:dependency="include_glosses"
+            app:key="custom_sense_richness_weight"
+            app:title="@string/pref_custom_sense_richness_weight"
+            app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            android:layout="@layout/preference_indented"
+            android:inputType="numberDecimal|numberSigned"
+            app:dependency="include_glosses"
+            app:key="custom_sense_position_weight"
+            app:title="@string/pref_custom_sense_position_weight"
+            app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            android:layout="@layout/preference_indented"
+            android:inputType="numberDecimal|numberSigned"
+            app:dependency="include_glosses"
+            app:key="custom_sense_dated_weight"
+            app:title="@string/pref_custom_sense_dated_weight"
+            app:useSimpleSummaryProvider="true" />
     </PreferenceCategory>
 
     <PreferenceCategory app:title="@string/pref_category_emoji">

@@ -171,6 +171,12 @@ dependencies {
     // generic Latin-only com.google.mlkit:text-recognition.
     implementation("com.google.mlkit:text-recognition-japanese:16.0.1")
 
+    // HTML text extraction for URL shares (see UrlTextExtractor) -- pure
+    // Java, no Android dependency, no native code. jsoup's .text() already
+    // excludes <script>/<style> content and normalizes whitespace, which a
+    // regex-based tag-stripper would get wrong on real, messy web HTML.
+    implementation("org.jsoup:jsoup:1.23.1")
+
     // Decompresses the "bundled" flavor's pre-compressed dictionary assets
     // (see BundledDictionaryAssets) -- needed by both flavors' code paths
     // since DictionaryDownloadManager/EmojiDownloadManager/

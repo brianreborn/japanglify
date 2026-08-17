@@ -1,6 +1,8 @@
 package com.japanglify.app.domain
 
 import com.japanglify.app.domain.dictionary.PartOfSpeech
+import com.japanglify.app.domain.dictionary.SenseSelectionPreset
+import com.japanglify.app.domain.dictionary.SenseWeights
 
 /**
  * Immutable snapshot of user preferences that drive annotation + rendering.
@@ -41,6 +43,12 @@ data class JapanglifySettings(
     /** How punctuation is mirrored onto the furigana row (default: not at all). */
     val furiganaPunctuationStyle: FuriganaPunctuationStyle = FuriganaPunctuationStyle.NONE,
     /**
+     * Marks an interlinear row where a line was elided as redundant rather
+     * than shown duplicated or dropped silently — see [ElisionMarker] and
+     * [TripleScriptRenderer]'s `buildDisplayLines` doc for the two cases.
+     */
+    val elisionMarker: ElisionMarker = ElisionMarker.DITTO,
+    /**
      * Max interlinear line width in **full-width kana units** (one あ ≈ 1).
      * Columns wrap to the next triple-line block when exceeded.
      * Default 14 ≈ a couple of short words plus particles (e.g. 日本語を勉強).
@@ -61,8 +69,27 @@ data class JapanglifySettings(
      * or the rasterized image output, which measure real glyph widths
      * directly and have no need for this approximation at all.
      */
-    val cjkDisplayWidthUnits: Int = DEFAULT_CJK_DISPLAY_WIDTH_UNITS
+    val cjkDisplayWidthUnits: Int = DEFAULT_CJK_DISPLAY_WIDTH_UNITS,
+    /**
+     * Which weighting [com.japanglify.app.domain.dictionary.SenseSelector]
+     * uses to pick a headword's gloss among its candidate JMdict senses
+     * (see its doc for why "always sense 0" is a poor default). [CUSTOM]
+     * reads [customSenseRichnessWeight]/[customSensePositionWeight]/
+     * [customSenseDatedWeight] instead of a fixed preset.
+     */
+    val senseSelectionPreset: SenseSelectionPreset = SenseSelectionPreset.MODERN,
+    val customSenseRichnessWeight: Double = SenseSelectionPreset.MODERN.weights!!.richness,
+    val customSensePositionWeight: Double = SenseSelectionPreset.MODERN.weights!!.position,
+    val customSenseDatedWeight: Double = SenseSelectionPreset.MODERN.weights!!.dated
 ) {
+    /** Resolves [senseSelectionPreset] to actual weights, following [SenseSelectionPreset.CUSTOM] through to this settings object's own fields. */
+    val effectiveSenseWeights: SenseWeights
+        get() = senseSelectionPreset.weights ?: SenseWeights(
+            richness = customSenseRichnessWeight,
+            position = customSensePositionWeight,
+            dated = customSenseDatedWeight
+        )
+
     companion object {
         const val DEFAULT_MAX_LINE_WIDTH_FULLWIDTH = 14
         const val DEFAULT_CJK_DISPLAY_WIDTH_UNITS = 2

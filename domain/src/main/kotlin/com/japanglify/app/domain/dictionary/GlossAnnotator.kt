@@ -14,7 +14,8 @@ import com.japanglify.app.domain.JapaneseAnalyzer
 class GlossAnnotator(private val dictionary: DictionaryProvider) {
 
     fun interface DictionaryProvider {
-        fun lookup(baseForm: String): DictionaryEntry?
+        /** [weights] drives [SenseSelector] when a provider stores multiple candidate senses per headword. */
+        fun lookup(baseForm: String, weights: SenseWeights): DictionaryEntry?
     }
 
     /**
@@ -35,7 +36,10 @@ class GlossAnnotator(private val dictionary: DictionaryProvider) {
      * every [JapaneseAnalyzer.SurfaceReading.isBoundToPrevious] token, see
      * below).
      */
-    fun annotate(tokens: List<JapaneseAnalyzer.SurfaceReading>): List<GlossResult?> =
+    fun annotate(
+        tokens: List<JapaneseAnalyzer.SurfaceReading>,
+        senseWeights: SenseWeights = SenseSelectionPreset.MODERN.weights!!
+    ): List<GlossResult?> =
         tokens.map { token ->
             // A conjugation ending / auxiliary / copula (ました, ない, だ, ...)
             // isn't an independent word -- it completes the previous token's
@@ -62,7 +66,7 @@ class GlossAnnotator(private val dictionary: DictionaryProvider) {
             // this flag.
             if (token.isParticle) return@map null
             val key = token.baseForm ?: token.surface
-            val entry = dictionary.lookup(key) ?: return@map null
+            val entry = dictionary.lookup(key, senseWeights) ?: return@map null
             format(entry)?.let { GlossResult(it, entry.partOfSpeech) }
         }
 

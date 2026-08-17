@@ -56,7 +56,7 @@ class JapaneseAnalyzerTest {
             listOf(JapaneseAnalyzer.SurfaceReading("紙", "かみ", baseForm = "紙"))
         }
         val annotator = GlossAnnotator(
-            GlossAnnotator.DictionaryProvider {
+            GlossAnnotator.DictionaryProvider { _, _ ->
                 DictionaryEntry("紙", "かみ", PartOfSpeech.NOUN, "paper")
             }
         )
@@ -74,7 +74,7 @@ class JapaneseAnalyzerTest {
             listOf(JapaneseAnalyzer.SurfaceReading("紙", "かみ", baseForm = "紙"))
         }
         val annotator = GlossAnnotator(
-            GlossAnnotator.DictionaryProvider {
+            GlossAnnotator.DictionaryProvider { _, _ ->
                 DictionaryEntry("紙", "かみ", PartOfSpeech.NOUN, "paper")
             }
         )
@@ -100,7 +100,7 @@ class JapaneseAnalyzerTest {
             listOf(JapaneseAnalyzer.SurfaceReading("紙", "かみ", baseForm = "紙"))
         }
         val glossAnnotator = GlossAnnotator(
-            GlossAnnotator.DictionaryProvider { DictionaryEntry("紙", "かみ", PartOfSpeech.NOUN, "paper") }
+            GlossAnnotator.DictionaryProvider { _, _ -> DictionaryEntry("紙", "かみ", PartOfSpeech.NOUN, "paper") }
         )
         return JapaneseAnalyzer(provider, glossAnnotator, emojiAnnotator)
     }

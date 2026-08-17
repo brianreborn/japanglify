@@ -8,7 +8,7 @@ import org.junit.Test
 class GlossAnnotatorTest {
 
     private fun fakeDictionary(vararg entries: Pair<String, DictionaryEntry>) =
-        GlossAnnotator(GlossAnnotator.DictionaryProvider { key -> entries.toMap()[key] })
+        GlossAnnotator(GlossAnnotator.DictionaryProvider { key, _ -> entries.toMap()[key] })
 
     private fun texts(result: List<GlossAnnotator.GlossResult?>): List<String?> = result.map { it?.text }
 

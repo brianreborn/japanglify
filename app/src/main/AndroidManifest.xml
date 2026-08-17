@@ -65,6 +65,7 @@
             android:label="@string/share_target_label"
             android:launchMode="standard"
             android:noHistory="true"
+            android:taskAffinity=""
             android:theme="@style/Theme.Japanglify.Transparent">
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
@@ -113,11 +114,24 @@
             </intent-filter>
         </activity>
 
+        <!--
+          taskAffinity="" on this and the two activities below: without it,
+          each defaults to sharing the app's main task with SettingsActivity.
+          Confirmed live via `adb logcat`/ActivityTaskManager: a notification
+          or Share action launching one of these attaches to that *same*
+          existing task (with SettingsActivity still sitting in its back
+          stack from earlier use) instead of getting its own, so finishing
+          the brief, transient activity reveals stale Settings instead of
+          returning focus to whatever app the user was actually in. An empty
+          taskAffinity gives each its own isolated task, so finishing it
+          removes that task outright.
+        -->
         <activity
             android:name=".clipboard.ProcessClipboardActivity"
             android:excludeFromRecents="true"
             android:exported="false"
             android:noHistory="true"
+            android:taskAffinity=""
             android:theme="@style/Theme.Japanglify.Transparent" />
 
         <activity
@@ -125,6 +139,7 @@
             android:excludeFromRecents="true"
             android:exported="false"
             android:noHistory="true"
+            android:taskAffinity=""
             android:theme="@style/Theme.Japanglify.Transparent" />
 
         <service

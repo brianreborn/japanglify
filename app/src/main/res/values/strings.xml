@@ -28,6 +28,7 @@
     <string name="pref_capitalize_romaji">Capitalize romaji</string>
     <string name="pref_capitalize_romaji_summary">Title-case the first letter of each segment</string>
     <string name="pref_furigana_punctuation_style">Furigana-row punctuation</string>
+    <string name="pref_elision_marker">Elided-line marker</string>
 
     <string name="pref_category_phonetics">Phoneticization</string>
     <string name="pref_romanization">Romanization system</string>
@@ -63,6 +64,11 @@
     <string name="dictionary_delete_cancel_action">Cancel</string>
     <string name="pref_include_glosses">Word/particle glosses (Experimental)</string>
     <string name="pref_include_glosses_summary">Show a brief English meaning under each word and particle. Needs a downloaded dictionary above. Experimental — still being refined; off by default.</string>
+    <string name="pref_sense_selection_preset">Gloss sense selection</string>
+    <string name="pref_sense_selection_preset_summary">A word can have several dictionary senses (e.g. すごい: \"terrible\" vs. \"amazing\") — which one gets shown. Modern favors richer, non-dated senses. Classical favors older/archaic ones, for reading dated source text. Custom exposes the underlying weights below.</string>
+    <string name="pref_custom_sense_richness_weight">Custom: richness weight</string>
+    <string name="pref_custom_sense_position_weight">Custom: position weight</string>
+    <string name="pref_custom_sense_dated_weight">Custom: dated weight (negative penalizes, positive favors)</string>
 
     <string name="pref_category_emoji">Emoji (Experimental)</string>
     <string name="pref_include_emoji">English→emoji annotation</string>
@@ -80,7 +86,7 @@
     <string name="pref_about_team_summary">Brian Fundakowski Feldman — Project Lead, Lead Developer, Tester\nClaude Sonnet 5 — Test Lead\ngrok-build — Head Designer, Lead Developer\nGoogle Antigravity — Developer</string>
     <string name="pref_about_contact">Contact</string>
     <string name="pref_about_contact_summary">brianfundakowskifeldman@gmail.com</string>
-    <string name="pref_about_profile">Profile</string>
+    <string name="pref_about_profile">About the Author</string>
     <string name="pref_about_profile_summary">x.com/born_brian85001</string>
     <string name="pref_about_credits">Third-party</string>
     <string name="pref_about_credits_summary">Kanji readings via Kuromoji/IPADIC (Apache License 2.0)\nDictionary data via JMdict/EDICT (EDRDG) (CC BY-SA 4.0)\nEmoji names via Unicode CLDR (Unicode-3.0)\nSynonyms via Princeton WordNet 3.0 (WordNet License)</string>
@@ -99,6 +105,9 @@
     <string name="status_why_only_here">Japanglify is not “hooking” other apps. The host app builds the selection menu. When you select text here, Japanglify is the host, so it can list PROCESS_TEXT activities (including itself). Other apps either never call PROCESS_TEXT, or (Android 11+) cannot see third-party PROCESS_TEXT apps without their own &lt;queries&gt; — we cannot add that for them.</string>
     <string name="status_menu_not_a_bug">Not a Japanglify registration bug: the APK correctly exports ProcessTextActivity. Other apps choose whether to offer process-text items. If an app never offers it, use Copy assist (Accessibility) instead — selection-menu support varies by app.</string>
     <string name="status_overflow_hint">Cut/Copy/Paste only + no ⋮ = that host found zero PROCESS_TEXT apps (or never queries them). Use Copy assist or the live field below.</string>
+
+    <string name="url_text_extracted">Page text loaded — trim to the part you want, then tap Japanglify</string>
+    <string name="url_fetch_failed">Could not load that page — check the link and try again</string>
 
     <string name="try_it_title">Try it here (does not need the system menu)</string>
     <string name="try_it_instructions">Type or paste Japanese — live output updates below. Buttons convert in place or from the clipboard. Options further down scroll with this page.</string>

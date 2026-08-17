@@ -50,19 +50,31 @@ class DictionaryDatabase(
         // flagged it "ambiguous" and showed a "v." that added nothing (all
         // its senses are verbs; the real ambiguity is *which* verb sense,
         // which v1 doesn't disambiguate at all -- see the plan's "sense
-        // disambiguation" backlog note). The DB is a disposable, rebuildable
-        // cache (onUpgrade just drops + recreates it empty), which is fine
-        // pre-release with no shipped downloads to preserve; a real schema
-        // change post-release would need this to also reset the persisted
-        // download status back to NOT_DOWNLOADED so the app doesn't think a
+        // disambiguation" backlog note).
+        // v4: added sense_rank/gloss_count/dated so a headword can carry up
+        // to a few candidate senses instead of always JMdict's first one --
+        // see [com.japanglify.app.domain.dictionary.SenseSelector] for why
+        // "always sense 0" was a documented v1 limitation, not a design
+        // choice, and [SqliteDictionaryProvider] for how these get scored at
+        // query time. The DB is a disposable, rebuildable cache (onUpgrade
+        // just drops + recreates it empty), which is fine pre-release with
+        // no shipped downloads to preserve; a real schema change post-
+        // release would need this to also reset the persisted download
+        // status back to NOT_DOWNLOADED so the app doesn't think a
         // just-emptied table is still ready.
-        const val DB_VERSION = 3
+        const val DB_VERSION = 4
         const val TABLE = "entries"
         const val COL_HEADWORD = "headword"
         const val COL_READING = "reading"
         const val COL_POS = "pos"
         const val COL_GLOSS = "gloss"
         const val COL_POS_AMBIGUOUS = "pos_ambiguous"
+        /** Position in JMdict's own sense ordering for this row's sense (0 = first). */
+        const val COL_SENSE_RANK = "sense_rank"
+        /** How many English gloss synonyms this sense lists — [SenseSelector]'s "richness" signal. */
+        const val COL_GLOSS_COUNT = "gloss_count"
+        /** 1 when JMdict tags this sense arch/obs/obsc/dated, else 0. */
+        const val COL_DATED = "dated"
         /**
          * The *mapped* [com.japanglify.app.domain.dictionary.PartOfSpeech]
          * enum name (e.g. "VERB"), not a raw JMdict code -- computed once at
@@ -82,7 +94,10 @@ class DictionaryDatabase(
                 $COL_POS TEXT,
                 $COL_GLOSS TEXT NOT NULL,
                 $COL_POS_AMBIGUOUS INTEGER NOT NULL DEFAULT 0,
-                $COL_POS_CLASS TEXT
+                $COL_POS_CLASS TEXT,
+                $COL_SENSE_RANK INTEGER NOT NULL DEFAULT 0,
+                $COL_GLOSS_COUNT INTEGER NOT NULL DEFAULT 1,
+                $COL_DATED INTEGER NOT NULL DEFAULT 0
             )
         """
         const val CREATE_INDEX_SQL =

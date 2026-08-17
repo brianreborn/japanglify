@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.os.bundleOf
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -63,9 +64,17 @@ class SettingsActivity : AppCompatActivity() {
         ensureProcessTextEnabled()
 
         if (savedInstanceState == null) {
+            // Set only by ShareTargetActivity's URL path (see its doc
+            // comment) -- extracted page text lands here for the user to
+            // trim/edit before converting, rather than being converted
+            // sight-unseen the way a plain-text share is.
+            val prefillText = intent?.getStringExtra(EXTRA_PREFILL_TEXT)
+            val fragment = SettingsFragment().apply {
+                arguments = prefillText?.let { bundleOf(SettingsFragment.ARG_PREFILL_TEXT to it) }
+            }
             supportFragmentManager
                 .beginTransaction()
-                .replace(R.id.settings_container, SettingsFragment())
+                .replace(R.id.settings_container, fragment)
                 .commit()
         }
     }
@@ -77,5 +86,9 @@ class SettingsActivity : AppCompatActivity() {
             PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
             PackageManager.DONT_KILL_APP
         )
+    }
+
+    companion object {
+        const val EXTRA_PREFILL_TEXT = "prefill_text"
     }
 }

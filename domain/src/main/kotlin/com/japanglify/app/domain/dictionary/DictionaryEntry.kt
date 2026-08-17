@@ -1,10 +1,9 @@
 package com.japanglify.app.domain.dictionary
 
 /**
- * One dictionary lookup result. v1 always carries a single, primary sense —
- * see [com.japanglify.app.domain.dictionary.GlossAnnotator] and the plan's
- * explicit "sense disambiguation" backlog note for why that's a documented
- * v1 limitation, not an oversight.
+ * One dictionary lookup result — always a single, already-resolved sense
+ * (see [SenseSelector] for how the winning sense among a headword's
+ * candidates is chosen, and [GlossAnnotator] for how it's rendered).
  */
 data class DictionaryEntry(
     val headword: String,
@@ -16,7 +15,7 @@ data class DictionaryEntry(
      * [com.japanglify.app.domain.emoji.EmojiAnnotator]'s POS-scope filter.
      */
     val partOfSpeech: PartOfSpeech?,
-    /** First/primary sense's English gloss text, e.g. "paper" for 紙. */
+    /** The winning sense's English gloss text, e.g. "paper" for 紙. */
     val gloss: String
 )
 
