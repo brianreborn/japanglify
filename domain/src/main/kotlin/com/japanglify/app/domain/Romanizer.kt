@@ -39,6 +39,14 @@ class Romanizer(
 
     private fun romanizeHiragana(text: String, separated: Boolean): String {
         val out = StringBuilder(text.length * 2)
+        // A mora separator belongs *between two morae* only — never leading,
+        // and never right after a passthrough character (space, punctuation,
+        // Latin, digits). Tracking whether the previous emitted unit was
+        // itself a mora is stricter than "out is non-empty", which wrongly
+        // fired a separator after a passthrough char: a reading with an
+        // embedded space ("ふく だ") must give "fu·ku da", not "fu·ku ·da"
+        // with a stray dot wedged onto だ.
+        var prevWasMora = false
         var i = 0
         while (i < text.length) {
             val c = text[i]
@@ -46,7 +54,7 @@ class Romanizer(
             // Sokuon (促音): double the following consonant. Still its own
             // mora — gets a marker before AND after, same as any other.
             if (c == 'っ' || c == 'ッ') {
-                if (separated && out.isNotEmpty()) out.append(MORA_SEP)
+                if (separated && prevWasMora) out.append(MORA_SEP)
                 val next = peekMora(text, i + 1)
                 val cons = next?.let { initialConsonant(romanizeSingleMora(it)) }
                 if (!cons.isNullOrEmpty()) {
@@ -54,13 +62,15 @@ class Romanizer(
                 } else {
                     out.append(if (system == RomanizationSystem.WAPURO) "xtu" else "t")
                 }
+                prevWasMora = true
                 i++
                 continue
             }
 
             // Prolonged sound mark — modifies the previous letter in place
             // (macron/doubled vowel) or appends its own dash; never gets an
-            // extra mora marker of its own.
+            // extra mora marker of its own, and leaves prevWasMora as-is (it
+            // lengthens the preceding mora, so the next mora still separates).
             if (c == 'ー') {
                 applyChoonpu(out)
                 i++
@@ -69,22 +79,26 @@ class Romanizer(
 
             // Syllabic ん — system-specific nasal rules need the following mora
             if (c == 'ん') {
-                if (separated && out.isNotEmpty()) out.append(MORA_SEP)
+                if (separated && prevWasMora) out.append(MORA_SEP)
                 out.append(romanizeN(text, i + 1))
+                prevWasMora = true
                 i++
                 continue
             }
 
             val mora = peekMora(text, i)
             if (mora != null) {
-                if (separated && out.isNotEmpty()) out.append(MORA_SEP)
+                if (separated && prevWasMora) out.append(MORA_SEP)
                 out.append(romanizeSingleMora(mora))
+                prevWasMora = true
                 i += mora.length
                 continue
             }
 
-            // Pass through non-kana (numbers, Latin, punctuation)
+            // Pass through non-kana (numbers, Latin, punctuation) — this is
+            // not a mora, so the next mora must not put a separator after it.
             out.append(c)
+            prevWasMora = false
             i++
         }
 

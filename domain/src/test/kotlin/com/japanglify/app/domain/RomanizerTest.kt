@@ -63,4 +63,29 @@ class RomanizerTest {
         assertEquals("gakkou", w.romanize("がっこう"))
         assertEquals("konnnichiha", w.romanize("こんにちは"))
     }
+
+    @Test
+    fun moraSeparatorGoesBetweenMoraeOnly() {
+        val r = Romanizer()
+        // Baseline: clean kana separate at every mora boundary.
+        assertEquals("fu·ku", r.romanizeMora("ふく"))
+        assertEquals("da·ne", r.romanizeMora("だね"))
+        // A passthrough character (space here) must NOT make the following
+        // mora sprout a leading separator. Found live: "fu·ku ·da ne" had a
+        // stray dot wedged onto だ after the space.
+        assertEquals("fu·ku da", r.romanizeMora("ふく だ"))
+        // Fullwidth space (U+3000) is also a passthrough, not a mora boundary.
+        assertEquals("a　i", r.romanizeMora("あ　い"))
+    }
+
+    @Test
+    fun moraSeparatorNotLeadingAfterPunctuationOrSpace() {
+        val r = Romanizer()
+        // No leading separator on the mora right after a space / middle dot /
+        // fullwidth space, and none at the very start.
+        assertEquals("da", r.romanizeMora(" だ").trimStart())
+        assertEquals(" da", r.romanizeMora(" だ"))
+        assertEquals("・da", r.romanizeMora("・だ"))
+        assertEquals("fu·ku da·ne", r.romanizeMora("ふく だね"))
+    }
 }
