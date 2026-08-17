@@ -8,7 +8,7 @@ import org.junit.Test
 class GlossAnnotatorTest {
 
     private fun fakeDictionary(vararg entries: Pair<String, DictionaryEntry>) =
-        GlossAnnotator(GlossAnnotator.DictionaryProvider { key, _ -> entries.toMap()[key] })
+        GlossAnnotator(GlossAnnotator.DictionaryProvider { key, _, _ -> entries.toMap()[key] })
 
     private fun texts(result: List<GlossAnnotator.GlossResult?>): List<String?> = result.map { it?.text }
 
@@ -168,6 +168,40 @@ class GlossAnnotatorTest {
         )
         val result = annotator.annotate(tokens)
         assertEquals(listOf("Japanese", null, "do"), texts(result))
+    }
+
+    @Test
+    fun longestMatchPhraseWinsOverPerTokenGlosses() {
+        // ご機嫌よう is one JMdict entry ("nice to see you / good day"), but
+        // Kuromoji splits it into ご + 機嫌 + よう. The whole-phrase entry must
+        // win, its gloss riding on the span's first token; the consumed pieces
+        // stay null and 機嫌's own "mood" gloss is never used.
+        val annotator = fakeDictionary(
+            "ご機嫌よう" to DictionaryEntry("ご機嫌よう", "ごきげんよう", PartOfSpeech.INTERJECTION, "nice to see you/good day"),
+            "機嫌" to DictionaryEntry("機嫌", "きげん", PartOfSpeech.NOUN, "mood")
+        )
+        val tokens = listOf(
+            JapaneseAnalyzer.SurfaceReading("ご", "ゴ", baseForm = "ご"),
+            JapaneseAnalyzer.SurfaceReading("機嫌", "キゲン", baseForm = "機嫌"),
+            JapaneseAnalyzer.SurfaceReading("よう", "ヨウ", baseForm = "よう")
+        )
+        assertEquals(listOf("nice to see you/good day", null, null), texts(annotator.annotate(tokens)))
+    }
+
+    @Test
+    fun forwardsTokenReadingToLookupForSameSpellingDisambiguation() {
+        // 僕 read ぼく is "I, me"; read しもべ is "servant". The annotator must
+        // pass the token's reading through so a reading-aware provider picks
+        // the right sense instead of pooling both by headword.
+        val provider = GlossAnnotator.DictionaryProvider { key, reading, _ ->
+            if (key != "僕") null
+            else if (reading == "ボク" || reading == "ぼく")
+                DictionaryEntry("僕", "ぼく", PartOfSpeech.NOUN, "I/me")
+            else DictionaryEntry("僕", "しもべ", PartOfSpeech.NOUN, "servant")
+        }
+        val result = GlossAnnotator(provider)
+            .annotate(listOf(JapaneseAnalyzer.SurfaceReading("僕", "ボク", baseForm = "僕")))
+        assertEquals(listOf("I/me"), texts(result))
     }
 
     @Test

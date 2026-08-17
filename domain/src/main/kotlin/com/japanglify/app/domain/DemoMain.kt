@@ -102,7 +102,7 @@ object DemoMain {
             )
         )
         val glossAnnotator = com.japanglify.app.domain.dictionary.GlossAnnotator(
-            com.japanglify.app.domain.dictionary.GlossAnnotator.DictionaryProvider { key, _ -> fakeDictionary[key] }
+            com.japanglify.app.domain.dictionary.GlossAnnotator.DictionaryProvider { key, _, _ -> fakeDictionary[key] }
         )
         val glossAnalyzer = JapaneseAnalyzer(kuromojiProvider, glossAnnotator)
         val glossSegments = glossAnalyzer.annotate(text, JapanglifySettings(includeGlosses = true))

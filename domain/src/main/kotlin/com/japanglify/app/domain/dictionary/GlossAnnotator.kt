@@ -14,8 +14,16 @@ import com.japanglify.app.domain.JapaneseAnalyzer
 class GlossAnnotator(private val dictionary: DictionaryProvider) {
 
     fun interface DictionaryProvider {
-        /** [weights] drives [SenseSelector] when a provider stores multiple candidate senses per headword. */
-        fun lookup(baseForm: String, weights: SenseWeights): DictionaryEntry?
+        /**
+         * [reading] is the token's kana reading (katakana or hiragana; null
+         * when unknown or when looking up a multi-token phrase). When present
+         * it disambiguates same-spelling headwords read differently — e.g.
+         * 僕 is read ぼく ("I, me") here, not しもべ ("servant") — so a
+         * reading-aware provider restricts its candidate senses to the
+         * matching reading before scoring. [weights] drives [SenseSelector]
+         * when several candidate senses remain.
+         */
+        fun lookup(baseForm: String, reading: String?, weights: SenseWeights): DictionaryEntry?
     }
 
     /**
@@ -39,36 +47,86 @@ class GlossAnnotator(private val dictionary: DictionaryProvider) {
     fun annotate(
         tokens: List<JapaneseAnalyzer.SurfaceReading>,
         senseWeights: SenseWeights = SenseSelectionPreset.MODERN.weights!!
-    ): List<GlossResult?> =
-        tokens.map { token ->
-            // A conjugation ending / auxiliary / copula (ました, ない, だ, ...)
-            // isn't an independent word -- it completes the previous token's
-            // inflected form (see isBoundToPrevious's own doc). Glossing it
-            // separately reads as a stray, disconnected word, and JMdict's
-            // POS code for these doesn't reliably land on PARTICLE either
-            // (copula is its own JMdict tag, "cop", which format()'s
-            // PARTICLE-only check never catches) -- found live via real
-            // device UAT: だ's own gloss rendered as an unrelated word
-            // jammed with zero gap right against the previous word's gloss
-            // (isBoundToPrevious cells get no word-gap by design), reading
-            // as one garbled word, e.g. "wonderfuldui" for 不思議な. Skipping
-            // the lookup entirely for these tokens fixes both problems at
-            // once: no stray gloss, and nothing left to jam into the gap.
-            if (token.isBoundToPrevious) return@map null
-            // Prefer Kuromoji's own contextual particle tag over re-deriving
-            // it from the dictionary lookup below: a dictionary match is
-            // keyed on baseForm/surface alone, out of context, and can land
-            // on the wrong same-spelling headword (a real risk for common
-            // single-kana particles) -- Kuromoji already knows definitively
-            // whether *this* token, in *this* sentence, is a particle.
-            // format()'s own entry.partOfSpeech check stays as a second,
-            // independent safety net for a ReadingProvider that doesn't set
-            // this flag.
-            if (token.isParticle) return@map null
-            val key = token.baseForm ?: token.surface
-            val entry = dictionary.lookup(key, senseWeights) ?: return@map null
-            format(entry)?.let { GlossResult(it, entry.partOfSpeech) }
+    ): List<GlossResult?> {
+        val results = arrayOfNulls<GlossResult>(tokens.size)
+        var i = 0
+        while (i < tokens.size) {
+            // Longest-match phrase first: several consecutive tokens whose
+            // concatenated surface is itself a dictionary headword (a real set
+            // expression, e.g. ご+機嫌+よう -> ご機嫌よう "nice to see you /
+            // good day"). Kuromoji splits such phrases into their pieces, and
+            // glossing the pieces separately is both wrong and noisy, so a
+            // whole-phrase entry wins when one exists. The gloss rides on the
+            // span's first token (like split-kanji/okurigana romaji does);
+            // the rest stay null.
+            val phrase = longestPhraseMatch(tokens, i, senseWeights)
+            if (phrase != null) {
+                val (span, entry) = phrase
+                results[i] = format(entry)?.let { GlossResult(it, entry.partOfSpeech) }
+                i += span
+                continue
+            }
+            results[i] = glossToken(tokens[i], senseWeights)
+            i++
         }
+        return results.toList()
+    }
+
+    /**
+     * The longest span of [MIN_PHRASE_TOKENS]..[MAX_PHRASE_TOKENS] tokens
+     * starting at [start] whose concatenated surface is a dictionary
+     * headword, or null if none is. A phrase has no single reading of its
+     * own, so the lookup passes `reading = null` (no reading filter).
+     */
+    private fun longestPhraseMatch(
+        tokens: List<JapaneseAnalyzer.SurfaceReading>,
+        start: Int,
+        weights: SenseWeights
+    ): Pair<Int, DictionaryEntry>? {
+        val maxSpan = minOf(MAX_PHRASE_TOKENS, tokens.size - start)
+        for (span in maxSpan downTo MIN_PHRASE_TOKENS) {
+            val surface = buildString {
+                for (j in start until start + span) append(tokens[j].surface)
+            }
+            dictionary.lookup(surface, null, weights)?.let { return span to it }
+        }
+        return null
+    }
+
+    private fun glossToken(
+        token: JapaneseAnalyzer.SurfaceReading,
+        weights: SenseWeights
+    ): GlossResult? {
+        // A conjugation ending / auxiliary / copula (ました, ない, だ, ...)
+        // isn't an independent word -- it completes the previous token's
+        // inflected form (see isBoundToPrevious's own doc). Glossing it
+        // separately reads as a stray, disconnected word, and JMdict's
+        // POS code for these doesn't reliably land on PARTICLE either
+        // (copula is its own JMdict tag, "cop", which format()'s
+        // PARTICLE-only check never catches) -- found live via real
+        // device UAT: だ's own gloss rendered as an unrelated word
+        // jammed with zero gap right against the previous word's gloss
+        // (isBoundToPrevious cells get no word-gap by design), reading
+        // as one garbled word, e.g. "wonderfuldui" for 不思議な. Skipping
+        // the lookup entirely for these tokens fixes both problems at
+        // once: no stray gloss, and nothing left to jam into the gap.
+        if (token.isBoundToPrevious) return null
+        // Prefer Kuromoji's own contextual particle tag over re-deriving
+        // it from the dictionary lookup below: a dictionary match is
+        // keyed on baseForm/surface alone, out of context, and can land
+        // on the wrong same-spelling headword (a real risk for common
+        // single-kana particles) -- Kuromoji already knows definitively
+        // whether *this* token, in *this* sentence, is a particle.
+        // format()'s own entry.partOfSpeech check stays as a second,
+        // independent safety net for a ReadingProvider that doesn't set
+        // this flag.
+        if (token.isParticle) return null
+        val key = token.baseForm ?: token.surface
+        // Pass the token's reading so the provider can disambiguate a
+        // same-spelling headword read two ways (see DictionaryProvider.lookup).
+        val entry = dictionary.lookup(key, token.reading, weights) ?: return null
+        return format(entry)?.let { GlossResult(it, entry.partOfSpeech) }
+    }
 
     private fun format(entry: DictionaryEntry): String? {
         // Every particle is omitted, not just the abstract-marker subset
@@ -100,5 +158,17 @@ class GlossAnnotator(private val dictionary: DictionaryProvider) {
         // declutter it -- only a verb's leading "to " is purely a citation-
         // form marker with nothing lost by removing it.
         return if (entry.partOfSpeech == PartOfSpeech.VERB) entry.gloss.removePrefix("to ") else entry.gloss
+    }
+
+    private companion object {
+        /** Phrase lookup only kicks in for multi-token spans. */
+        const val MIN_PHRASE_TOKENS = 2
+        /**
+         * Longest span the greedy phrase pass will try to match as one
+         * dictionary entry. 4 comfortably covers set expressions like
+         * ご機嫌よう (3 tokens) without turning every lookup into a long chain
+         * of speculative DB queries on a big paste.
+         */
+        const val MAX_PHRASE_TOKENS = 4
     }
 }

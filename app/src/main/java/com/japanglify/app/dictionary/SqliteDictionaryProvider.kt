@@ -1,6 +1,7 @@
 package com.japanglify.app.dictionary
 
 import android.content.Context
+import com.japanglify.app.domain.KanaConverter
 import com.japanglify.app.domain.dictionary.DictionaryEntry
 import com.japanglify.app.domain.dictionary.GlossAnnotator
 import com.japanglify.app.domain.dictionary.PartOfSpeech
@@ -30,7 +31,7 @@ class SqliteDictionaryProvider(
 
     private val dbHelper = DictionaryDatabase(context, DictionaryDatabase.fileNameFor(sourceId))
 
-    override fun lookup(baseForm: String, weights: SenseWeights): DictionaryEntry? {
+    override fun lookup(baseForm: String, reading: String?, weights: SenseWeights): DictionaryEntry? {
         val db = dbHelper.readableDatabase
         val candidates = ArrayList<SenseCandidate>()
         db.query(
@@ -63,7 +64,21 @@ class SqliteDictionaryProvider(
                 candidates += candidate
             }
         }
-        val winner = SenseSelector.pickBest(candidates, weights) ?: return null
+        // Reading-aware disambiguation: 僕 is filed under three readings —
+        // ぼく ("I, me"), しもべ ("servant"), やつがれ — and querying by
+        // headword alone pools all of them, letting the richer "servant"
+        // sense outscore the correct "I, me" for a token Kuromoji already
+        // told us is read ぼく. When the caller supplies the reading, keep
+        // only the rows that match it (kana-normalized); fall back to the
+        // full candidate set if the reading matches nothing (a Kuromoji vs.
+        // JMdict reading mismatch, or a kanji-form row whose stored reading
+        // is a different spelling), so a mismatch never drops the gloss
+        // entirely — it just loses the disambiguation.
+        val pool = reading?.let { r ->
+            val want = KanaConverter.toHiragana(r)
+            candidates.filter { it.reading != null && KanaConverter.toHiragana(it.reading!!) == want }
+        }?.takeIf { it.isNotEmpty() } ?: candidates
+        val winner = SenseSelector.pickBest(pool, weights) ?: return null
         return DictionaryEntry(
             headword = baseForm,
             reading = winner.reading,
