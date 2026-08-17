@@ -69,12 +69,27 @@ question below.
 ## Sound and rhythm (phonology)
 
 **Mora** — モーラ / 拍 (*mōra*)
-Japanese's basic unit of sound-timing: the smallest perceptual "beat" in speech.
-Each full kana is one mora; a **yōon** digraph (きゃ) is one mora; the **sokuon**
-(っ) and syllabic **ん** are each their *own* mora. This is **not** the same as an
-English syllable — とうきょう (Tōkyō) is **4 morae** (to-o-kyo-o) but reads as 2
-syllables in English. Japanglify's interlinear romaji marks mora boundaries with
-a middle dot ("ni·hon·go"); see `Romanizer.romanizeMora`.
+Japanglify's atomic unit of Japanese sound — **the phoneme**: the smallest
+indivisible sound the language builds words from, and the beat Japanese timing
+counts. **In this project mora and phoneme are the same thing**, and the two
+terms are used interchangeably. Each full kana is one mora/phoneme; a **yōon**
+digraph (きゃ) is one; the **sokuon** (っ) and syllabic **ん** are each their
+*own*. It is **not** a syllable — とうきょう (Tōkyō) is **4 morae** (to-o-kyo-o)
+but reads as 2 syllables in English. The interlinear romaji marks each mora
+boundary with a middle dot ("ni·hon·go"); see `Romanizer.romanizeMora`.
+
+**Phoneme**
+The atomic, indivisible unit of sound. In Japanglify this is exactly the
+**mora** — the two are equivalent and used interchangeably throughout the code
+and docs; every place the code says "mora" it means this phonemic atom.
+
+**Diphthong**
+A vowel that glides between two qualities within a single unit (English "coin,"
+"how"). Japanese vowel runs (あい *ai*, おう *ou*) are **not** treated as one
+gliding diphthong: each vowel is its own **mora/phoneme**, a separate sound
+unit. That is why a run like おう romanizes as ō / ou (a lengthened or
+sequenced vowel — see **long vowel** and **chōonpu**) rather than as a single
+merged glide.
 
 **Syllable**
 The English/general-linguistics unit of a vowel nucleus plus optional
