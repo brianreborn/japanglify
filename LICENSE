@@ -1,26 +1,43 @@
 Light-ware License
-(derived from the "Beerware" license, originally written by Poul-Henning Kamp)
+(the 4-clause BSD License, plus one addition below)
 
-Copyright (c) 2026, Brian Reborn
+Copyright (c) 2026, Brian Fundakowski Feldman. All rights reserved.
 
-As long as you retain this notice, you can do whatever you want with
-this software — use it, copy it, modify it, redistribute it, in source
-or binary form, for any purpose, commercial or not.
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
 
-If you find it useful and are in a position to do so, the author would
+1. Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in the
+   documentation and/or other materials provided with the distribution.
+
+3. All advertising materials mentioning features or use of this
+   software must display the following acknowledgement: This product
+   includes software developed by Brian Fundakowski Feldman.
+
+4. Neither the name of Brian Fundakowski Feldman nor the names of its
+   contributors may be used to endorse or promote products derived
+   from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY COPYRIGHT HOLDER "AS IS" AND ANY EXPRESS
+OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL COPYRIGHT HOLDER BE LIABLE FOR ANY
+DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+The one addition ("Light-ware" vs. plain BSD-4-Clause): if you find
+this software useful and are in a position to do so, the author would
 be glad to receive a contribution toward rent, groceries, or keeping
-the lights on. That's offered as an invitation, never a requirement:
-declining to contribute does not affect any of your rights under this
-license in any way.
-
-This software is provided "AS IS", without warranty of any kind,
-express or implied, including but not limited to the warranties of
-merchantability, fitness for a particular purpose, and noninfringement.
-In no event shall the author be liable for any claim, damages, or other
-liability arising from, out of, or in connection with the software or
-the use or other dealings in the software.
-
-"Light-ware" is a distinct derivative work inspired by the Beerware
-license and is not endorsed or authored by Poul-Henning Kamp — credited
-here as the acknowledged inspiration/predecessor, not as an author or
-endorser of these terms.
+the lights on. This is offered as an invitation, not a legal
+requirement — declining to contribute does not affect any of your
+rights under the four conditions above in any way. It is, however, an
+ethical ask the author means sincerely, not boilerplate.

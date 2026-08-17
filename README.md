@@ -1,5 +1,35 @@
 # Japanglify
 
+Stuck on Japanese text in a chat app, a game, a tweet, or a webpage?
+Japanglify reads it for you, right where you found it.
+
+Select any Japanese text on your phone — in any app — and Japanglify
+adds furigana (how to read it), romaji (how to say it), and, if you
+want, an English meaning and a matching emoji. No switching apps, no
+retyping, no waiting on a translator page to load. Just select, tap,
+and read.
+
+- **Works everywhere** — the text-selection menu, the Share button, or
+  a simple in-app box if an app doesn't cooperate with either.
+- **Reads it out loud, in your head** — hiragana readings over every
+  kanji, plus a Latin-letter pronunciation guide underneath, in
+  whichever romanization style you're used to.
+- **Tells you what it means** — optional English meanings for words
+  and particles, smart about picking the *modern* meaning of a word
+  rather than a dusty dictionary-first definition.
+- **Speaks emoji too** — matching emoji for words that have one, so a
+  sentence's mood comes through at a glance.
+- **Choose how it looks** — stacked reading lines, inline-style
+  furigana, old-school parenthetical notes, or a shareable image you
+  can paste anywhere.
+- **Works offline** — an optional version of the app bundles
+  everything it needs right in the install, so it works on a plane,
+  underground, or anywhere without a signal.
+- **No account, no cloud, no catch** — everything happens on your own
+  phone. Free to use, always.
+
+---
+
 Android app that adds a **global text-selection menu item**. Selecting Japanese text and tapping **Japanglify** expands the selection in place (or copies it when the host is read-only) with:
 
 1. **Base text** — the original selection  
@@ -246,7 +276,7 @@ HTML double-sided ruby (paste into HTML-capable hosts):
 
 ## License
 
-App code is licensed under the [Light-ware License](LICENSE) (derived from Beerware).
+App code is licensed under the [Light-ware License](LICENSE) — the 4-clause BSD License plus one Beerware-style addition.
 
 Bundled/downloaded third-party data and libraries keep their own upstream
 licenses — see [ARCHITECTURE.md](ARCHITECTURE.md) and the in-app About →
