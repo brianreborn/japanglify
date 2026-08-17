@@ -109,6 +109,39 @@ class TripleScriptRendererTest {
     }
 
     @Test
+    fun glossWidenedSingleKanjiKeepsFuriganaTogether() {
+        // 凄い (kanji 凄 + okurigana い) splits into a 凄 cell + an い cell;
+        // the whole word's romaji AND a wide "amazing" gloss ride on the 凄
+        // cell, widening that column well past the reading すご's own width.
+        // Found live (real X screenshot, 『凄い』): space-around padding filled
+        // that extra width by wedging a PAD *between* the kana — "す⠀ご" — so
+        // the reading no longer read as one word over 凄. The furigana (and
+        // romaji) must center as a unit over a single-glyph base instead.
+        val segments = listOf(
+            AnnotatedSegment(
+                "凄い", "すごい", "sugoi",
+                needsFurigana = true, romajiMora = "su·go·i", gloss = "amazing"
+            )
+        )
+        val settings = JapanglifySettings(
+            outputFormat = OutputFormat.INTERLINEAR,
+            romajiPosition = RomajiPosition.BELOW,
+            furiganaKanjiOnly = true,
+            includeGlosses = true,
+            maxLineWidthFullwidth = 0
+        )
+        val lines = renderer.render(segments, settings).lines()
+            .map { it.replace("⁠", "") }.filter { it.isNotEmpty() }
+        val furiLine = lines[0]
+        // Contiguous reading — not "す⠀ご" with a pad wedged between.
+        assertTrue("furigana すご must stay contiguous, got: $furiLine", furiLine.contains("すご"))
+        assertFalse("furigana must not be torn apart, got: $furiLine", furiLine.contains("す⠀ご"))
+        // All rows still share one column width (alignment preserved).
+        val w = renderer.displayWidth(lines[0])
+        for (l in lines) assertEquals("row width mismatch: $l", w, renderer.displayWidth(l))
+    }
+
+    @Test
     fun padCenterDistributionDegeneratesToEdgesForSingleCharacterText() {
         // N=1 codepoint has exactly one interior-free layout (left/right
         // edge only) — must match the pre-refinement behavior exactly,

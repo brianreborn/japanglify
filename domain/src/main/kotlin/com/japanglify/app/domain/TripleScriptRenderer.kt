@@ -428,10 +428,28 @@ class TripleScriptRenderer {
                 // patch is romaji-only.
                 roma.append(MORA_SEAM)
             }
-            fun pad(text: String, width: Int) =
-                if (cell.isPunctuation) padEndDisplay(text, width, cjkWidth) else padCenterDisplay(text, width, cjkWidth)
-            base.append(pad(cell.base, cell.width))
-            furi.append(pad(cell.furigana, cell.width))
+            // The base row uses CSS-ruby space-around ([padCenterDisplay]) so
+            // a whole multi-kanji cell (e.g. 日本語 kept intact) distributes
+            // its kanji evenly under their reading. Furigana/romaji only want
+            // that same interior spread when the base actually has multiple
+            // glyphs to spread *against*; over a single-glyph base (a
+            // split-kanji column, an okurigana cell, punctuation) there's
+            // nothing to align to, so a short reading like すご — or any latin
+            // romaji — must center as one unit ([padCenterWholeDisplay]) or a
+            // wide gloss/emoji widening the cell tears it into "す·ご" with a
+            // pad wedged between the kana. See buildMeasuredRows for how the
+            // gloss/emoji width feeds cell.width.
+            val singleGlyphBase = cell.base.codePointCount(0, cell.base.length) <= 1
+            fun padBase(text: String, width: Int) =
+                if (cell.isPunctuation) padEndDisplay(text, width, cjkWidth)
+                else padCenterDisplay(text, width, cjkWidth)
+            fun padAnnotation(text: String, width: Int) = when {
+                cell.isPunctuation -> padEndDisplay(text, width, cjkWidth)
+                singleGlyphBase -> padCenterWholeDisplay(text, width, cjkWidth)
+                else -> padCenterDisplay(text, width, cjkWidth)
+            }
+            base.append(padBase(cell.base, cell.width))
+            furi.append(padAnnotation(cell.furigana, cell.width))
             // [needsMoraSeam] is also used in buildMeasuredRows to reserve
             // MORA_SEAM_WIDTH inside cell.width up front, precisely so this
             // seam never makes the romaji column wider than base/furi's —
@@ -439,7 +457,7 @@ class TripleScriptRenderer {
             // reservation actually being spent here) keeps seam + padded
             // romaji summing to exactly cell.width, matching base/furi.
             val romaWidth = if (needsSeam) cell.width - MORA_SEAM_WIDTH else cell.width
-            roma.append(pad(cell.romaji, romaWidth))
+            roma.append(padAnnotation(cell.romaji, romaWidth))
         }
         return Triple(base.toString(), furi.toString(), roma.toString())
     }
