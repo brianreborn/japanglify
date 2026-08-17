@@ -153,6 +153,19 @@ class JapanglifyAccessibilityService : AccessibilityService() {
         PreferenceManager.getDefaultSharedPreferences(this)
             .getBoolean(PreferencesRepository.KEY_SELECTION_OVERLAY, false)
 
+    /**
+     * Whether Cut should auto-replace the selected text in place with its
+     * Japanglified form (vs. behaving like an ordinary system Cut). Read live
+     * so toggling it in Settings takes effect immediately. Distinct from the
+     * Copy hook — Copy only posts a result notification, whereas Cut rewrites
+     * the user's field, so it gets its own opt-out — but shares the same
+     * dependency on the accessibility service being connected. Default on, to
+     * preserve the behavior that shipped before this toggle existed.
+     */
+    private fun wantsCutReplace(): Boolean =
+        PreferenceManager.getDefaultSharedPreferences(this)
+            .getBoolean(PreferencesRepository.KEY_CUT_REPLACE, true)
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
         if (!ClipboardProcessor.isAssistWanted(this)) {
@@ -186,8 +199,14 @@ class JapanglifyAccessibilityService : AccessibilityService() {
             AccessibilityEvent.TYPE_VIEW_CLICKED -> {
                 when {
                     looksLikeCutAction(event) -> {
-                        // Paused ⇒ leave Cut as plain system Cut, no auto-replace.
-                        if (!ClipboardProcessor.isCopyHookPaused(this)) {
+                        // Cut auto-replace has its own persistent opt-out
+                        // ([wantsCutReplace]) on top of the shared temporary
+                        // pause ([isCopyHookPaused]) — replacing text in the
+                        // field is more invasive than Copy's notification, so
+                        // some users want Copy on but Cut left as plain system
+                        // Cut. Either being off ⇒ leave Cut as an ordinary
+                        // system Cut, no auto-replace.
+                        if (!ClipboardProcessor.isCopyHookPaused(this) && wantsCutReplace()) {
                             CopyHookDiagnostics.log(this, "Cut click detected — auto-replace")
                             scheduleCutAutoReplace()
                         }

@@ -83,6 +83,13 @@
             app:key="selection_overlay"
             app:summary="@string/pref_selection_overlay_summary"
             app:title="@string/pref_selection_overlay" />
+        <SwitchPreferenceCompat
+            android:layout="@layout/preference_indented"
+            app:defaultValue="true"
+            app:dependency="clipboard_assist"
+            app:key="cut_replace"
+            app:summary="@string/pref_cut_replace_summary"
+            app:title="@string/pref_cut_replace" />
     </PreferenceCategory>
 
     <PreferenceCategory app:title="@string/pref_category_phonetics">
