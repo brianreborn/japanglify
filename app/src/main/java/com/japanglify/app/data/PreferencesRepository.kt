@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import androidx.preference.PreferenceManager
 import com.japanglify.app.dictionary.DictionaryDownloadStatus
 import com.japanglify.app.domain.ElisionMarker
+import com.japanglify.app.domain.MoraSeamStyle
 import com.japanglify.app.domain.EmojiPrecisionTier
 import com.japanglify.app.domain.FuriganaPunctuationStyle
 import com.japanglify.app.domain.dictionary.DictionarySources
@@ -40,6 +41,7 @@ class PreferencesRepository(context: Context) {
             prefs.getString(KEY_FURIGANA_PUNCTUATION_STYLE, null)
         ),
         elisionMarker = ElisionMarker.fromId(prefs.getString(KEY_ELISION_MARKER, null)),
+        moraSeamStyle = MoraSeamStyle.fromId(prefs.getString(KEY_MORA_SEAM_STYLE, null)),
         maxLineWidthFullwidth = parseMaxLineWidth(prefs.getString(KEY_MAX_LINE_WIDTH, null)),
         senseSelectionPreset = SenseSelectionPreset.fromId(prefs.getString(KEY_SENSE_SELECTION_PRESET, null)),
         customSenseRichnessWeight = parseWeight(
@@ -117,6 +119,7 @@ class PreferencesRepository(context: Context) {
         const val KEY_CAPITALIZE_ROMAJI = "capitalize_romaji"
         const val KEY_FURIGANA_PUNCTUATION_STYLE = "furigana_punctuation_style"
         const val KEY_ELISION_MARKER = "elision_marker"
+        const val KEY_MORA_SEAM_STYLE = "mora_seam_style"
         const val KEY_MAX_LINE_WIDTH = "max_line_width_fullwidth"
         const val KEY_SENSE_SELECTION_PRESET = "sense_selection_preset"
         const val KEY_CUSTOM_SENSE_RICHNESS_WEIGHT = "custom_sense_richness_weight"

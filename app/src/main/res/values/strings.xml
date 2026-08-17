@@ -29,6 +29,7 @@
     <string name="pref_capitalize_romaji_summary">Title-case the first letter of each segment</string>
     <string name="pref_furigana_punctuation_style">Furigana-row punctuation</string>
     <string name="pref_elision_marker">Elided-line marker</string>
+    <string name="pref_mora_seam_style">Bound copula/auxiliary separator</string>
 
     <string name="pref_category_phonetics">Phoneticization</string>
     <string name="pref_romanization">Romanization system</string>

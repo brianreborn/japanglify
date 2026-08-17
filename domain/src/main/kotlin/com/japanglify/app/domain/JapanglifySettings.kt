@@ -49,6 +49,13 @@ data class JapanglifySettings(
      */
     val elisionMarker: ElisionMarker = ElisionMarker.DITTO,
     /**
+     * How the interlinear romaji row joins a word to a directly-abutting bound
+     * copula/auxiliary (です/だ/ました …) — a middle dot (mora boundary) or a
+     * space (word break). See [MoraSeamStyle]. Width-neutral, so it never
+     * disturbs column alignment.
+     */
+    val moraSeamStyle: MoraSeamStyle = MoraSeamStyle.DOT,
+    /**
      * Max interlinear line width in **full-width kana units** (one あ ≈ 1).
      * Columns wrap to the next triple-line block when exceeded.
      * Default 14 ≈ a couple of short words plus particles (e.g. 日本語を勉強).

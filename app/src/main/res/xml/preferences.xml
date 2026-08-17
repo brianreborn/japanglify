@@ -52,6 +52,13 @@
             app:key="elision_marker"
             app:title="@string/pref_elision_marker"
             app:useSimpleSummaryProvider="true" />
+        <ListPreference
+            android:layout="@layout/preference_indented"
+            app:defaultValue="dot"
+            app:dependency="include_romaji"
+            app:key="mora_seam_style"
+            app:title="@string/pref_mora_seam_style"
+            app:useSimpleSummaryProvider="true" />
     </PreferenceCategory>
 
     <PreferenceCategory app:title="@string/pref_category_clipboard">

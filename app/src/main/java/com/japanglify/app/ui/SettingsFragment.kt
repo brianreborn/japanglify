@@ -115,6 +115,10 @@ class SettingsFragment : PreferenceFragmentCompat() {
             com.japanglify.app.domain.ElisionMarker.entries.map { it.id to it.displayName }
         )
         bindList(
+            PreferencesRepository.KEY_MORA_SEAM_STYLE,
+            com.japanglify.app.domain.MoraSeamStyle.entries.map { it.id to it.displayName }
+        )
+        bindList(
             PreferencesRepository.KEY_SENSE_SELECTION_PRESET,
             com.japanglify.app.domain.dictionary.SenseSelectionPreset.entries.map { it.id to it.displayName }
         )

@@ -250,6 +250,16 @@ class TripleScriptRendererTest {
         assertEquals(3, lines.size)
         val romaLine = lines[2].stripWordJoiner()
         assertTrue("romaji line should carry the mora seam", romaLine.contains("·de·su"))
+
+        // MoraSeamStyle.SPACE swaps the seam dot for a space (both 1 cell
+        // wide, so alignment is preserved) — "de·su" then abuts with a space.
+        val spaced = renderer.render(segments, settings.copy(moraSeamStyle = MoraSeamStyle.SPACE))
+            .lines().filter { it.isNotEmpty() }
+        val spacedRoma = spaced[2].stripWordJoiner()
+        assertFalse("space style must drop the seam dot", spacedRoma.contains("·de·su"))
+        assertTrue("space style keeps de·su, seam is a space", spacedRoma.contains("de·su"))
+        val sw0 = renderer.displayWidth(spaced[0])
+        assertEquals("space-seam keeps columns aligned", sw0, renderer.displayWidth(spaced[2]))
         val w0 = renderer.displayWidth(lines[0])
         assertEquals("furi/base display width", w0, renderer.displayWidth(lines[1]))
         assertEquals("base/roma display width", w0, renderer.displayWidth(lines[2]))

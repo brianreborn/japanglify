@@ -30,15 +30,14 @@ class TripleScriptRenderer {
         /** Visible gap between distinct words/particles (English-style word-spacing). */
         private val WORD_GAP = PAD + PAD
         /**
-         * Mora-boundary marker — U+00B7 MIDDLE DOT, matching
-         * [Romanizer.romanizeMora]'s own marker (duplicated, not
-         * shared, same reasoning as [ROMAJI_RELATIVE_SIZE] below). Used to
-         * patch the seam between two directly-abutting segments (e.g. a
-         * copula bound to the previous word, no [WORD_GAP]) whose romaji
-         * were each mora-separated independently — see [buildRawTripleLines].
+         * Display width of the mora seam — always a single halfwidth unit
+         * whichever [MoraSeamStyle] the user picks (middle dot · or space),
+         * so switching styles never shifts columns (matches
+         * [codePointDisplayWidth] for both U+00B7 and U+0020). The actual seam
+         * glyph is chosen per-render from [JapanglifySettings.moraSeamStyle]
+         * and threaded into [buildRawTripleLines]; the default (·) matches
+         * [Romanizer.romanizeMora]'s own within-word marker.
          */
-        private const val MORA_SEAM = "·"
-        /** Display width of [MORA_SEAM] — a single halfwidth unit, matching [codePointDisplayWidth] for U+00B7. */
         private const val MORA_SEAM_WIDTH = 1
         /**
          * Romaji size relative to the base text in HTML ruby output, when
@@ -288,7 +287,7 @@ class TripleScriptRenderer {
         val cjkWidth = settings.cjkDisplayWidthUnits
         val measured = cells.map { cell ->
             val furiCompact = compactFurigana(cell.furigana)
-            // Reserve room for [MORA_SEAM]: buildRawTripleLines prepends it
+            // Reserve room for the mora seam: buildRawTripleLines prepends it
             // to this cell's romaji, and romaji only, whenever the cell
             // abuts the previous one with no WORD_GAP (a bound copula/
             // auxiliary directly following a word) — see needsMoraSeam's
@@ -403,7 +402,7 @@ class TripleScriptRenderer {
             InterlinearDisplayRow(buildDisplayLines(it, settings, preventWrap = true))
         }
 
-    private fun buildRawTripleLines(row: List<MeasuredCell>, cjkWidth: Int): Triple<String, String, String> {
+    private fun buildRawTripleLines(row: List<MeasuredCell>, cjkWidth: Int, seam: String): Triple<String, String, String> {
         val base = StringBuilder()
         val furi = StringBuilder()
         val roma = StringBuilder()
@@ -425,8 +424,9 @@ class TripleScriptRenderer {
                 // "su·go·ide·su", reading as a single "ide" mora and
                 // inviting mispronunciation). Kana/furigana don't have this
                 // problem — the script itself marks every mora — so this
-                // patch is romaji-only.
-                roma.append(MORA_SEAM)
+                // patch is romaji-only. The seam glyph (middle dot or space,
+                // both one cell wide) is the user's [MoraSeamStyle] choice.
+                roma.append(seam)
             }
             // The base row uses CSS-ruby space-around ([padCenterDisplay]) so
             // a whole multi-kanji cell (e.g. 日本語 kept intact) distributes
@@ -464,7 +464,7 @@ class TripleScriptRenderer {
 
     /**
      * Whether a cell abutting the previous one with no [WORD_GAP] needs
-     * [MORA_SEAM] prepended to its romaji (the "index > 0 && !isWordStart"
+     * a mora seam prepended to its romaji (the "index > 0 && !isWordStart"
      * part is the caller's job — this only covers the per-cell content
      * check). A pure function of the cell's own fields so [buildMeasuredRows]
      * (deciding how much width to reserve) and [buildRawTripleLines]
@@ -513,7 +513,7 @@ class TripleScriptRenderer {
         preventWrap: Boolean
     ): List<InterlinearDisplayLine> {
         val cjkWidth = settings.cjkDisplayWidthUnits
-        val (baseLine, furiLine, romaLine) = buildRawTripleLines(row, cjkWidth)
+        val (baseLine, furiLine, romaLine) = buildRawTripleLines(row, cjkWidth, settings.moraSeamStyle.marker)
         val glossLine = if (settings.includeGlosses) buildGlossLine(row, cjkWidth) else ""
         val emojiLine = if (settings.includeEmoji) buildEmojiLine(row, cjkWidth) else ""
         fun finish(line: String): String {
