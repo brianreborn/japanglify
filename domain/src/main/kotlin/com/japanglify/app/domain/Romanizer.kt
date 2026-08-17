@@ -19,8 +19,10 @@ class Romanizer(
 
     /**
      * Same romanization, with a tiny marker (·, U+00B7 MIDDLE DOT) inserted
-     * at every mora boundary (e.g. "nihongo" -> "ni·hon·go"). Used only for
-     * the interlinear romaji row, where one solid run under a multi-kanji
+     * at every mora boundary (e.g. "nihongo" -> "ni·hon·go"). A mora (モーラ)
+     * is Japanese's phonological unit — roughly, the smallest perceptual beat
+     * in speech (to-kyo is 2 morae despite 3 syllables in English). Used only
+     * for the interlinear romaji row, where one solid run under a multi-kanji
      * word hides which part of the reading corresponds to which kana/kanji;
      * [romanize] (used everywhere else — clipboard text, notifications,
      * PROCESS_TEXT replacement) stays a natural unbroken word. A middle dot
@@ -29,7 +31,7 @@ class Romanizer(
      * "vowel extends" vs. "mora boundary"), and reads as a subtle tick mark
      * rather than a real hyphenated compound.
      */
-    fun romanizeSyllables(kana: String): String {
+    fun romanizeMora(kana: String): String {
         if (kana.isEmpty()) return ""
         val hira = KanaConverter.toHiragana(kana)
         return romanizeHiragana(hira, separated = true)
@@ -46,7 +48,7 @@ class Romanizer(
             if (c == 'っ' || c == 'ッ') {
                 if (separated && out.isNotEmpty()) out.append(MORA_SEP)
                 val next = peekMora(text, i + 1)
-                val cons = next?.let { initialConsonant(romanizeMora(it)) }
+                val cons = next?.let { initialConsonant(romanizeSingleMora(it)) }
                 if (!cons.isNullOrEmpty()) {
                     out.append(cons[0])
                 } else {
@@ -76,7 +78,7 @@ class Romanizer(
             val mora = peekMora(text, i)
             if (mora != null) {
                 if (separated && out.isNotEmpty()) out.append(MORA_SEP)
-                out.append(romanizeMora(mora))
+                out.append(romanizeSingleMora(mora))
                 i += mora.length
                 continue
             }
@@ -95,7 +97,7 @@ class Romanizer(
      */
     private fun romanizeN(text: String, nextIndex: Int): String {
         val next = peekMora(text, nextIndex)
-        val nextRomaji = next?.let { romanizeMora(it) }.orEmpty()
+        val nextRomaji = next?.let { romanizeSingleMora(it) }.orEmpty()
 
         return when (system) {
             RomanizationSystem.HEPBURN_TRADITIONAL -> {
@@ -131,7 +133,7 @@ class Romanizer(
     private fun isSingleKana(c: Char): Boolean =
         KanaConverter.isHiragana(c) || c == 'ん' || c == 'ゐ' || c == 'ゑ' || c == 'を'
 
-    private fun romanizeMora(mora: String): String {
+    private fun romanizeSingleMora(mora: String): String {
         digraphs[mora]?.let { return pick(it) }
         monographs[mora]?.let { return pick(it) }
         // Fallback: leave as-is (should be rare)
@@ -218,7 +220,7 @@ class Romanizer(
     )
 
     companion object {
-        /** Tiny mora-boundary marker — see [romanizeSyllables]'s doc for why not a hyphen. */
+        /** Tiny mora-boundary marker — see [romanizeMora]'s doc for why not a hyphen. */
         private const val MORA_SEP = "·"
 
         private val monographs: Map<String, MoraRomaji> = mapOf(

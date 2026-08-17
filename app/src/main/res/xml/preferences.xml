@@ -65,6 +65,13 @@
             app:key="clipboard_fgs_fallback"
             app:summary="@string/pref_clipboard_fgs_summary"
             app:title="@string/pref_clipboard_fgs" />
+        <SwitchPreferenceCompat
+            android:layout="@layout/preference_indented"
+            app:defaultValue="false"
+            app:dependency="clipboard_assist"
+            app:key="selection_overlay"
+            app:summary="@string/pref_selection_overlay_summary"
+            app:title="@string/pref_selection_overlay" />
     </PreferenceCategory>
 
     <PreferenceCategory app:title="@string/pref_category_phonetics">

@@ -19,7 +19,7 @@ package com.japanglify.app.domain
  *   real Japanese typesetting convention — must never be the first thing on a
  *   wrapped line: a lone は dangling at a line start reads as a mistake, not
  *   a sentence continuing.
- * @property romajiSyllables Same phoneticization as [romaji], but with a
+ * @property romajiMora Same phoneticization as [romaji], but with a
  *   hyphen at each mora boundary (see [Romanizer.romanizeSyllables]) — null
  *   unless populated by a mora-aware caller. Used only for the interlinear
  *   romaji row so a multi-kanji word's reading isn't one unbroken run
@@ -44,7 +44,7 @@ data class AnnotatedSegment(
     val needsFurigana: Boolean = false,
     val isBoundToPrevious: Boolean = false,
     val isParticle: Boolean = false,
-    val romajiSyllables: String? = null,
+    val romajiMora: String? = null,
     val gloss: String? = null,
     val emoji: String? = null
 ) {

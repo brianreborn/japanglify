@@ -126,6 +126,8 @@
     <string name="a11y_status_off">Off — enable this for the Copy hook</string>
     <string name="pref_clipboard_fgs">Also use foreground service (optional)</string>
     <string name="pref_clipboard_fgs_summary">Extra clipboard listener with a persistent notification. Prefer Accessibility alone when possible.</string>
+    <string name="pref_selection_overlay">Show floating chip on selection (optional)</string>
+    <string name="pref_selection_overlay_summary">Draws a Japanglify chip over the app when you select text. Off by default — it covers screen space and isn\'t needed if you use Copy or the result notification. Turning it off does not affect Copy detection.</string>
     <string name="a11y_service_label">Japanglify Copy assist</string>
     <string name="a11y_summary">When you Copy text, Japanglify expands it and notifies you (for apps without a process-text menu)</string>
     <string name="a11y_description">Primary feature: detect Copy in any app, expand Japanese with furigana/romaji, and show a notification. Tap the notification to copy the result for Paste. Also remembers the current selection so processing works even when Android hides clipboard contents. Optional floating chip on selection. Only selected/copied text is used while enabled; not for advertising.</string>

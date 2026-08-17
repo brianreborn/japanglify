@@ -30,6 +30,17 @@ class TripleScriptRenderer {
         /** Visible gap between distinct words/particles (English-style word-spacing). */
         private val WORD_GAP = PAD + PAD
         /**
+         * Mora-boundary marker — U+00B7 MIDDLE DOT, matching
+         * [Romanizer.romanizeMora]'s own marker (duplicated, not
+         * shared, same reasoning as [ROMAJI_RELATIVE_SIZE] below). Used to
+         * patch the seam between two directly-abutting segments (e.g. a
+         * copula bound to the previous word, no [WORD_GAP]) whose romaji
+         * were each mora-separated independently — see [buildRawTripleLines].
+         */
+        private const val MORA_SEAM = "·"
+        /** Display width of [MORA_SEAM] — a single halfwidth unit, matching [codePointDisplayWidth] for U+00B7. */
+        private const val MORA_SEAM_WIDTH = 1
+        /**
          * Romaji size relative to the base text in HTML ruby output, when
          * rendered as a plain block span rather than a ruby tier (see
          * [htmlSpan]). Matches [com.japanglify.app.clipboard.ClipboardImageRenderer
@@ -277,10 +288,29 @@ class TripleScriptRenderer {
         val cjkWidth = settings.cjkDisplayWidthUnits
         val measured = cells.map { cell ->
             val furiCompact = compactFurigana(cell.furigana)
+            // Reserve room for [MORA_SEAM]: buildRawTripleLines prepends it
+            // to this cell's romaji, and romaji only, whenever the cell
+            // abuts the previous one with no WORD_GAP (a bound copula/
+            // auxiliary directly following a word) — see needsMoraSeam's
+            // doc. Without this reservation the romaji line ends up one
+            // unit wider than base/furi from the seam onward, drifting the
+            // three columns out of alignment for the rest of the row (e.g.
+            // すごいです: traced by hand, romaji ends one unit wider than
+            // base/furi right after the です seam without this reservation).
+            // Reserved whenever the cell isn't a word-start (matching
+            // buildRawTripleLines' own !isWordStart guard — a word-start
+            // cell always gets WORD_GAP instead, never a seam) and
+            // needsMoraSeam(cell) is true. The reservation still doesn't
+            // need to know whether this cell ends up first-in-its-wrapped-
+            // row (where no seam actually gets inserted despite
+            // !isWordStart) — that only costs a possibly-unused extra pad
+            // unit, never a misalignment, since base/furi/romaji all still
+            // pad to this same (slightly generous) width together.
+            val seamReserve = if (!cell.isWordStart && needsMoraSeam(cell)) MORA_SEAM_WIDTH else 0
             val width = maxOf(
                 displayWidth(cell.base, cjkWidth),
                 displayWidth(furiCompact, cjkWidth),
-                displayWidth(cell.romaji, cjkWidth),
+                displayWidth(cell.romaji, cjkWidth) + seamReserve,
                 displayWidth(cell.gloss, cjkWidth),
                 displayWidth(cell.emoji, cjkWidth)
             ).coerceAtLeast(1)
@@ -380,19 +410,55 @@ class TripleScriptRenderer {
         row.forEachIndexed { index, cell ->
             // Gap only before a new word/particle, never between sub-cells of the
             // same word (split kanji/okurigana) — see [InterlinearCell.isWordStart].
+            val needsSeam = index > 0 && !cell.isWordStart && needsMoraSeam(cell)
             if (index > 0 && cell.isWordStart) {
                 base.append(WORD_GAP)
                 furi.append(WORD_GAP)
                 roma.append(WORD_GAP)
+            } else if (needsSeam) {
+                // Two segments can directly abut with no WORD_GAP (e.g. a
+                // copula/auxiliary bound to the previous word, isWordStart
+                // false) while each still carries its own mora-separated
+                // romaji, computed independently by Romanizer per segment.
+                // Concatenating them raw silently fuses the boundary mora
+                // into one bogus chunk (すごい "su·go·i" + です "de·su" ->
+                // "su·go·ide·su", reading as a single "ide" mora and
+                // inviting mispronunciation). Kana/furigana don't have this
+                // problem — the script itself marks every mora — so this
+                // patch is romaji-only.
+                roma.append(MORA_SEAM)
             }
             fun pad(text: String, width: Int) =
                 if (cell.isPunctuation) padEndDisplay(text, width, cjkWidth) else padCenterDisplay(text, width, cjkWidth)
             base.append(pad(cell.base, cell.width))
             furi.append(pad(cell.furigana, cell.width))
-            roma.append(pad(cell.romaji, cell.width))
+            // [needsMoraSeam] is also used in buildMeasuredRows to reserve
+            // MORA_SEAM_WIDTH inside cell.width up front, precisely so this
+            // seam never makes the romaji column wider than base/furi's —
+            // padding romaji to the *reduced* width (cell.width minus the
+            // reservation actually being spent here) keeps seam + padded
+            // romaji summing to exactly cell.width, matching base/furi.
+            val romaWidth = if (needsSeam) cell.width - MORA_SEAM_WIDTH else cell.width
+            roma.append(pad(cell.romaji, romaWidth))
         }
         return Triple(base.toString(), furi.toString(), roma.toString())
     }
+
+    /**
+     * Whether a cell abutting the previous one with no [WORD_GAP] needs
+     * [MORA_SEAM] prepended to its romaji (the "index > 0 && !isWordStart"
+     * part is the caller's job — this only covers the per-cell content
+     * check). A pure function of the cell's own fields so [buildMeasuredRows]
+     * (deciding how much width to reserve) and [buildRawTripleLines]
+     * (deciding whether to actually insert the seam) can never disagree —
+     * see [buildMeasuredRows]'s own comment for why that agreement is the
+     * point.
+     */
+    private fun needsMoraSeam(cell: MeasuredCell): Boolean =
+        !cell.isPunctuation && cell.romaji.isNotEmpty()
+
+    private fun needsMoraSeam(cell: InterlinearCell): Boolean =
+        !cell.isPunctuation && cell.romaji.isNotEmpty()
 
     /**
      * Gloss line, built separately from [buildRawTripleLines]: centered as a
@@ -436,6 +502,40 @@ class TripleScriptRenderer {
             val protectedLine = protectLineStart(line)
             return if (preventWrap) preventLineWrap(protectedLine) else protectedLine
         }
+        // Two situations produce a row that reads as broken/incomplete but
+        // isn't -- see [ElisionMarker] and buildDisplayLines' doc. Both are
+        // mutually exclusive (Case A needs romaji == base, i.e. zero real
+        // Japanese in the row; Case B needs romaji != base, i.e. at least
+        // one real-Japanese cell), so a row is never marked twice.
+        //
+        // Case A: non-Japanese passthrough segments set romaji == base (see
+        // JapaneseAnalyzer's passthrough branch) so a row with *some*
+        // Japanese doesn't get a blank hole under its English words. When an
+        // entire row is passthrough, that makes the whole romaji line a
+        // verbatim duplicate of the base line -- pure visual noise with zero
+        // new information -- so the line is dropped and the row is marked
+        // "checked, nothing to Japanify" at the end of the base line, the
+        // only line that row has left.
+        val romajiElided = settings.includeRomaji && hasVisibleContent(romaLine) && romaLine == baseLine
+        val baseContent = if (romajiElided) {
+            settings.elisionMarker.symbol?.let { baseLine + PAD + it } ?: baseLine
+        } else {
+            baseLine
+        }
+        // Case B: a row with real Japanese but zero kanji (kana-only, e.g.
+        // です) has its furigana line suppressed by "Furigana on kanji only"
+        // (self-reading a kana word as itself is redundant) while its romaji
+        // stays genuinely informative. Rather than a silent blank where the
+        // furigana line would normally be, mark it at the end of the romaji
+        // line -- the row's other still-visible line -- rather than
+        // resurrecting a blank line just to hold one glyph.
+        val furiganaElided = settings.includeFurigana && !hasVisibleContent(furiLine) &&
+            settings.includeRomaji && hasVisibleContent(romaLine) && !romajiElided
+        val romaContent = if (furiganaElided) {
+            settings.elisionMarker.symbol?.let { romaLine + PAD + it } ?: romaLine
+        } else {
+            romaLine
+        }
         val lines = mutableListOf<InterlinearDisplayLine>()
         fun addFuri() {
             if (settings.includeFurigana && hasVisibleContent(furiLine)) {
@@ -443,19 +543,19 @@ class TripleScriptRenderer {
             }
         }
         fun addRoma() {
-            if (settings.includeRomaji && hasVisibleContent(romaLine)) {
-                lines += InterlinearDisplayLine(InterlinearLineRole.ROMAJI, finish(romaLine))
+            if (settings.includeRomaji && hasVisibleContent(romaLine) && !romajiElided) {
+                lines += InterlinearDisplayLine(InterlinearLineRole.ROMAJI, finish(romaContent))
             }
         }
         when (settings.romajiPosition) {
             RomajiPosition.ABOVE, RomajiPosition.BEFORE -> {
                 addRoma()
                 addFuri()
-                lines += InterlinearDisplayLine(InterlinearLineRole.BASE, finish(baseLine))
+                lines += InterlinearDisplayLine(InterlinearLineRole.BASE, finish(baseContent))
             }
             RomajiPosition.BELOW, RomajiPosition.AFTER -> {
                 addFuri()
-                lines += InterlinearDisplayLine(InterlinearLineRole.BASE, finish(baseLine))
+                lines += InterlinearDisplayLine(InterlinearLineRole.BASE, finish(baseContent))
                 addRoma()
             }
         }
@@ -546,12 +646,12 @@ class TripleScriptRenderer {
         segments.forEachIndexed { index, seg ->
             val surface = seg.surface
             val furi = if (settings.includeFurigana) seg.furigana else null
-            // Mora-hyphenated when available (see AnnotatedSegment.romajiSyllables)
+            // Mora-hyphenated when available (see AnnotatedSegment.romajiMora)
             // so a multi-kanji word's romaji shows which part matches which
             // kana/kanji instead of one unbroken run; falls back to the plain
             // form for segments that never got a hyphenated variant computed.
             val roma = if (settings.includeRomaji) {
-                (seg.romajiSyllables ?: seg.romaji).orEmpty()
+                (seg.romajiMora ?: seg.romaji).orEmpty()
             } else ""
             // Word-level, not sub-cell-level — see [InterlinearCell.gloss].
             val gloss = if (settings.includeGlosses) seg.gloss.orEmpty() else ""
@@ -602,18 +702,31 @@ class TripleScriptRenderer {
                     )
                 }
 
-                // True furigana: keep kanji word intact when romaji is included so words don't get blown apart into scattered kanji
+                // True furigana. Keeping the whole word as one cell (instead
+                // of splitting per kanji) is only safe when the furigana
+                // covers the *entire* base surface -- i.e. no leading kana
+                // prefix (お in お願い) and no trailing okurigana (しく in
+                // 宜しく) attached to the kanji. A pure multi-kanji compound
+                // like 日本語 has neither, and keeping it intact is correct:
+                // the reading covers the whole base uniformly, so centering
+                // it against the romaji-driven cell width lines up fine.
+                // But when there IS a kana attachment, the furigana is only
+                // for the kanji *substring*, not the whole base -- centering
+                // that shorter reading against the whole word's width
+                // visually drifts it toward the word's center instead of the
+                // kanji it actually annotates. Confirmed live this session:
+                // 宜しく's よろ (annotating 宜 alone) rendered centered
+                // between 宜 and しく instead of over 宜, and お願い's
+                // reading incorrectly included the already-visible お. Only
+                // this attachment case needs splitKanjiFurigana's per-kanji
+                // cells (each centered against only its own furigana, romaji
+                // riding on the first cell only, still not letter-scattered).
                 seg.needsFurigana && !furi.isNullOrBlank() &&
                     KanaConverter.containsKanji(surface) -> {
-                    if (settings.includeRomaji && roma.isNotBlank()) {
+                    val keepWordIntact = settings.includeRomaji && roma.isNotBlank() &&
+                        !hasKanaAttachment(surface, furi)
+                    if (keepWordIntact) {
                         out += InterlinearCell(
-                            // Kanji-only reading, not the whole word's -- trailing
-                            // okurigana (かしい in 懐かしい) is already plainly
-                            // visible as hiragana on the base row directly below;
-                            // repeating its reading up top too just duplicates it.
-                            // Real furigana convention only annotates the kanji.
-                            // Romaji stays whole-word (no visible duplication risk
-                            // the way two hiragana rows stacked on each other has).
                             furigana = if (settings.includeFurigana) kanjiOnlyReading(surface, furi) else "",
                             base = surface,
                             romaji = roma,
@@ -650,49 +763,130 @@ class TripleScriptRenderer {
         return out
     }
 
+    /** One classified run of [splitKanjiKanaRuns] -- see its doc comment. */
+    private data class KanaKanjiRun(val text: String, val reading: String, val isKanji: Boolean)
+
     /**
-     * Finds where trailing okurigana kana (matching the end of [reading])
-     * begins, e.g. 懐かしい/なつかしい → sEnd/rEnd land right after 懐/なつ,
-     * since かしい already matches the reading's own trailing かしい
-     * character-for-character. Returns (surface index, reading index) of
-     * that boundary -- `surface.substring(0, sEnd)` is the kanji-only
-     * prefix, `reading.substring(0, rEnd)` its reading.
+     * Splits [surface] into an ordered sequence of alternating kanji/kana
+     * runs, each paired with its own slice of [reading] -- generalizes what
+     * used to be two separate leading-prefix / trailing-okurigana boundary
+     * scans into one pass that also handles a kana run sandwiched BETWEEN
+     * two kanji runs in the same token (し in 話し合う: 話+し+合+う), which
+     * neither edge-only scan could ever see. Real, common pattern in
+     * compound verbs (話し合う "to talk together", 立ち止まる "to stop",
+     * 待ち合わせる "to meet up"), confirmed live this session as a real gap
+     * after fixing the leading/trailing cases.
+     *
+     * Alignment technique: surface's kana characters reproduce verbatim
+     * (hiragana-normalized) within [reading], in order -- so each kana run
+     * can be located by scanning [reading] left-to-right from wherever the
+     * previous run left off, taking the first (leftmost) match. Whatever
+     * reading lies between two located kana runs (or a string edge) belongs
+     * to the kanji run sandwiched between them -- kanji readings have no
+     * fixed per-character length, so this "whatever's left before the next
+     * anchor" is the only way to bound them without a real morphological
+     * analyzer in the loop.
      */
-    private fun kanjiOkuriganaBoundary(surface: String, reading: String): Pair<Int, Int> {
-        var sEnd = surface.length
-        var rEnd = reading.length
-        while (sEnd > 0 && rEnd > 0) {
-            val sc = surface[sEnd - 1]
-            val rc = reading[rEnd - 1]
-            if (!KanaConverter.isKana(sc) && sc != 'ー') break
-            val sh = KanaConverter.toHiragana(sc.toString())
-            val rh = KanaConverter.toHiragana(rc.toString())
-            if (sh != rh && sc != 'ー') break
-            sEnd--
-            rEnd--
+    private fun splitKanjiKanaRuns(surface: String, reading: String): List<KanaKanjiRun> {
+        data class RawRun(val text: String, val isKanji: Boolean)
+        val rawRuns = ArrayList<RawRun>()
+        var i = 0
+        while (i < surface.length) {
+            val kana = KanaConverter.isKana(surface[i]) || surface[i] == 'ー'
+            var j = i + 1
+            while (j < surface.length && (KanaConverter.isKana(surface[j]) || surface[j] == 'ー') == kana) j++
+            rawRuns += RawRun(surface.substring(i, j), !kana)
+            i = j
         }
-        return sEnd to rEnd
+
+        fun hira(s: String) = KanaConverter.toHiragana(s)
+
+        val readings = arrayOfNulls<String>(rawRuns.size)
+        var readingCursor = 0
+        var pendingKanjiIndex = -1
+        var pendingKanjiReadingStart = 0
+
+        rawRuns.forEachIndexed { idx, run ->
+            if (run.isKanji) {
+                if (pendingKanjiIndex < 0) {
+                    pendingKanjiIndex = idx
+                    pendingKanjiReadingStart = readingCursor
+                }
+            } else {
+                val target = hira(run.text)
+                var pos = -1
+                var p = readingCursor
+                while (p + target.length <= reading.length) {
+                    if (hira(reading.substring(p, p + target.length)) == target) {
+                        pos = p
+                        break
+                    }
+                    p++
+                }
+                // No alignment found (irregular okurigana/reading, e.g. some
+                // suru-verb conjugations, or a genuinely malformed/mismatched
+                // dictionary entry -- real-world data, not hypothetical)
+                // -- give the preceding kanji run nothing extra rather than
+                // guessing, and treat this kana run as starting right where
+                // we already are. Clamped into [0, reading.length]: an
+                // earlier bad match can leave readingCursor past the end of
+                // `reading` on a short/mismatched entry, and an unclamped
+                // pos here would make the substring() calls below throw
+                // StringIndexOutOfBoundsException and take the whole
+                // conversion down with it, instead of just degrading this
+                // one word's furigana.
+                if (pos < 0) pos = readingCursor.coerceIn(0, reading.length)
+                if (pendingKanjiIndex >= 0) {
+                    readings[pendingKanjiIndex] =
+                        reading.substring(pendingKanjiReadingStart.coerceAtMost(pos), pos)
+                    pendingKanjiIndex = -1
+                }
+                readings[idx] = run.text
+                readingCursor = (pos + target.length).coerceAtMost(reading.length)
+            }
+        }
+        if (pendingKanjiIndex >= 0) {
+            readings[pendingKanjiIndex] = reading.substring(pendingKanjiReadingStart)
+        }
+
+        return rawRuns.mapIndexed { idx, run -> KanaKanjiRun(run.text, readings[idx].orEmpty(), run.isKanji) }
     }
 
     /**
-     * The reading for just the kanji-covered prefix of [surface], with any
-     * trailing okurigana's reading peeled off. Real furigana convention
-     * only annotates kanji -- okurigana (かしい in 懐かしい) is already
-     * plainly visible as hiragana in the base text itself, so repeating its
-     * reading above it (「なつかしい」covering the whole word) is pure
-     * duplication, not real furigana. Falls back to the full reading when
-     * [surface] has no kanji prefix to isolate at all (peeled to nothing).
+     * True if [surface] has any kana run attached to its kanji (leading,
+     * trailing, or between two kanji runs) -- i.e. the furigana reading
+     * only covers part of the base text, not all of it. See the "True
+     * furigana" branch in [expandToFuriganaCells] for why this specifically
+     * decides whether a word can stay one cell or needs per-kanji splitting.
+     */
+    private fun hasKanaAttachment(surface: String, reading: String): Boolean {
+        val runs = splitKanjiKanaRuns(surface, reading)
+        return runs.size > 1 || runs.any { !it.isKanji }
+    }
+
+    /**
+     * The reading for just the kanji runs of [surface] -- every kana run
+     * ([splitKanjiKanaRuns]), wherever it sits, dropped. Real furigana
+     * convention only annotates kanji -- surrounding kana (かしい in 懐かしい,
+     * お in お願い, し in 話し合う) is already plainly visible as hiragana in
+     * the base text itself, so repeating its reading is pure duplication,
+     * not real furigana. Falls back to the full reading when [surface] has
+     * no kanji at all to isolate.
      */
     private fun kanjiOnlyReading(surface: String, reading: String): String {
-        val (sEnd, rEnd) = kanjiOkuriganaBoundary(surface, reading)
-        return reading.substring(0, rEnd).ifEmpty { reading }
+        val runs = splitKanjiKanaRuns(surface, reading)
+        val kanjiOnly = runs.filter { it.isKanji }.joinToString("") { it.reading }
+        return kanjiOnly.ifEmpty { reading }
     }
 
     /**
-     * Split e.g. 日本語/にほんご → (日,に)(本,ほん)(語,ご) and 食べ/たべ → (食,た)(べ,べ).
-     * Romaji stays under the whole original token on the first cell only so
-     * the latin line is readable (not letter-scattered) — gloss and emoji
-     * do too, for the same reason.
+     * Splits [surface] into one cell per character within each kanji run
+     * (mora-distributed against that run's own reading, e.g. 日本語/にほんご
+     * → (日,に)(本,ほん)(語,ご)) plus one cell per kana run in between
+     * (identity text, no furigana needed -- it's already kana). Romaji
+     * stays under the whole token's very first cell only so the latin line
+     * is readable (not letter-scattered) — gloss and emoji do too, for the
+     * same reason.
      */
     private fun splitKanjiFurigana(
         surface: String,
@@ -704,15 +898,12 @@ class TripleScriptRenderer {
         isWordStart: Boolean,
         canWrapBefore: Boolean
     ): List<InterlinearCell> {
-        val (sEnd, rEnd) = kanjiOkuriganaBoundary(surface, reading)
-        val kanjiPart = surface.substring(0, sEnd)
-        val okuri = surface.substring(sEnd)
-        val kanjiReading = reading.substring(0, rEnd)
-        val okuriReading = reading.substring(rEnd)
-
+        val runs = splitKanjiKanaRuns(surface, reading)
         val cells = ArrayList<InterlinearCell>()
-        val kanjiChars = kanjiPart.toList()
-        if (kanjiChars.isEmpty()) {
+
+        // No real kanji run at all (fully kana) -- one whole-word cell,
+        // same fallback as before.
+        if (runs.none { it.isKanji }) {
             cells += InterlinearCell(
                 furigana = if (settings.includeFurigana) reading else "",
                 base = surface,
@@ -725,33 +916,45 @@ class TripleScriptRenderer {
             return cells
         }
 
-        // Glue ん to the previous mora so に+ほん+ご maps cleanly onto 日+本+語
-        val moraList = glueSyllabicN(KanaConverter.morae(kanjiReading))
-        val parts = distributeMorae(moraList, kanjiChars.size)
-        kanjiChars.forEachIndexed { i, ch ->
-            cells += InterlinearCell(
-                furigana = if (settings.includeFurigana) parts.getOrElse(i) { "" } else "",
-                base = ch.toString(),
-                // Put full romaji only under the first kanji of the token
-                romaji = if (i == 0) romaji else "",
-                // Only the token's very first cell is a real word boundary —
-                // the rest are sub-cells of the same word, butted together.
-                isWordStart = i == 0 && isWordStart,
-                canWrapBefore = i == 0 && canWrapBefore,
-                // Same "first cell only" rule as romaji, for the same reason.
-                gloss = if (i == 0) gloss else "",
-                emoji = if (i == 0) emoji else ""
-            )
-        }
-        if (okuri.isNotEmpty()) {
-            // Okurigana: show identity kana on furi only if not kanji-only mode
-            val showOkuriFuri = settings.includeFurigana && !settings.furiganaKanjiOnly
-            cells += InterlinearCell(
-                furigana = if (showOkuriFuri) okuriReading.ifEmpty { okuri } else "",
-                base = okuri,
-                romaji = "",
-                isWordStart = false
-            )
+        // Show identity furigana on a kana run only in non-kanji-only mode
+        // -- same semantics as every other "already visible as kana" cell
+        // elsewhere in this file.
+        val showKanaFuri = settings.includeFurigana && !settings.furiganaKanjiOnly
+        var firstCellPending = isWordStart
+
+        for (run in runs) {
+            if (!run.isKanji) {
+                cells += InterlinearCell(
+                    furigana = if (showKanaFuri) run.reading.ifEmpty { run.text } else "",
+                    base = run.text,
+                    romaji = if (firstCellPending) romaji else "",
+                    isWordStart = firstCellPending,
+                    canWrapBefore = if (firstCellPending) canWrapBefore else false,
+                    gloss = if (firstCellPending) gloss else "",
+                    emoji = if (firstCellPending) emoji else ""
+                )
+                firstCellPending = false
+                continue
+            }
+            // Glue ん to the previous mora so に+ほん+ご maps cleanly onto 日+本+語
+            val moraList = glueSyllabicN(KanaConverter.morae(run.reading))
+            val parts = distributeMorae(moraList, run.text.length)
+            run.text.toList().forEachIndexed { i, ch ->
+                // Only the token's true first cell (tracked via
+                // firstCellPending, which a preceding kana run may already
+                // have consumed) carries romaji/gloss/emoji/wrap eligibility.
+                val isTokenFirst = i == 0 && firstCellPending
+                cells += InterlinearCell(
+                    furigana = if (settings.includeFurigana) parts.getOrElse(i) { "" } else "",
+                    base = ch.toString(),
+                    romaji = if (isTokenFirst) romaji else "",
+                    isWordStart = isTokenFirst,
+                    canWrapBefore = if (isTokenFirst) canWrapBefore else false,
+                    gloss = if (isTokenFirst) gloss else "",
+                    emoji = if (isTokenFirst) emoji else ""
+                )
+            }
+            firstCellPending = false
         }
         return cells
     }

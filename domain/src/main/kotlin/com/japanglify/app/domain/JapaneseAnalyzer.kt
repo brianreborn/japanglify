@@ -58,7 +58,7 @@ class JapaneseAnalyzer(
         val romanizer = Romanizer(settings.romanizationSystem)
         val tokens = readingProvider?.tokenize(text) ?: fallbackTokenize(text)
         val glossResults = if (settings.includeGlosses) {
-            glossAnnotator?.annotate(tokens) ?: List(tokens.size) { null }
+            glossAnnotator?.annotate(tokens, settings.effectiveSenseWeights) ?: List(tokens.size) { null }
         } else {
             List(tokens.size) { null }
         }
@@ -168,18 +168,18 @@ class JapaneseAnalyzer(
         }
 
         // Mirrors [romaji] above using the mora-hyphenated romanizer instead —
-        // see [AnnotatedSegment.romajiSyllables]. Punctuation-mapped/passthrough
+        // see [AnnotatedSegment.romajiMora]. Punctuation-mapped/passthrough
         // branches have no mora structure, so they're left null there; the
         // renderer falls back to [romaji] whenever this is null.
-        val romajiSyllables: String? = when {
+        val romajiMora: String? = when {
             !settings.includeRomaji -> null
             romajiSource.isNullOrBlank() -> {
                 val stripped = surface.filter { KanaConverter.isKana(it) || it == 'ー' }
                 if (stripped.isNotEmpty()) {
-                    capitalizeIf(settings, romanizer.romanizeSyllables(KanaConverter.toHiragana(stripped)))
+                    capitalizeIf(settings, romanizer.romanizeMora(KanaConverter.toHiragana(stripped)))
                 } else null
             }
-            else -> capitalizeIf(settings, romanizer.romanizeSyllables(romajiSource))
+            else -> capitalizeIf(settings, romanizer.romanizeMora(romajiSource))
         }
 
         return AnnotatedSegment(
@@ -189,7 +189,7 @@ class JapaneseAnalyzer(
             needsFurigana = needsFurigana,
             isBoundToPrevious = token.isBoundToPrevious,
             isParticle = token.isParticle,
-            romajiSyllables = romajiSyllables,
+            romajiMora = romajiMora,
             gloss = gloss,
             emoji = emoji
         )

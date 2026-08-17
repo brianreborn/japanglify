@@ -77,7 +77,7 @@ class TripleScriptRendererTest {
                 surface = "日本語",
                 furigana = "にほんご",
                 romaji = "nihongo",
-                romajiSyllables = "ni·ho·n·go",
+                romajiMora = "ni·ho·n·go",
                 needsFurigana = true
             )
         )
@@ -193,16 +193,52 @@ class TripleScriptRendererTest {
     }
 
     @Test
-    fun interlinearFuriganaOmitsAlreadyVisibleOkuriganaWhenKeepingWordIntact() {
-        // Found live via real device UAT: with romaji on, 懐かしい (kanji 懐 +
-        // okurigana かしい) kept the *whole* word's reading -- 「なつかしい」
-        // -- as its furigana, redundantly repeating かしい (already plainly
-        // visible as hiragana on the base row) above itself. Real furigana
-        // convention only annotates the kanji, so the furigana row here
-        // should be just 「なつ」, not the full word reading, even though
-        // "keep word intact" (romaji on) means the base row still shows the
-        // whole 懐かしい as one unbroken cell -- only the furigana content
-        // itself should be trimmed, not the word split apart.
+    fun interlinearColumnsStayAlignedAcrossAMoraSeam() {
+        // 元気ですか — です (copula, isBoundToPrevious) directly abuts 元気
+        // with no WORD_GAP, so buildRawTripleLines prepends a mora seam
+        // ("·") to the romaji line only, to keep "ge·n·ki" and "de·su" from
+        // fusing into a bogus "kide" mora. Found live: without a matching
+        // width reservation at measurement time, that seam made the romaji
+        // line one display-unit wider than base/furi from です onward,
+        // drifting every following cell's columns out of alignment.
+        val segments = listOf(
+            AnnotatedSegment("元気", "げんき", "genki", needsFurigana = true, romajiMora = "ge·n·ki"),
+            AnnotatedSegment("です", null, "desu", isBoundToPrevious = true, romajiMora = "de·su"),
+            AnnotatedSegment("か", null, "ka", isParticle = true)
+        )
+        val settings = JapanglifySettings(
+            outputFormat = OutputFormat.INTERLINEAR,
+            romajiPosition = RomajiPosition.BELOW,
+            furiganaKanjiOnly = true,
+            maxLineWidthFullwidth = 0
+        )
+        val out = renderer.render(segments, settings)
+        val lines = out.lines().filter { it.isNotEmpty() }
+        assertEquals(3, lines.size)
+        val romaLine = lines[2].stripWordJoiner()
+        assertTrue("romaji line should carry the mora seam", romaLine.contains("·de·su"))
+        val w0 = renderer.displayWidth(lines[0])
+        assertEquals("furi/base display width", w0, renderer.displayWidth(lines[1]))
+        assertEquals("base/roma display width", w0, renderer.displayWidth(lines[2]))
+    }
+
+    @Test
+    fun interlinearFuriganaOmitsAlreadyVisibleOkuriganaBySplittingPerKanji() {
+        // Found live via real device UAT, two rounds:
+        // 1) With romaji on, 懐かしい (kanji 懐 + okurigana かしい) kept the
+        //    *whole* word's reading -- 「なつかしい」 -- as its furigana,
+        //    redundantly repeating かしい (already plainly visible as
+        //    hiragana on the base row) above itself.
+        // 2) The first fix (trim the furigana text but keep 懐かしい as one
+        //    unbroken cell) created a *worse*, visually confirmed bug: a
+        //    short kanji-only reading ("なつ", 2 chars) centered against a
+        //    cell sized to the whole word's much wider romaji drifted
+        //    noticeably away from 懐, the kanji it's actually annotating
+        //    (real screenshot: 宜しく's よろ landed between 宜 and しく, not
+        //    over 宜). Splitting into a real 懐/なつ kanji cell plus a
+        //    separate かしい okurigana cell (no furigana, kanji-only mode)
+        //    fixes both: no duplicate reading, and なつ centers against only
+        //    懐's own (narrow) width instead of the whole word's.
         val segments = listOf(
             AnnotatedSegment("懐かしい", "なつかしい", "natsukashii", needsFurigana = true)
         )
@@ -212,10 +248,67 @@ class TripleScriptRendererTest {
         )
         val rows = renderer.buildInterlinearRows(segments, settings)
         assertEquals(1, rows.size)
+        assertEquals(2, rows[0].cells.size)
+        val (kanjiCell, okuriCell) = rows[0].cells
+        assertEquals("懐", kanjiCell.base)
+        assertEquals("なつ", kanjiCell.furigana)
+        assertEquals("natsukashii", kanjiCell.romaji)
+        assertEquals("かしい", okuriCell.base)
+        assertEquals("", okuriCell.furigana)
+    }
+
+    @Test
+    fun interlinearSplitsKanaInfixBetweenTwoKanjiRuns() {
+        // 話し合う (hanashiau, "to talk together") has kana BETWEEN two
+        // separate kanji runs -- 話(kanji) し(kana) 合(kanji) う(kana) --
+        // not just at an edge. A leading/trailing-only boundary scan can't
+        // see this at all: it would lump 話し合 together as one "kanji-only"
+        // prefix (し is kana but sits before another kanji, so a naive
+        // backward-from-the-end scan never reaches it) and hand it a bogus
+        // furigana for the whole span. Real reading: 話=はな, し=itself,
+        // 合=あ, う=itself.
+        val segments = listOf(
+            AnnotatedSegment("話し合う", "はなしあう", "hanashiau", needsFurigana = true)
+        )
+        val settings = JapanglifySettings(
+            outputFormat = OutputFormat.INTERLINEAR,
+            romajiPosition = RomajiPosition.BELOW
+        )
+        val rows = renderer.buildInterlinearRows(segments, settings)
+        assertEquals(1, rows.size)
+        assertEquals(4, rows[0].cells.size)
+        val (hana, shi, a, u) = rows[0].cells
+        assertEquals("話", hana.base); assertEquals("はな", hana.furigana); assertEquals("hanashiau", hana.romaji)
+        assertEquals("し", shi.base); assertEquals("", shi.furigana); assertEquals("", shi.romaji)
+        assertEquals("合", a.base); assertEquals("あ", a.furigana); assertEquals("", a.romaji)
+        assertEquals("う", u.base); assertEquals("", u.furigana); assertEquals("", u.romaji)
+    }
+
+    @Test
+    fun interlinearKeepsPureMultiKanjiWordIntactWithRomajiOn() {
+        // 日本語 has no leading kana prefix and no trailing okurigana --
+        // furigana covers the whole base uniformly, so there's no
+        // substring-drift risk (see the "True furigana" branch in
+        // expandToFuriganaCells) and it should stay one cell, matching
+        // interlinearCenterPaddingDistributesAroundCharactersNotAtEdges'
+        // padding-math expectations exactly. Splitting a pure compound like
+        // this per-kanji would be a real regression: romaji only ever rides
+        // on a cell's *first* character, so 本 and 語 would silently lose
+        // their romaji entirely instead of sharing "nihongo" as one block.
+        val segments = listOf(
+            AnnotatedSegment("日本語", "にほんご", "nihongo", needsFurigana = true)
+        )
+        val settings = JapanglifySettings(
+            outputFormat = OutputFormat.INTERLINEAR,
+            romajiPosition = RomajiPosition.BELOW
+        )
+        val rows = renderer.buildInterlinearRows(segments, settings)
+        assertEquals(1, rows.size)
         assertEquals(1, rows[0].cells.size)
         val cell = rows[0].cells[0]
-        assertEquals("懐かしい", cell.base)
-        assertEquals("なつ", cell.furigana)
+        assertEquals("日本語", cell.base)
+        assertEquals("にほんご", cell.furigana)
+        assertEquals("nihongo", cell.romaji)
     }
 
     @Test

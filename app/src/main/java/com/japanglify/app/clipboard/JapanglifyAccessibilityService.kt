@@ -1,13 +1,16 @@
 package com.japanglify.app.clipboard
 
+import android.accessibilityservice.AccessibilityButtonController
 import android.accessibilityservice.AccessibilityService
 import android.content.ClipboardManager
+import android.content.Intent
 import android.graphics.Rect
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import androidx.preference.PreferenceManager
 import com.japanglify.app.data.PreferencesRepository
 
 /**
@@ -23,6 +26,7 @@ class JapanglifyAccessibilityService : AccessibilityService() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var clipboard: ClipboardManager? = null
     private var overlay: SelectionActionOverlay? = null
+    private var a11yButtonCallback: AccessibilityButtonController.AccessibilityButtonCallback? = null
 
     @Volatile
     private var lastSelectedText: String? = null
@@ -81,8 +85,9 @@ class JapanglifyAccessibilityService : AccessibilityService() {
         if (LastResultStore.isSelfWrite(cap.text)) return@Runnable
         lastSelectedText = cap.text
         CopyHookDiagnostics.log(this, "selection remembered (${cap.text.length} chars)")
-        // Optional chip — secondary to Copy
-        if (ClipboardProcessor.isAssistWanted(this)) {
+        // Optional chip — secondary to Copy, and off unless the user opts
+        // into the on-screen overlay (see wantsSelectionOverlay).
+        if (ClipboardProcessor.isAssistWanted(this) && wantsSelectionOverlay()) {
             mainHandler.removeCallbacks(hideOverlayRunnable)
             overlay?.show(cap.text, cap.bounds)
         }
@@ -104,7 +109,49 @@ class JapanglifyAccessibilityService : AccessibilityService() {
         CopyHookDiagnostics.log(this, "service connected — Copy hook active")
         // Visible proof the service is alive (not just the system a11y icon)
         ClipboardNotifications.showHookArmed(this)
+
+        // The OS-level Accessibility Button (nav bar icon or volume-key
+        // shortcut, enabled by `flagRequestAccessibilityButton` in
+        // accessibility_service_config.xml) isn't a plain method override —
+        // it's a callback registered on the controller Android hands back
+        // here. Wired to the same on-demand clipboard processing
+        // [ProcessClipboardActivity] already does for the "Tap to process"
+        // notification, so it's a genuinely useful always-available trigger
+        // (Japanglify whatever's currently on the clipboard, from anywhere,
+        // without needing a copy event or notification first) rather than a
+        // placeholder. Unregister any stale callback (onServiceConnected can
+        // fire more than once if the service is rebound) before registering
+        // a new one, so a button tap only launches once instead of calling
+        // the old handler in addition to the new one.
+        a11yButtonCallback?.let { accessibilityButtonController.unregisterAccessibilityButtonCallback(it) }
+        a11yButtonCallback = object : AccessibilityButtonController.AccessibilityButtonCallback() {
+            override fun onClicked(controller: AccessibilityButtonController) {
+                // FLAG_ACTIVITY_NEW_TASK because a Service, not an
+                // Activity, is starting this.
+                startActivity(
+                    Intent(this@JapanglifyAccessibilityService, ProcessClipboardActivity::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            }
+        }
+        accessibilityButtonController.registerAccessibilityButtonCallback(a11yButtonCallback!!)
     }
+
+    /**
+     * Whether the floating on-screen selection chip ([SelectionActionOverlay])
+     * should appear when the user selects text in another app. Read live on
+     * every selection (not cached) so toggling it in Settings takes effect
+     * immediately. Off by default: the chip draws over whatever app you're in
+     * (real screen space, see [SelectionActionOverlay]'s
+     * TYPE_ACCESSIBILITY_OVERLAY), and the Copy path plus the result
+     * notification cover the core flow without it — so it's opt-in for users
+     * who actually want the on-selection shortcut. Independent of the Copy
+     * assist service itself: turning this off leaves Copy detection fully
+     * working, it just suppresses the visual overlay.
+     */
+    private fun wantsSelectionOverlay(): Boolean =
+        PreferenceManager.getDefaultSharedPreferences(this)
+            .getBoolean(PreferencesRepository.KEY_SELECTION_OVERLAY, false)
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
@@ -499,6 +546,8 @@ class JapanglifyAccessibilityService : AccessibilityService() {
         mainHandler.removeCallbacksAndMessages(null)
         clipboard?.removePrimaryClipChangedListener(clipListener)
         clipboard = null
+        a11yButtonCallback?.let { accessibilityButtonController.unregisterAccessibilityButtonCallback(it) }
+        a11yButtonCallback = null
         overlay?.destroy()
         overlay = null
         CopyHookDiagnostics.log(this, "service destroyed")

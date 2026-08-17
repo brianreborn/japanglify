@@ -103,6 +103,7 @@ class PreferencesRepository(context: Context) {
         const val KEY_MAX_LINE_WIDTH = "max_line_width_fullwidth"
         const val KEY_CLIPBOARD_ASSIST = "clipboard_assist"
         const val KEY_CLIPBOARD_FGS_FALLBACK = "clipboard_fgs_fallback"
+        const val KEY_SELECTION_OVERLAY = "selection_overlay"
         const val KEY_OPEN_ACCESSIBILITY = "open_accessibility"
         const val KEY_A11Y_STATUS = "a11y_status"
         const val KEY_COPY_HOOK_PAUSED = "copy_hook_paused"
