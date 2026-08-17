@@ -26,3 +26,9 @@ sdk/
 *.keystore.jks
 *.jks
 *.keystore
+
+# Editor backup files
+*~
+
+# Claude Code session transcript dumps
+*-this-session-is-being-continued-from-a-previous-c.txt
