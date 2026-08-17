@@ -93,24 +93,20 @@
             android:launchMode="standard"
             android:noHistory="true"
             android:theme="@style/Theme.Japanglify.ProcessText">
-            <intent-filter>
-                <action android:name="android.intent.action.PROCESS_TEXT" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
+            <!--
+              Exactly the canonical AOSP filter: the framework's text-selection
+              menu always queries PROCESS_TEXT with type "text/plain"
+              (Editor.createProcessTextIntent → setType("text/plain")), so this
+              one filter is what makes the item resolve in every standard host.
+              The previous extra filters (no-data / text/* / text/html) were
+              never queried by the platform and only diverged from the sample
+              this activity is meant to mirror; text/plain covers all real
+              PROCESS_TEXT traffic.
+            -->
             <intent-filter>
                 <action android:name="android.intent.action.PROCESS_TEXT" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.PROCESS_TEXT" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="text/*" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.PROCESS_TEXT" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="text/html" />
             </intent-filter>
         </activity>
 
