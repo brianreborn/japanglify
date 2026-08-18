@@ -4,7 +4,7 @@ import android.app.Activity
 import android.graphics.Color
 import android.os.Bundle
 import android.widget.TextView
-import com.japanglify.app.data.KuromojiReadingProvider
+import com.japanglify.app.domain.KuromojiReadingProvider
 
 /**
  * Debug-build-only seam: dumps Kuromoji's raw per-token tags (surface,

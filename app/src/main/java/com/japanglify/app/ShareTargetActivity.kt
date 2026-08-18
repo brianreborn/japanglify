@@ -186,7 +186,7 @@ class ShareTargetActivity : Activity() {
                     val rows = app.engine.buildInterlinearRows(source, settings)
                     ClipboardImageRenderer.renderInterlinearToBitmap(this, rows, settings)
                 } else {
-                    ClipboardImageRenderer.renderToBitmap(this, app.engine.expand(source, settings))
+                    ClipboardImageRenderer.renderToBitmap(this, app.engine.expand(source, settings), settings.effectiveImageColorScheme)
                 }
                 ClipboardImageRenderer.saveAndGetUri(this, bitmap)
             }

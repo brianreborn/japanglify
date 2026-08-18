@@ -28,7 +28,17 @@
     <string name="pref_capitalize_romaji">Capitalize romaji</string>
     <string name="pref_capitalize_romaji_summary">Title-case the first letter of each segment</string>
     <string name="pref_furigana_punctuation_style">Furigana-row punctuation</string>
-    <string name="pref_elision_marker">Elided-line marker</string>
+    <string name="pref_line_elision_marker">Elided-line marker</string>
+    <string name="pref_custom_line_elision_marker">Custom elided-line marker</string>
+    <string name="pref_custom_line_elision_marker_summary">Used only when the marker above is set to \"Custom…\". One character; if you enter more, only the first is used. A glyph that can also appear in real text (a check mark, an emoji) becomes indistinguishable from the marker.</string>
+    <string name="pref_image_color_scheme">Image color scheme</string>
+    <string name="pref_image_color_scheme_summary">Colors for the \"Copy image\" output — background and per-role text (base, furigana, romaji, gloss). Whatever scheme you pick, text is auto-adjusted to stay legible against its background. Plain-text output is unaffected.</string>
+    <string name="pref_custom_image_color_summary">Used only when the scheme above is \"Custom…\". Enter a hex color like #RRGGBB. Text is still auto-adjusted for legibility against your background.</string>
+    <string name="pref_custom_image_bg_color">Custom: background color</string>
+    <string name="pref_custom_image_base_color">Custom: base text color</string>
+    <string name="pref_custom_image_furigana_color">Custom: furigana color</string>
+    <string name="pref_custom_image_romaji_color">Custom: romaji color</string>
+    <string name="pref_custom_image_gloss_color">Custom: gloss color</string>
     <string name="pref_mora_seam_style">Bound copula/auxiliary separator</string>
 
     <string name="pref_category_phonetics">Phoneticization</string>
@@ -67,6 +77,8 @@
     <string name="pref_include_glosses_summary">Show a brief English meaning under each word and particle. Needs a downloaded dictionary above. Experimental — still being refined; off by default.</string>
     <string name="pref_sense_selection_preset">Gloss sense selection</string>
     <string name="pref_sense_selection_preset_summary">A word can have several dictionary senses (e.g. すごい: \"terrible\" vs. \"amazing\") — which one gets shown. Modern favors richer, non-dated senses. Classical favors older/archaic ones, for reading dated source text. Custom exposes the underlying weights below.</string>
+    <string name="pref_max_gloss_length">Max gloss length</string>
+    <string name="pref_max_gloss_length_summary">Max characters shown for a word\'s English gloss before its extra \"/\"-joined synonyms are dropped — a short list that already fits (like さん\'s \"Mr/Mrs/Miss\") is kept in full either way; a long one (like \"do/to carry out/to perform\") trims down. Lower keeps output more compact; higher shows more nuance.</string>
     <string name="pref_custom_sense_richness_weight">Custom: richness weight</string>
     <string name="pref_custom_sense_position_weight">Custom: position weight</string>
     <string name="pref_custom_sense_dated_weight">Custom: dated weight (negative penalizes, positive favors)</string>

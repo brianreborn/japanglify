@@ -17,6 +17,20 @@ enum class ElisionMarker(val id: String, val displayName: String, val symbol: St
     /** Western ditto mark, the same convention via inch/prime-style quotes. */
     DITTO_QUOTES(id = "ditto_quotes", displayName = "Ditto (\")", symbol = "\""),
 
+    /**
+     * A user-provided single character (see
+     * [JapanglifySettings.customLineElisionMarker] /
+     * [JapanglifySettings.effectiveLineElisionSymbol]). [symbol] is null here
+     * because the actual glyph lives on the settings object, not the enum —
+     * mirrors how [com.japanglify.app.domain.dictionary.SenseSelectionPreset.CUSTOM]
+     * carries no fixed weights and defers to the settings' custom fields. The
+     * class doc's caution applies doubly here: a custom glyph that can also
+     * appear in real input text (a ✓, an emoji) becomes indistinguishable
+     * from our own marker — that trade-off is the user's to make once they
+     * pick this option.
+     */
+    CUSTOM(id = "custom", displayName = "Custom…", symbol = null),
+
     /** No marker — the row is just silently shorter (pre-existing behavior). */
     NONE(id = "none", displayName = "None (omit marker)", symbol = null);
 

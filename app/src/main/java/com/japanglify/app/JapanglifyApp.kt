@@ -4,7 +4,7 @@ import android.app.Application
 import android.content.ComponentName
 import android.content.pm.PackageManager
 import android.net.http.HttpResponseCache
-import com.japanglify.app.data.KuromojiReadingProvider
+import com.japanglify.app.domain.KuromojiReadingProvider
 import com.japanglify.app.data.PreferencesRepository
 import com.japanglify.app.dictionary.DictionaryBootstrap
 import com.japanglify.app.domain.JapanglifyEngine

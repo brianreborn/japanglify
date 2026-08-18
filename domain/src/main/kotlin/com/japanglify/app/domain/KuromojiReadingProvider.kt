@@ -1,14 +1,24 @@
-package com.japanglify.app.data
+package com.japanglify.app.domain
 
 import com.atilika.kuromoji.ipadic.Token
 import com.atilika.kuromoji.ipadic.Tokenizer
-import com.japanglify.app.domain.JapaneseAnalyzer
 import com.japanglify.app.domain.dictionary.jmdictVerbConjugationPrefix
 
 /**
  * Kuromoji/IPADIC-backed [JapaneseAnalyzer.ReadingProvider].
  * Tokenizer construction loads the dictionary once; keep a single instance
- * per process (see [JapanglifyApp]).
+ * per process (see `JapanglifyApp` in the app module).
+ *
+ * Lives in the pure-JVM `domain` module (Kuromoji is a JVM library, not an
+ * Android dependency) precisely so it is the ONE provider both the Android
+ * app and [DemoMain]/the JVM unit tests use. An earlier copy lived in the
+ * app module with its own logic while [DemoMain] built a second, simpler
+ * inline provider that skipped number-merging and never set
+ * [JapaneseAnalyzer.SurfaceReading.isParticle]/`isBoundToPrevious` -- so
+ * terminal/`:domain:runDemo` output silently diverged from the device, and
+ * a JVM test could pass while the same input rendered wrong on-device
+ * (found live: 七 kept its reading in the demo but lost it on the device).
+ * A single shared provider makes the terminal a faithful mirror of the app.
  *
  * Particle spellings that differ from surface kana in speech
  * (は→わ, へ→え, を→お) are normalized here so romaji matches speech.
@@ -62,14 +72,23 @@ class KuromojiReadingProvider(
                     surface.append(tokens[j].surface)
                     j++
                 }
-                // A merged number has no single dictionary reading, base
-                // form, or conjugation of its own.
+                // A GENUINE merge (2+ digit tokens, e.g. multi-digit Arabic
+                // numerals like "２５" tokenized one digit at a time) has no
+                // single dictionary reading, base form, or conjugation of
+                // its own. A lone "数" token is a different case entirely --
+                // 名詞,数 also tags standalone kanji numerals (七, 八, ...),
+                // which DO carry a real Kuromoji reading the same as any
+                // other single token; nulling it out unconditionally here
+                // silently dropped it. Found live: 七 lost its なな reading
+                // this way, leaving it with no furigana and its romaji
+                // falling back to the raw kanji glyph.
+                val merged = j > i + 1
                 out += MergedToken(
                     surface = surface.toString(),
-                    rawReading = null,
+                    rawReading = if (merged) null else t.reading,
                     partOfSpeechLevel1 = t.partOfSpeechLevel1,
-                    baseForm = null,
-                    conjugationType = null
+                    baseForm = if (merged) null else t.baseForm,
+                    conjugationType = if (merged) null else t.conjugationType
                 )
                 i = j
             } else {

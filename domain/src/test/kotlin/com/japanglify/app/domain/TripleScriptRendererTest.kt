@@ -59,16 +59,20 @@ class TripleScriptRendererTest {
     /**
      * Ground-truth pin for a real screenshot report ("日本語を勉強する" on a
      * Pixel 8 looked like the base row was indented right of furigana/romaji
-     * — see NOTES.md). Confirms the PAD-count math itself is correct and
-     * intentional: the cell width is dominated by the mora-hyphenated
-     * romaji ("ni·ho·n·go", 10 half-units), so *center*-aligning the
-     * narrower base ("日本語", 6) and furigana ("にほんご", 8) against that
-     * width necessarily gives base more padding than furigana (2 PAD chars
-     * vs. 1 per side) — that asymmetry is by design, not a bug. Whether
-     * U+2800 (PAD)'s *real* rendered width on a given host font matches the
-     * width-1 this renderer assumes for it is a separate, unverified
-     * question this test can't answer (needs a live device/font, not a JVM
-     * unit test) — see the NOTES.md item this backs.
+     * — see NOTES.md). Originally pinned an "independently space-around
+     * base and furigana by their own character count" algorithm; that
+     * approach was replaced by [TripleScriptRenderer.padCenterPerGlyph]
+     * after a *different* live report (突然 "とつぜん": と landed entirely
+     * over blank padding, never touching 突) showed independent gap counts
+     * drift apart whenever mora-count doesn't match kanji-count. 日本語's
+     * kanji-count (3) already equals its mora-count (に/ほん/ご, ん glued to
+     * ほ), so both algorithms happen to still center it reasonably --
+     * what changed here is which specific gap absorbs the slack, not
+     * whether it centers at all. Whether U+2800 (PAD)'s *real* rendered
+     * width on a given host font matches the width-1 this renderer assumes
+     * for it is a separate, unverified question this test can't answer
+     * (needs a live device/font, not a JVM unit test) — see the NOTES.md
+     * item this backs.
      */
     @Test
     fun interlinearCenterPaddingDistributesAroundCharactersNotAtEdges() {
@@ -90,18 +94,22 @@ class TripleScriptRendererTest {
         val (furiLine, baseLine, romaLine) = Triple(lines[0], lines[1], lines[2])
 
         // Cell width 10 (set by "ni·ho·n·go"). Romaji needs no padding.
-        // Furigana (8-wide, 4 codepoints) has only 2 half-units of slack
-        // spread across 5 gap positions — too little for any interior gap
-        // to round up to a whole PAD unit, so it stays edge-only, same as
-        // the old algorithm would have produced.
+        // [padCenterPerGlyph] buckets にほんご's morae onto 日/本/語 one-to-
+        // one (に/ほん/ご, ん glued to ほ) and sizes each kanji's own slot
+        // via [TripleScriptRenderer.distributeExtraWidth] -- 本's bucket
+        // (ほん, 2 morae) is wider than 本 itself, so 本's slot gets none of
+        // the extra width (it's not "growable"); the whole 2-unit surplus
+        // goes to 日 and 語's slots instead, split evenly since both are
+        // equally growable.
         assertEquals("ni·ho·n·go", romaLine)
-        assertEquals("⠀にほんご⠀", furiLine)
-        // Base (6-wide, 3 codepoints) has 4 half-units of slack spread
-        // across 4 gap positions — exactly 1 PAD unit each, so it now
-        // fills the column evenly instead of clustering as "⠀⠀日本語⠀⠀".
-        // Its first PAD-run (1 unit) now matches furigana's (1 unit), so
-        // 日 and に line up at the same horizontal start position.
-        assertEquals("⠀日⠀本⠀語⠀", baseLine)
+        // 日's slot (width 3) and に's slot (same width) both round their
+        // single odd leftover pad unit onto the BEFORE side (see
+        // [padCenterWholeDisplay]'s doc for why base and furigana must
+        // agree on that direction), so they line up exactly -- 語/ご the
+        // same way. ほん's slot exactly fits it (no padding at all), so it
+        // straddles 本 symmetrically instead of drifting away from it.
+        assertEquals("⠀にほん⠀ご", furiLine)
+        assertEquals("⠀日⠀本⠀⠀語", baseLine)
 
         val w = renderer.displayWidth(lines[0])
         assertEquals(w, renderer.displayWidth(lines[1]))

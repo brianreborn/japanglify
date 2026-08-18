@@ -86,7 +86,7 @@ object ClipboardImageRenderCache {
             val rendered = checkNotNull(app.engine.expand(source, settingsForImage).takeIf { it.isNotEmpty() }) {
                 "Empty expansion for source"
             }
-            ClipboardImageRenderer.renderToBitmap(context, rendered)
+            ClipboardImageRenderer.renderToBitmap(context, rendered, settingsForImage.effectiveImageColorScheme)
         }
         return ClipboardImageRenderer.saveAndGetUri(context, bitmap)
     }

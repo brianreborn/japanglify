@@ -165,34 +165,12 @@ object DemoMain {
     }
 
     /**
-     * Real Kuromoji/IPADIC-backed [JapaneseAnalyzer.ReadingProvider] for the
-     * plain JVM — mirrors the particle spoken-reading normalization the
-     * app's Android-side `KuromojiReadingProvider` applies (は→ワ, へ→エ,
-     * を→オ), without that class's Android-only number-token-merging
-     * behavior. Shared with [RealDictionaryIntegrationTest], which runs the
-     * full pipeline against real, organically-sourced Japanese rather than
-     * this suite's usual hand-crafted `AnnotatedSegment` fixtures.
+     * The exact same [KuromojiReadingProvider] the Android app runs -- so
+     * the terminal (`:domain:runDemo`) and [RealDictionaryIntegrationTest]
+     * are a faithful mirror of on-device output, number-merging,
+     * particle/bound-token flags and all. Was previously a second, simpler
+     * inline provider that diverged (see [KuromojiReadingProvider]'s doc for
+     * the divergence bug that motivated collapsing the two into one).
      */
-    fun buildKuromojiProvider(): JapaneseAnalyzer.ReadingProvider {
-        val tokenizer = com.atilika.kuromoji.ipadic.Tokenizer.Builder().build()
-        return JapaneseAnalyzer.ReadingProvider { raw ->
-            tokenizer.tokenize(raw).map { t ->
-                val pos1 = t.partOfSpeechLevel1
-                val reading = if (pos1 == "助詞") {
-                    when (t.surface) {
-                        "は" -> "ワ"
-                        "へ" -> "エ"
-                        "を" -> "オ"
-                        else -> t.reading?.takeIf { it.isNotBlank() && it != "*" }
-                    }
-                } else {
-                    t.reading?.takeIf { it.isNotBlank() && it != "*" }
-                }
-                JapaneseAnalyzer.SurfaceReading(
-                    t.surface, reading, baseForm = t.baseForm,
-                    verbPosHint = com.japanglify.app.domain.dictionary.jmdictVerbConjugationPrefix(t.conjugationType)
-                )
-            }
-        }
-    }
+    fun buildKuromojiProvider(): JapaneseAnalyzer.ReadingProvider = KuromojiReadingProvider()
 }

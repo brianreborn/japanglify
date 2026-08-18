@@ -1,6 +1,7 @@
 package com.japanglify.app.domain.dictionary
 
 import com.japanglify.app.domain.JapaneseAnalyzer
+import com.japanglify.app.domain.JapanglifySettings.Companion.DEFAULT_MAX_GLOSS_LENGTH
 
 /**
  * Looks up an English gloss for each token via its dictionary/base form.
@@ -67,7 +68,8 @@ class GlossAnnotator(private val dictionary: DictionaryProvider) {
 
     fun annotate(
         tokens: List<JapaneseAnalyzer.SurfaceReading>,
-        senseWeights: SenseWeights = SenseSelectionPreset.MODERN.weights!!
+        senseWeights: SenseWeights = SenseSelectionPreset.MODERN.weights!!,
+        maxGlossLength: Int = DEFAULT_MAX_GLOSS_LENGTH
     ): List<TokenGloss> {
         val results = arrayOfNulls<TokenGloss>(tokens.size)
         var i = 0
@@ -83,12 +85,12 @@ class GlossAnnotator(private val dictionary: DictionaryProvider) {
             val phrase = longestPhraseMatch(tokens, i, senseWeights)
             if (phrase != null) {
                 val (span, entry) = phrase
-                results[i] = TokenGloss(format(entry)?.let { GlossResult(it, entry.partOfSpeech) })
+                results[i] = TokenGloss(format(entry, maxGlossLength)?.let { GlossResult(it, entry.partOfSpeech) })
                 for (j in 1 until span) results[i + j] = TokenGloss(null, isPhraseContinuation = true)
                 i += span
                 continue
             }
-            results[i] = TokenGloss(glossToken(tokens[i], senseWeights))
+            results[i] = TokenGloss(glossToken(tokens[i], senseWeights, maxGlossLength))
             i++
         }
         return results.map { it!! }
@@ -129,7 +131,8 @@ class GlossAnnotator(private val dictionary: DictionaryProvider) {
 
     private fun glossToken(
         token: JapaneseAnalyzer.SurfaceReading,
-        weights: SenseWeights
+        weights: SenseWeights,
+        maxGlossLength: Int
     ): GlossResult? {
         // A conjugation ending / auxiliary / copula (ました, ない, だ, ...)
         // isn't an independent word -- it completes the previous token's
@@ -161,10 +164,10 @@ class GlossAnnotator(private val dictionary: DictionaryProvider) {
         // same-reading spelling shared by unrelated words (see
         // DictionaryProvider.lookup).
         val entry = dictionary.lookup(key, token.reading, token.verbPosHint, weights) ?: return null
-        return format(entry)?.let { GlossResult(it, entry.partOfSpeech) }
+        return format(entry, maxGlossLength)?.let { GlossResult(it, entry.partOfSpeech) }
     }
 
-    private fun format(entry: DictionaryEntry): String? {
+    private fun format(entry: DictionaryEntry, maxGlossLength: Int): String? {
         // Every particle is omitted, not just the abstract-marker subset
         // (は/が/を) an earlier version of this curated by hand. Found live
         // via real device UAT: の's actual JMdict gloss ("possessive /
@@ -194,21 +197,41 @@ class GlossAnnotator(private val dictionary: DictionaryProvider) {
         // declutter it -- only a verb's leading "to " is purely a citation-
         // form marker with nothing lost by removing it.
         val gloss = if (entry.partOfSpeech == PartOfSpeech.VERB) entry.gloss.removePrefix("to ") else entry.gloss
-        // For an interjection/expression, DictionaryDownloadManager's stored
-        // synonyms ('/'-joined, see MAX_GLOSSES_PER_SENSE) tend to be pure
-        // register variants of the same one greeting/exclamation ("nice to
-        // see you/good morning/good evening" for ご機嫌よう, "yes/yeah/uh huh"
-        // for よね) rather than distinguishing real information the way a
-        // noun/pronoun's synonyms can (Mr/Mrs/Miss genuinely differ by the
-        // referent's gender) -- direct feedback that showing all of them
-        // reads as clutter, not help, for this category specifically. Keep
-        // just JMdict's own first (typically most standard) synonym; every
-        // other part of speech keeps its full '/'-joined set unchanged.
-        return if (entry.partOfSpeech == PartOfSpeech.INTERJECTION || entry.partOfSpeech == PartOfSpeech.EXPRESSION) {
-            gloss.substringBefore('/')
-        } else {
-            gloss
+        return trimGlossToLength(gloss, maxGlossLength)
+    }
+
+    /**
+     * Keeps adding whole '/'-joined synonyms (DictionaryDownloadManager
+     * stores up to `MAX_GLOSSES_PER_SENSE` of them) while the running total
+     * fits [maxGlossLength], stopping at the first one that would overflow
+     * it. The very first synonym is always kept in full even if it alone
+     * exceeds the budget -- never truncated mid-word -- so this only ever
+     * drops whole trailing synonyms, never mangles one.
+     *
+     * A length budget rather than a fixed synonym *count* is what lets a
+     * short, genuinely distinguishing set like さん's "Mr/Mrs/Miss" survive
+     * untouched (11 chars, comfortably under [JapanglifySettings.DEFAULT_MAX_GLOSS_LENGTH])
+     * while a long same-meaning chain like "do/to carry out/to perform" or
+     * ご機嫌よう's "nice to see you/good morning/good evening" trims down on
+     * its own -- an earlier version of this hard-coded "just the first
+     * synonym" for interjections/expressions specifically (their synonyms
+     * tend to be pure register variants of one greeting) and left every
+     * other part of speech's full set untouched, which is exactly the
+     * category-by-category guessing this length-based approach replaces:
+     * found live that verbs/nouns/adjectives (never gated by that rule)
+     * could carry equally long near-duplicate synonym lists of their own,
+     * each one stretching that word's whole interlinear column to fit the
+     * English gloss underneath it (see [JapanglifySettings.maxGlossLength]).
+     */
+    private fun trimGlossToLength(gloss: String, maxGlossLength: Int): String {
+        val synonyms = gloss.split("/")
+        var kept = synonyms.first()
+        for (synonym in synonyms.drop(1)) {
+            val candidate = "$kept/$synonym"
+            if (candidate.length > maxGlossLength) break
+            kept = candidate
         }
+        return kept
     }
 
     private companion object {

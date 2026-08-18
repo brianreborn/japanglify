@@ -13,6 +13,7 @@ import com.japanglify.app.domain.JapanglifySettings
 import com.japanglify.app.domain.OutputFormat
 import com.japanglify.app.domain.RomajiPosition
 import com.japanglify.app.domain.RomanizationSystem
+import com.japanglify.app.domain.ImageColorScheme
 import com.japanglify.app.domain.WritingOrientation
 import com.japanglify.app.domain.dictionary.PartOfSpeech
 import com.japanglify.app.domain.dictionary.SenseSelectionPreset
@@ -40,10 +41,18 @@ class PreferencesRepository(context: Context) {
         furiganaPunctuationStyle = FuriganaPunctuationStyle.fromId(
             prefs.getString(KEY_FURIGANA_PUNCTUATION_STYLE, null)
         ),
-        elisionMarker = ElisionMarker.fromId(prefs.getString(KEY_ELISION_MARKER, null)),
+        lineElisionMarker = ElisionMarker.fromId(prefs.getString(KEY_LINE_ELISION_MARKER, null)),
+        customLineElisionMarker = prefs.getString(KEY_CUSTOM_LINE_ELISION_MARKER, null).orEmpty(),
+        imageColorSchemeId = resolveImageSchemeId(prefs.getString(KEY_IMAGE_COLOR_SCHEME, null)),
+        customImageBackgroundColor = parseColor(prefs.getString(KEY_CUSTOM_IMAGE_BG_COLOR, null), JapanglifySettings.DEFAULT.customImageBackgroundColor),
+        customImageBaseColor = parseColor(prefs.getString(KEY_CUSTOM_IMAGE_BASE_COLOR, null), JapanglifySettings.DEFAULT.customImageBaseColor),
+        customImageFuriganaColor = parseColor(prefs.getString(KEY_CUSTOM_IMAGE_FURIGANA_COLOR, null), JapanglifySettings.DEFAULT.customImageFuriganaColor),
+        customImageRomajiColor = parseColor(prefs.getString(KEY_CUSTOM_IMAGE_ROMAJI_COLOR, null), JapanglifySettings.DEFAULT.customImageRomajiColor),
+        customImageGlossColor = parseColor(prefs.getString(KEY_CUSTOM_IMAGE_GLOSS_COLOR, null), JapanglifySettings.DEFAULT.customImageGlossColor),
         moraSeamStyle = MoraSeamStyle.fromId(prefs.getString(KEY_MORA_SEAM_STYLE, null)),
         maxLineWidthFullwidth = parseMaxLineWidth(prefs.getString(KEY_MAX_LINE_WIDTH, null)),
         senseSelectionPreset = SenseSelectionPreset.fromId(prefs.getString(KEY_SENSE_SELECTION_PRESET, null)),
+        maxGlossLength = parseMaxGlossLength(prefs.getString(KEY_MAX_GLOSS_LENGTH, null)),
         customSenseRichnessWeight = parseWeight(
             prefs.getString(KEY_CUSTOM_SENSE_RICHNESS_WEIGHT, null),
             JapanglifySettings.DEFAULT.customSenseRichnessWeight
@@ -118,10 +127,41 @@ class PreferencesRepository(context: Context) {
         const val KEY_FURIGANA_KANJI_ONLY = "furigana_kanji_only"
         const val KEY_CAPITALIZE_ROMAJI = "capitalize_romaji"
         const val KEY_FURIGANA_PUNCTUATION_STYLE = "furigana_punctuation_style"
-        const val KEY_ELISION_MARKER = "elision_marker"
+        const val KEY_LINE_ELISION_MARKER = "line_elision_marker"
+        const val KEY_CUSTOM_LINE_ELISION_MARKER = "custom_line_elision_marker"
+        const val KEY_IMAGE_COLOR_SCHEME = "image_color_scheme"
+        const val KEY_CUSTOM_IMAGE_BG_COLOR = "custom_image_bg_color"
+        const val KEY_CUSTOM_IMAGE_BASE_COLOR = "custom_image_base_color"
+        const val KEY_CUSTOM_IMAGE_FURIGANA_COLOR = "custom_image_furigana_color"
+        const val KEY_CUSTOM_IMAGE_ROMAJI_COLOR = "custom_image_romaji_color"
+        const val KEY_CUSTOM_IMAGE_GLOSS_COLOR = "custom_image_gloss_color"
+
+        /**
+         * The scheme picker offers "custom" as an option even though
+         * [ImageColorScheme.fromId] (which only knows presets) would fold it
+         * to the default -- so keep the literal [ImageColorScheme.CUSTOM_ID]
+         * here, and only fall back to a preset for genuinely unknown values.
+         */
+        private fun resolveImageSchemeId(raw: String?): String =
+            if (raw == ImageColorScheme.CUSTOM_ID) ImageColorScheme.CUSTOM_ID
+            else ImageColorScheme.fromId(raw).id
+
+        /**
+         * Parses a user-entered hex color ("#RRGGBB", "RRGGBB", "#AARRGGBB",
+         * or "AARRGGBB") to an ARGB Int, forcing opaque alpha for a 6-digit
+         * value; any malformed input falls back to [default] so a typo can't
+         * produce a transparent or garbage color.
+         */
+        fun parseColor(raw: String?, default: Int): Int {
+            val s = raw?.trim()?.removePrefix("#") ?: return default
+            if (s.length != 6 && s.length != 8) return default
+            val v = s.toLongOrNull(16) ?: return default
+            return if (s.length == 6) (0xFF000000.toInt() or v.toInt()) else v.toInt()
+        }
         const val KEY_MORA_SEAM_STYLE = "mora_seam_style"
         const val KEY_MAX_LINE_WIDTH = "max_line_width_fullwidth"
         const val KEY_SENSE_SELECTION_PRESET = "sense_selection_preset"
+        const val KEY_MAX_GLOSS_LENGTH = "max_gloss_length"
         const val KEY_CUSTOM_SENSE_RICHNESS_WEIGHT = "custom_sense_richness_weight"
         const val KEY_CUSTOM_SENSE_POSITION_WEIGHT = "custom_sense_position_weight"
         const val KEY_CUSTOM_SENSE_DATED_WEIGHT = "custom_sense_dated_weight"
@@ -155,5 +195,19 @@ class PreferencesRepository(context: Context) {
 
         /** Only used for the [SenseSelectionPreset.CUSTOM] weight fields — malformed/blank input falls back to [fallback]. */
         private fun parseWeight(raw: String?, fallback: Double): Double = raw?.toDoubleOrNull() ?: fallback
+
+        fun parseMaxGlossLength(raw: String?): Int {
+            val n = raw?.toIntOrNull()
+            return when {
+                n == null -> JapanglifySettings.DEFAULT_MAX_GLOSS_LENGTH
+                // A synonym's first entry is never truncated regardless of this
+                // bound (see GlossAnnotator.trimGlossToLength), so 0 isn't a
+                // meaningful "show nothing" -- clamp to a sane floor instead of
+                // a value that would just silently behave like 1.
+                n < 1 -> 1
+                n > 200 -> 200
+                else -> n
+            }
+        }
     }
 }

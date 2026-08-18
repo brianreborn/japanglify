@@ -5,6 +5,7 @@ import androidx.preference.PreferenceManager
 import com.japanglify.app.domain.ElisionMarker
 import com.japanglify.app.domain.EmojiPrecisionTier
 import com.japanglify.app.domain.FuriganaPunctuationStyle
+import com.japanglify.app.domain.ImageColorScheme
 import com.japanglify.app.domain.JapanglifySettings
 import com.japanglify.app.domain.MoraSeamStyle
 import com.japanglify.app.domain.OutputFormat
@@ -95,7 +96,14 @@ class ShareTargetRepository(context: Context) {
             put("furiganaKanjiOnly", s.furiganaKanjiOnly)
             put("capitalizeRomaji", s.capitalizeRomaji)
             put("furiganaPunctuationStyle", s.furiganaPunctuationStyle.id)
-            put("elisionMarker", s.elisionMarker.id)
+            put("lineElisionMarker", s.lineElisionMarker.id)
+            put("customLineElisionMarker", s.customLineElisionMarker)
+            put("imageColorSchemeId", s.imageColorSchemeId)
+            put("customImageBackgroundColor", s.customImageBackgroundColor)
+            put("customImageBaseColor", s.customImageBaseColor)
+            put("customImageFuriganaColor", s.customImageFuriganaColor)
+            put("customImageRomajiColor", s.customImageRomajiColor)
+            put("customImageGlossColor", s.customImageGlossColor)
             put("moraSeamStyle", s.moraSeamStyle.id)
             put("maxLineWidthFullwidth", s.maxLineWidthFullwidth)
             put("cjkDisplayWidthUnits", s.cjkDisplayWidthUnits)
@@ -103,6 +111,7 @@ class ShareTargetRepository(context: Context) {
             put("customSenseRichnessWeight", s.customSenseRichnessWeight)
             put("customSensePositionWeight", s.customSensePositionWeight)
             put("customSenseDatedWeight", s.customSenseDatedWeight)
+            put("maxGlossLength", s.maxGlossLength)
         }
     }
 
@@ -127,7 +136,15 @@ class ShareTargetRepository(context: Context) {
             furiganaKanjiOnly = json.optBoolean("furiganaKanjiOnly", defaults.furiganaKanjiOnly),
             capitalizeRomaji = json.optBoolean("capitalizeRomaji", defaults.capitalizeRomaji),
             furiganaPunctuationStyle = FuriganaPunctuationStyle.fromId(json.optString("furiganaPunctuationStyle")),
-            elisionMarker = ElisionMarker.fromId(json.optString("elisionMarker")),
+            lineElisionMarker = ElisionMarker.fromId(json.optString("lineElisionMarker")),
+            customLineElisionMarker = json.optString("customLineElisionMarker"),
+            imageColorSchemeId = json.optString("imageColorSchemeId").takeIf { it == ImageColorScheme.CUSTOM_ID }
+                ?: ImageColorScheme.fromId(json.optString("imageColorSchemeId")).id,
+            customImageBackgroundColor = json.optInt("customImageBackgroundColor", defaults.customImageBackgroundColor),
+            customImageBaseColor = json.optInt("customImageBaseColor", defaults.customImageBaseColor),
+            customImageFuriganaColor = json.optInt("customImageFuriganaColor", defaults.customImageFuriganaColor),
+            customImageRomajiColor = json.optInt("customImageRomajiColor", defaults.customImageRomajiColor),
+            customImageGlossColor = json.optInt("customImageGlossColor", defaults.customImageGlossColor),
             moraSeamStyle = MoraSeamStyle.fromId(json.optString("moraSeamStyle")),
             maxLineWidthFullwidth = if (json.has("maxLineWidthFullwidth")) {
                 json.optInt("maxLineWidthFullwidth", defaults.maxLineWidthFullwidth)
@@ -142,7 +159,8 @@ class ShareTargetRepository(context: Context) {
             senseSelectionPreset = SenseSelectionPreset.fromId(json.optString("senseSelectionPreset")),
             customSenseRichnessWeight = json.optDouble("customSenseRichnessWeight", defaults.customSenseRichnessWeight),
             customSensePositionWeight = json.optDouble("customSensePositionWeight", defaults.customSensePositionWeight),
-            customSenseDatedWeight = json.optDouble("customSenseDatedWeight", defaults.customSenseDatedWeight)
+            customSenseDatedWeight = json.optDouble("customSenseDatedWeight", defaults.customSenseDatedWeight),
+            maxGlossLength = json.optInt("maxGlossLength", defaults.maxGlossLength)
         )
         return ShareTarget(
             id = json.getString("id"),

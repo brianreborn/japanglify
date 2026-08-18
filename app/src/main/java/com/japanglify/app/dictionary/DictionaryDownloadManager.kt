@@ -306,22 +306,48 @@ class DictionaryDownloadManager(private val context: Context) {
         val senses = word.optJSONArray("sense") ?: return 0
         if (senses.length() == 0) return 0
 
+        // Every kana reading JMdict lists for this word, not just the
+        // first -- a headword can have several accepted readings (e.g. 皆
+        // reads both みな and みんな), and Kuromoji's own tokenizer output
+        // for a given sentence can supply any one of them as `reading` on
+        // the token, or as `baseForm` outright when there's no kanji
+        // surface in play. Only ever importing kana[0] silently made every
+        // non-primary reading unlookupable -- confirmed live: みんな never
+        // returned a row despite 皆/みな being present, because the "everyone"
+        // entry's second reading was simply never inserted under any key.
         val kanaArr = word.optJSONArray("kana")
-        val reading = if (kanaArr != null && kanaArr.length() > 0) {
-            kanaArr.getJSONObject(0).optString("text").takeIf { it.isNotBlank() }
-        } else null
-
-        val kanjiArr = word.optJSONArray("kanji")
-        val headwords = ArrayList<String>()
-        var kanjiMatchesReading = false
-        if (kanjiArr != null && kanjiArr.length() > 0) {
-            for (k in 0 until kanjiArr.length()) {
-                val headword = kanjiArr.getJSONObject(k).optString("text").takeIf { it.isNotBlank() } ?: continue
-                headwords += headword
-                if (headword == reading) kanjiMatchesReading = true
+        val readings = ArrayList<String>()
+        if (kanaArr != null) {
+            for (r in 0 until kanaArr.length()) {
+                kanaArr.getJSONObject(r).optString("text").takeIf { it.isNotBlank() }?.let { readings += it }
             }
         }
-        // Also key a row by the bare kana reading whenever it differs from
+
+        val kanjiArr = word.optJSONArray("kanji")
+        val kanjiHeadwords = ArrayList<String>()
+        if (kanjiArr != null) {
+            for (k in 0 until kanjiArr.length()) {
+                kanjiArr.getJSONObject(k).optString("text").takeIf { it.isNotBlank() }?.let { kanjiHeadwords += it }
+            }
+        }
+
+        // (headword, reading) row to insert -- every kanji spelling paired
+        // with every accepted reading (JMdict's <re_restr> per-reading kanji
+        // restrictions aren't tracked here, so this over-generates a few
+        // combinations for words where a reading is only valid with some of
+        // a headword's spellings; harmless false-positive lookups are far
+        // cheaper than the false negatives the single-reading version had).
+        val headwordReadingPairs = ArrayList<Pair<String, String?>>()
+        if (kanjiHeadwords.isNotEmpty()) {
+            for (kanji in kanjiHeadwords) {
+                if (readings.isEmpty()) {
+                    headwordReadingPairs += kanji to null
+                } else {
+                    for (r in readings) headwordReadingPairs += kanji to r
+                }
+            }
+        }
+        // Also key a row by each bare kana reading whenever it differs from
         // every kanji spelling above -- not just when there's no kanji at
         // all. Kuromoji/IPADIC's `baseForm` for common verbs like する ("to
         // do") is reliably the plain-kana form even though JMdict itself
@@ -344,8 +370,10 @@ class DictionaryDownloadManager(private val context: Context) {
         // The real fix belongs at lookup/scoring time (using Kuromoji's own
         // conjugation-class signal to prefer the right same-reading entry),
         // not by narrowing which rows get imported.
-        if (reading != null && !kanjiMatchesReading) headwords += reading
-        if (headwords.isEmpty()) return 0
+        for (r in readings) {
+            if (kanjiHeadwords.none { it == r }) headwordReadingPairs += r to r
+        }
+        if (headwordReadingPairs.isEmpty()) return 0
 
         var inserted = 0
         for (rank in 0 until minOf(senses.length(), MAX_SENSES_PER_WORD)) {
@@ -387,7 +415,7 @@ class DictionaryDownloadManager(private val context: Context) {
                 }
             }
 
-            for (headword in headwords) {
+            for ((headword, reading) in headwordReadingPairs) {
                 bindAndExecute(stmt, headword, reading, pos, gloss, posClass, rank, glossCount, dated)
                 inserted++
             }

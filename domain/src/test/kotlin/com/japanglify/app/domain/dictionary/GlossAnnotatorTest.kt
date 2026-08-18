@@ -63,11 +63,14 @@ class GlossAnnotatorTest {
     }
 
     @Test
-    fun collapsesInterjectionAndExpressionSynonymsToJustTheFirst() {
-        // Interjection/expression synonyms tend to be pure register variants
-        // of one greeting/exclamation, not distinguishing real information
-        // the way a noun's synonyms can (see keepsFullSynonymSetForOtherPartsOfSpeech)
-        // -- direct feedback that showing all of them read as clutter here.
+    fun trimsLongSynonymListsByOverallLengthNotAFixedCount() {
+        // ご機嫌よう's first synonym alone ("nice to see you", 16 chars)
+        // already exceeds the default 12-char budget, so only it survives --
+        // matching the old interjection-only "just the first" rule for this
+        // case. それでも's synonyms are individually short enough that "but/and
+        // yet" (11 chars) still fits before "nevertheless" would push it over
+        // -- a length budget keeps adding whole synonyms as long as they fit,
+        // it doesn't hard-stop at exactly one the way the old rule did.
         val annotator = fakeDictionary(
             "ご機嫌よう" to DictionaryEntry(
                 "ご機嫌よう", "ごきげんよう", PartOfSpeech.INTERJECTION,
@@ -81,19 +84,50 @@ class GlossAnnotatorTest {
                 JapaneseAnalyzer.SurfaceReading("それでも", "それでも", baseForm = "それでも")
             )
         )
-        assertEquals(listOf("nice to see you", "but"), texts(result))
+        assertEquals(listOf("nice to see you", "but/and yet"), texts(result))
     }
 
     @Test
-    fun keepsFullSynonymSetForOtherPartsOfSpeech() {
-        // Mr/Mrs/Miss genuinely differ by the referent's gender -- collapsing
-        // to just "Mr" would silently drop real, useful information, so the
-        // interjection/expression-only truncation above must not apply here.
+    fun keepsShortSynonymListsInFullRegardlessOfPartOfSpeech() {
+        // さん is JMdict's real-world example of this: tagged SUFFIX (an
+        // honorific title), not some special-cased category. "Mr/Mrs/Miss"
+        // (11 chars) fits whole under the default 12-char budget, so nothing
+        // truncates it to just "Mr" -- collapsing to one would silently drop
+        // real, gender-distinguishing information. An earlier, synonym-COUNT-
+        // based version of this had to hand-exempt whichever parts of speech
+        // "seemed like" they'd have distinguishing synonyms; a length budget
+        // protects any short-enough list automatically, regardless of category.
         val annotator = fakeDictionary(
-            "さん" to DictionaryEntry("さん", "さん", PartOfSpeech.OTHER, "Mr/Mrs/Miss")
+            "さん" to DictionaryEntry("さん", "さん", PartOfSpeech.SUFFIX, "Mr/Mrs/Miss")
         )
         val result = annotator.annotate(listOf(JapaneseAnalyzer.SurfaceReading("さん", "さん", baseForm = "さん")))
         assertEquals(listOf("Mr/Mrs/Miss"), texts(result))
+    }
+
+    @Test
+    fun trimsLongSynonymListsForAnyPartOfSpeechNotJustInterjections() {
+        // The old rule only trimmed interjection/expression glosses; a verb
+        // with an equally long near-duplicate synonym chain kept its full
+        // set. Found live: exactly this kind of untrimmed VERB/NOUN/ADJECTIVE
+        // gloss was what stretched a word's own interlinear column wide
+        // enough to visibly balloon the gap to the next word.
+        val annotator = fakeDictionary(
+            "する" to DictionaryEntry("する", "する", PartOfSpeech.VERB, "to do/to carry out/to perform")
+        )
+        val result = annotator.annotate(listOf(JapaneseAnalyzer.SurfaceReading("する", "する", baseForm = "する")))
+        assertEquals(listOf("do"), texts(result))
+    }
+
+    @Test
+    fun maxGlossLengthIsConfigurable() {
+        val annotator = fakeDictionary(
+            "する" to DictionaryEntry("する", "する", PartOfSpeech.VERB, "to do/to carry out/to perform")
+        )
+        val result = annotator.annotate(
+            listOf(JapaneseAnalyzer.SurfaceReading("する", "する", baseForm = "する")),
+            maxGlossLength = 100
+        )
+        assertEquals(listOf("do/to carry out/to perform"), texts(result))
     }
 
     @Test
@@ -212,8 +246,9 @@ class GlossAnnotatorTest {
         // good evening"), but Kuromoji splits it into ご + 機嫌 + よう. The
         // whole-phrase entry must win, its gloss riding on the span's first
         // token; the consumed pieces stay null and 機嫌's own "mood" gloss is
-        // never used. Only the first synonym survives format() for this
-        // interjection entry -- see collapsesInterjectionAndExpressionSynonymsToJustTheFirst.
+        // never used. Only the first synonym survives format() here since it
+        // alone already exceeds the default length budget -- see
+        // trimsLongSynonymListsByOverallLengthNotAFixedCount.
         val annotator = fakeDictionary(
             "ご機嫌よう" to DictionaryEntry(
                 "ご機嫌よう", "ごきげんよう", PartOfSpeech.INTERJECTION,

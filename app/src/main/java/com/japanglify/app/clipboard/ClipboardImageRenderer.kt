@@ -9,6 +9,8 @@ import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
 import androidx.core.content.FileProvider
+import com.japanglify.app.domain.ImageColorRole
+import com.japanglify.app.domain.ImageColorScheme
 import com.japanglify.app.domain.JapanglifySettings
 import com.japanglify.app.domain.RomajiPosition
 import com.japanglify.app.domain.TripleScriptRenderer
@@ -34,7 +36,10 @@ object ClipboardImageRenderer {
     private const val PADDING_DP = 24f
     private const val WORD_GAP_DP = 10f
     private const val ROW_GROUP_GAP_DP = 14f
-    private const val BG_COLOR = Color.WHITE
+    // Fallback ink color for a freshly-built paint before a caller assigns a
+    // scheme role color; background + every role color come from the resolved
+    // [ImageColorScheme] at draw time (see renderInterlinearToBitmap /
+    // renderToBitmap), not from a fixed constant.
     private const val TEXT_COLOR = Color.BLACK
 
     /**
@@ -99,6 +104,20 @@ object ClipboardImageRenderer {
     }
 
     /**
+     * The [ImageColorRole] a drawn [Line] paints with. Emoji map to BASE: a
+     * real color-emoji glyph renders from its own COLR/CBDT tables and ignores
+     * the paint color anyway, so tinting it is a harmless no-op, and a
+     * mono-fallback emoji then at least matches the base ink.
+     */
+    private fun Line.role(): ImageColorRole = when (this) {
+        Line.FURIGANA -> ImageColorRole.FURIGANA
+        Line.BASE -> ImageColorRole.BASE
+        Line.ROMAJI -> ImageColorRole.ROMAJI
+        Line.GLOSS -> ImageColorRole.GLOSS
+        Line.EMOJI -> ImageColorRole.BASE
+    }
+
+    /**
      * Pixel-precise interlinear render — measures every glyph itself instead of
      * trusting a font's fullwidth/halfwidth ratio or a text layout engine's own
      * line-breaking (which can silently insert an unwanted wrap when its
@@ -158,13 +177,15 @@ object ClipboardImageRenderer {
             Bitmap.Config.ARGB_8888
         )
         val canvas = Canvas(bitmap)
-        canvas.drawColor(BG_COLOR)
+        val scheme = settings.effectiveImageColorScheme
+        canvas.drawColor(scheme.color(ImageColorRole.BACKGROUND))
 
         val baselineOffset = -paint.fontMetrics.top
         var y = padding.toFloat()
         for (row in measuredRows) {
             for (line in rowVisibleLines(row)) {
                 val linePaint = if (line == Line.FURIGANA) furiganaPaint else paint
+                linePaint.color = scheme.color(line.role())
                 var x = padding.toFloat()
                 row.forEachIndexed { i, cell ->
                     if (i > 0 && cell.isWordStart) x += wordGapPx
@@ -200,8 +221,13 @@ object ClipboardImageRenderer {
     }
 
     /** Plain rasterization for non-columnar output formats (no cell alignment to preserve). */
-    fun renderToBitmap(context: Context, text: String): Bitmap {
+    fun renderToBitmap(
+        context: Context,
+        text: String,
+        scheme: ImageColorScheme = ImageColorScheme.DEFAULT.withGuaranteedContrast()
+    ): Bitmap {
         val paint = buildPaint(context)
+        paint.color = scheme.color(ImageColorRole.BASE)
         val padding = paddingPx(context)
         val lines = text.split("\n")
         val measuredWidth = lines.maxOf { paint.measureText(it) }
@@ -225,7 +251,7 @@ object ClipboardImageRenderer {
             Bitmap.Config.ARGB_8888
         )
         val canvas = Canvas(bitmap)
-        canvas.drawColor(BG_COLOR)
+        canvas.drawColor(scheme.color(ImageColorRole.BACKGROUND))
         canvas.translate(padding.toFloat(), padding.toFloat())
         layout.draw(canvas)
         return bitmap

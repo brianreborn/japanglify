@@ -119,8 +119,12 @@ class SettingsFragment : PreferenceFragmentCompat() {
             com.japanglify.app.domain.FuriganaPunctuationStyle.entries.map { it.id to it.displayName }
         )
         bindList(
-            PreferencesRepository.KEY_ELISION_MARKER,
+            PreferencesRepository.KEY_LINE_ELISION_MARKER,
             com.japanglify.app.domain.ElisionMarker.entries.map { it.id to it.displayName }
+        )
+        bindList(
+            PreferencesRepository.KEY_IMAGE_COLOR_SCHEME,
+            com.japanglify.app.domain.ImageColorScheme.PICKER_OPTIONS
         )
         bindList(
             PreferencesRepository.KEY_MORA_SEAM_STYLE,

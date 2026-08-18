@@ -23,7 +23,7 @@ class TripleScriptRenderer {
          * kept at line start and between cells.
          */
         const val PAD = "\u2800"
-        /** Zero-width, non-rendering, break-prohibiting \u2014 see [preventLineWrap]. */
+        /** Zero-width, non-rendering, break-prohibiting \u2014 see [protectRun]. */
         private const val WORD_JOINER = '\u2060'
         /** @deprecated Use [PAD]; kept so older tests/callers still resolve. */
         const val NBSP = PAD
@@ -285,7 +285,7 @@ class TripleScriptRenderer {
         }
     }
 
-    private fun buildMeasuredRows(
+    internal fun buildMeasuredRows(
         segments: List<AnnotatedSegment>,
         settings: JapanglifySettings
     ): List<List<MeasuredCell>> {
@@ -318,6 +318,24 @@ class TripleScriptRenderer {
                 displayWidth(compactFurigana(cell.furigana), cjkWidth)
             ).coerceAtLeast(1)
         }
+        // A cell whose natural width comes from its OWN base glyph (kana
+        // cells, or punctuation) rather than a longer furigana reading has no
+        // centering to protect -- growing it just adds harmless trailing
+        // pad. A cell whose natural width comes from furigana outgrowing a
+        // narrow base (a single kanji carrying a multi-mora reading, e.g.
+        // 忙="いそが") is the opposite: [padCenterDisplay]/[padCenterWholeDisplay]
+        // center that lone glyph across the cell's full width, so ANY extra
+        // here shifts the glyph away from the middle of its own reading --
+        // found live: 忙's furigana いそが (needing exactly 6 units) getting
+        // bumped to 7 by this group's romaji-driven extra put そ/が
+        // overlapping the kanji while い floated over pad with nothing above
+        // it. Distributing extra to base-driven cells first (falling back to
+        // all cells only if none qualify) keeps a furigana-driven cell at
+        // its exact natural width whenever there's anywhere else to put the
+        // slack.
+        val baseDriven = cells.map { cell ->
+            displayWidth(cell.base, cjkWidth) >= displayWidth(compactFurigana(cell.furigana), cjkWidth)
+        }
         val widths = IntArray(cells.size)
         var i = 0
         while (i < cells.size) {
@@ -345,7 +363,8 @@ class TripleScriptRenderer {
             )
             val extra = (groupTotal - naturalTotal).coerceAtLeast(0)
             val groupNatural = (i until end).map { naturalWidths[it] }
-            val finalWidths = distributeExtraWidth(groupNatural, extra)
+            val groupBaseDriven = (i until end).map { baseDriven[it] }
+            val finalWidths = distributeExtraWidth(groupNatural, extra, groupBaseDriven)
             for (k in finalWidths.indices) widths[i + k] = finalWidths[k].coerceAtLeast(1)
             i = end
         }
@@ -370,34 +389,45 @@ class TripleScriptRenderer {
      * [buildMeasuredRows]'s word-group doc for why a multi-cell word's
      * romaji/gloss/emoji-driven extra width must be spread across all its
      * cells instead of piled onto the first one alone.
+     *
+     * Only cells flagged in [growable] receive any of [extra] (falling back
+     * to every cell if none are growable, so the total can still always
+     * reach `naturalWidths.sum() + extra`) — see [buildMeasuredRows]'s
+     * `baseDriven` doc for why a furigana-driven cell's natural width should
+     * stay untouched whenever there's a base-driven cell in the same group
+     * to absorb the slack instead.
      */
-    private fun distributeExtraWidth(naturalWidths: List<Int>, extra: Int): List<Int> {
+    private fun distributeExtraWidth(naturalWidths: List<Int>, extra: Int, growable: List<Boolean>): List<Int> {
         if (extra <= 0 || naturalWidths.isEmpty()) return naturalWidths
-        val naturalTotal = naturalWidths.sum()
-        if (naturalTotal <= 0) {
+        val eligible = naturalWidths.indices.filter { growable[it] }.ifEmpty { naturalWidths.indices.toList() }
+        val eligibleTotal = eligible.sumOf { naturalWidths[it] }
+        val shares = IntArray(naturalWidths.size)
+        if (eligibleTotal <= 0) {
             // No natural size to proportion against (shouldn't happen in
             // practice -- every cell carries at least one glyph) -- split
             // evenly rather than divide by zero.
-            val base = extra / naturalWidths.size
-            var remainder = extra - base * naturalWidths.size
-            return naturalWidths.map {
-                base + if (remainder > 0) { remainder--; 1 } else 0
+            val base = extra / eligible.size
+            var remainder = extra - base * eligible.size
+            for (idx in eligible) {
+                shares[idx] = base + if (remainder > 0) { remainder--; 1 } else 0
             }
-        }
-        val exact = naturalWidths.map { it.toDouble() * extra / naturalTotal }
-        val floors = exact.map { it.toInt() }
-        var leftover = extra - floors.sum()
-        val byRemainderDesc = exact.indices.sortedByDescending { exact[it] - floors[it] }
-        val shares = floors.toIntArray()
-        for (idx in byRemainderDesc) {
-            if (leftover <= 0) break
-            shares[idx] += 1
-            leftover--
+        } else {
+            val exact = eligible.map { naturalWidths[it].toDouble() * extra / eligibleTotal }
+            val floors = exact.map { it.toInt() }
+            var leftover = extra - floors.sum()
+            val order = eligible.indices.sortedByDescending { exact[it] - floors[it] }
+            val localShares = floors.toIntArray()
+            for (pos in order) {
+                if (leftover <= 0) break
+                localShares[pos] += 1
+                leftover--
+            }
+            eligible.forEachIndexed { pos, idx -> shares[idx] = localShares[pos] }
         }
         return naturalWidths.indices.map { naturalWidths[it] + shares[it] }
     }
 
-    private data class MeasuredCell(
+    internal data class MeasuredCell(
         val furigana: String,
         val base: String,
         val romaji: String,
@@ -465,7 +495,7 @@ class TripleScriptRenderer {
 
     /**
      * Structured, role-tagged alternative to the plain-text [render] output.
-     * Used only for an in-app rich preview (see [preventLineWrap]) — this is
+     * Used only for an in-app rich preview (see [protectRun]) — this is
      * why, unlike [render], it's safe for this path to embed Word Joiners:
      * the result never leaves the app as copied/pasted/replaced text.
      */
@@ -499,7 +529,12 @@ class TripleScriptRenderer {
         return groups
     }
 
-    private fun buildRawTripleLines(row: List<MeasuredCell>, cjkWidth: Int, seam: String): Triple<String, String, String> {
+    private fun buildRawTripleLines(
+        row: List<MeasuredCell>,
+        cjkWidth: Int,
+        seam: String,
+        protect: Boolean
+    ): Triple<String, String, String> {
         val base = StringBuilder()
         val furi = StringBuilder()
         val roma = StringBuilder()
@@ -509,6 +544,8 @@ class TripleScriptRenderer {
             // same word (split kanji/okurigana) — see [InterlinearCell.isWordStart].
             val needsSeam = groupIndex > 0 && !cell.isWordStart && needsMoraSeam(cell)
             if (groupIndex > 0 && cell.isWordStart) {
+                // Deliberately NOT wrapped in [protectRun] -- see its doc for
+                // why a word-group boundary must stay a legal break point.
                 base.append(WORD_GAP)
                 furi.append(WORD_GAP)
                 roma.append(WORD_GAP)
@@ -526,31 +563,40 @@ class TripleScriptRenderer {
                 // both one cell wide) is the user's [MoraSeamStyle] choice.
                 roma.append(seam)
             }
+            val groupBase = StringBuilder()
+            val groupFuri = StringBuilder()
             for (idx in group) {
                 val c = row[idx]
-                // The base row uses CSS-ruby space-around ([padCenterDisplay])
-                // so a whole multi-kanji cell (e.g. 日本語 kept intact)
-                // distributes its kanji evenly under their reading. Furigana
-                // only wants that same interior spread when ITS OWN base
-                // actually has multiple glyphs to spread against; over a
-                // single-glyph base (a split-kanji column, an okurigana cell,
-                // punctuation) there's nothing to align to, so a short
-                // reading like すご must center as one unit
-                // ([padCenterWholeDisplay]) rather than tear apart into
-                // "す·ご" with a pad wedged between the kana.
+                // A single-glyph base (a split-kanji column, an okurigana
+                // cell, punctuation) has nothing to align multiple morae
+                // against, so a short reading like すご centers as one unit
+                // ([padCenterWholeDisplay]) rather than tearing apart into
+                // "す·ご" with a pad wedged between the kana. A multi-glyph
+                // base (a whole kanji compound kept intact, e.g. 突然) uses
+                // [padCenterPerGlyph] to keep each glyph lined up with its
+                // own share of the reading -- see that function's doc for
+                // why independently space-around distributing base and
+                // furigana by their own separate character counts (the
+                // previous approach here) drifts them apart.
                 val singleGlyphBase = c.base.codePointCount(0, c.base.length) <= 1
-                base.append(
-                    if (c.isPunctuation) padEndDisplay(c.base, c.width, cjkWidth)
-                    else padCenterDisplay(c.base, c.width, cjkWidth)
-                )
-                furi.append(
-                    when {
-                        c.isPunctuation -> padEndDisplay(c.furigana, c.width, cjkWidth)
-                        singleGlyphBase -> padCenterWholeDisplay(c.furigana, c.width, cjkWidth)
-                        else -> padCenterDisplay(c.furigana, c.width, cjkWidth)
+                when {
+                    c.isPunctuation -> {
+                        groupBase.append(padEndDisplay(c.base, c.width, cjkWidth))
+                        groupFuri.append(padEndDisplay(c.furigana, c.width, cjkWidth))
                     }
-                )
+                    singleGlyphBase -> {
+                        groupBase.append(padCenterDisplay(c.base, c.width, cjkWidth))
+                        groupFuri.append(padCenterWholeDisplay(c.furigana, c.width, cjkWidth))
+                    }
+                    else -> {
+                        val (b, f) = padCenterPerGlyph(c.base, c.furigana, c.width, cjkWidth)
+                        groupBase.append(b)
+                        groupFuri.append(f)
+                    }
+                }
             }
+            base.append(if (protect) protectRun(groupBase.toString()) else groupBase)
+            furi.append(if (protect) protectRun(groupFuri.toString()) else groupFuri)
             // Romaji is one indivisible label for the whole word (never
             // letter-scattered per sub-cell — see [splitKanjiFurigana]'s
             // doc), so it's padded once against the GROUP's combined width
@@ -569,13 +615,12 @@ class TripleScriptRenderer {
             // reservation actually being spent here) keeps seam + padded
             // romaji summing to exactly groupWidth, matching base/furi.
             val romaWidth = if (needsSeam) groupWidth - MORA_SEAM_WIDTH else groupWidth
-            roma.append(
-                when {
-                    cell.isPunctuation -> padEndDisplay(cell.romaji, romaWidth, cjkWidth)
-                    singleGlyphBase -> padCenterWholeDisplay(cell.romaji, romaWidth, cjkWidth)
-                    else -> padCenterDisplay(cell.romaji, romaWidth, cjkWidth)
-                }
-            )
+            val groupRoma = when {
+                cell.isPunctuation -> padEndDisplay(cell.romaji, romaWidth, cjkWidth)
+                singleGlyphBase -> padCenterWholeDisplay(cell.romaji, romaWidth, cjkWidth)
+                else -> padCenterDisplay(cell.romaji, romaWidth, cjkWidth)
+            }
+            roma.append(if (protect) protectRun(groupRoma) else groupRoma)
         }
         return Triple(base.toString(), furi.toString(), roma.toString())
     }
@@ -607,25 +652,28 @@ class TripleScriptRenderer {
      * that same widened span, so gloss sitting flush left looked
      * misaligned against them. See [InterlinearCell.gloss].
      */
-    private fun buildGlossLine(row: List<MeasuredCell>, cjkWidth: Int): String {
+    private fun buildGlossLine(row: List<MeasuredCell>, cjkWidth: Int, protect: Boolean): String {
         val gloss = StringBuilder()
         wordGroups(row).forEachIndexed { groupIndex, group ->
             val cell = row[group.first]
+            // Not wrapped in [protectRun] -- see its doc.
             if (groupIndex > 0 && cell.isWordStart) gloss.append(WORD_GAP)
             val groupWidth = group.sumOf { row[it].width }
-            gloss.append(padCenterWholeDisplay(cell.gloss, groupWidth, cjkWidth))
+            val text = padCenterWholeDisplay(cell.gloss, groupWidth, cjkWidth)
+            gloss.append(if (protect) protectRun(text) else text)
         }
         return gloss.toString()
     }
 
     /** Emoji line — same centered, never-truncated, group-padded shape as [buildGlossLine]. */
-    private fun buildEmojiLine(row: List<MeasuredCell>, cjkWidth: Int): String {
+    private fun buildEmojiLine(row: List<MeasuredCell>, cjkWidth: Int, protect: Boolean): String {
         val emoji = StringBuilder()
         wordGroups(row).forEachIndexed { groupIndex, group ->
             val cell = row[group.first]
             if (groupIndex > 0 && cell.isWordStart) emoji.append(WORD_GAP)
             val groupWidth = group.sumOf { row[it].width }
-            emoji.append(padCenterWholeDisplay(cell.emoji, groupWidth, cjkWidth))
+            val text = padCenterWholeDisplay(cell.emoji, groupWidth, cjkWidth)
+            emoji.append(if (protect) protectRun(text) else text)
         }
         return emoji.toString()
     }
@@ -636,13 +684,11 @@ class TripleScriptRenderer {
         preventWrap: Boolean
     ): List<InterlinearDisplayLine> {
         val cjkWidth = settings.cjkDisplayWidthUnits
-        val (baseLine, furiLine, romaLine) = buildRawTripleLines(row, cjkWidth, settings.moraSeamStyle.marker)
-        val glossLine = if (settings.includeGlosses) buildGlossLine(row, cjkWidth) else ""
-        val emojiLine = if (settings.includeEmoji) buildEmojiLine(row, cjkWidth) else ""
-        fun finish(line: String): String {
-            val protectedLine = protectLineStart(line)
-            return if (preventWrap) preventLineWrap(protectedLine) else protectedLine
-        }
+        val (baseLine, furiLine, romaLine) =
+            buildRawTripleLines(row, cjkWidth, settings.moraSeamStyle.marker, preventWrap)
+        val glossLine = if (settings.includeGlosses) buildGlossLine(row, cjkWidth, preventWrap) else ""
+        val emojiLine = if (settings.includeEmoji) buildEmojiLine(row, cjkWidth, preventWrap) else ""
+        fun finish(line: String): String = protectLineStart(line)
         // Two situations produce a row that reads as broken/incomplete but
         // isn't -- see [ElisionMarker] and buildDisplayLines' doc. Both are
         // mutually exclusive (Case A needs romaji == base, i.e. zero real
@@ -659,7 +705,7 @@ class TripleScriptRenderer {
         // only line that row has left.
         val romajiElided = settings.includeRomaji && hasVisibleContent(romaLine) && romaLine == baseLine
         val baseContent = if (romajiElided) {
-            settings.elisionMarker.symbol?.let { baseLine + PAD + it } ?: baseLine
+            settings.effectiveLineElisionSymbol?.let { baseLine + PAD + it } ?: baseLine
         } else {
             baseLine
         }
@@ -673,7 +719,7 @@ class TripleScriptRenderer {
         val furiganaElided = settings.includeFurigana && !hasVisibleContent(furiLine) &&
             settings.includeRomaji && hasVisibleContent(romaLine) && !romajiElided
         val romaContent = if (furiganaElided) {
-            settings.elisionMarker.symbol?.let { romaLine + PAD + it } ?: romaLine
+            settings.effectiveLineElisionSymbol?.let { romaLine + PAD + it } ?: romaLine
         } else {
             romaLine
         }
@@ -715,7 +761,7 @@ class TripleScriptRenderer {
 
     /**
      * Plain-text rendering. Word Joiners ARE embedded here too (see
-     * [preventLineWrap]) even though this output gets copied/pasted/Cut-
+     * [protectRun]) even though this output gets copied/pasted/Cut-
      * replaced into other apps: real hosts (Discord, Keep, …) soft-wrap
      * their own text views at the pixel width of the compose box, with no
      * regard for [JapanglifySettings.maxLineWidthFullwidth] — without the
@@ -738,15 +784,35 @@ class TripleScriptRenderer {
      * characters onto two visual lines and destroying the alignment this
      * whole cell/padding scheme exists to produce. Word Joiner (U+2060) is a
      * zero-width, non-rendering character whose sole effect is prohibiting a
-     * break at that point — inserting it between every character forces the
-     * line to stay, or overflow/scroll, as one unit instead of rewrapping.
+     * break at that point — inserting it between every character in [text]
+     * forces it to stay, or overflow/scroll, as one unit instead of
+     * rewrapping.
+     *
+     * Scoped to ONE word-group's own rendered span, not the whole finished
+     * line — [buildRawTripleLines]/[buildGlossLine]/[buildEmojiLine] call
+     * this per group and leave [WORD_GAP] (and the mora-seam glyph) outside
+     * it, deliberately unprotected. An earlier version wrapped the *entire*
+     * concatenated line in one Word-Joiner run, which does stop a break
+     * mid-cell, but also stops a break at every legitimate word boundary in
+     * the row — found live: with no legal break point anywhere in a long
+     * multi-word row (common once English glosses widen it well past the
+     * phone's screen width), the host's text layout still has to wrap
+     * *somewhere*, and falls back to an emergency break at an arbitrary
+     * position instead of a word boundary (observed splitting 機嫌 into
+     * 機/嫌 across two lines, with the furigana/romaji/gloss rows each
+     * wrapping at their own different arbitrary position since they have
+     * different real pixel widths for the same column count — destroying
+     * cross-row alignment from that point on, not just within one row).
+     * Keeping each group internally unbreakable while leaving the gaps
+     * between them breakable gives the host a real, sane place to wrap
+     * (between words) instead of forcing that emergency fallback.
      */
-    private fun preventLineWrap(line: String): String {
-        if (line.length <= 1) return line
-        val out = StringBuilder(line.length * 2 - 1)
+    private fun protectRun(text: String): String {
+        if (text.length <= 1) return text
+        val out = StringBuilder(text.length * 2 - 1)
         var i = 0
-        while (i < line.length) {
-            val cp = line.codePointAt(i)
+        while (i < text.length) {
+            val cp = text.codePointAt(i)
             val charCount = Character.charCount(cp)
             if (i > 0) out.append(WORD_JOINER)
             out.appendCodePoint(cp)
@@ -757,7 +823,7 @@ class TripleScriptRenderer {
 
     /** True if the line has any non-pad, non-whitespace glyph. */
     private fun hasVisibleContent(line: String): Boolean =
-        line.any { it != PAD_CHAR && !it.isWhitespace() }
+        line.any { it != PAD_CHAR && it != WORD_JOINER && !it.isWhitespace() }
 
     /**
      * Ensure the first column cannot be eaten: if the line would start with
@@ -1188,7 +1254,22 @@ class TripleScriptRenderer {
         val w = displayWidth(text, cjkWidth)
         if (w >= targetWidth) return text
         val diff = targetWidth - w
-        val before = diff / 2
+        // Round the odd leftover unit onto the BEFORE side (ceil), matching
+        // [padCenterDisplay]'s own single-glyph tie-break (its remainder loop
+        // always gives an odd leftover to the first/lowest gap index first).
+        // The two functions pad DIFFERENT-sized content (a narrow base glyph
+        // vs. its wider furigana reading, or vice versa) to the SAME target
+        // width, so their raw before/after amounts are never equal by
+        // construction -- but their centers must still land on the same
+        // point. Found live: 七 (base width 2) padded to width 5 via
+        // padCenterDisplay got gaps=[2,1] (extra favors before), while its
+        // furigana なな (width 4) padded to the same width 5 via the OLD
+        // before=diff/2 (floor) got [0,1] (extra favors after) -- opposite
+        // tie-breaks on the same odd diff (3 vs. 1) put their centers a full
+        // half-unit apart, just enough to detach the first mora な from 七
+        // entirely. Rounding both the same direction keeps their centers
+        // aligned regardless of how differently sized the two texts are.
+        val before = (diff + 1) / 2
         val after = diff - before
         return PAD.repeat(before) + text + PAD.repeat(after)
     }
@@ -1256,6 +1337,66 @@ class TripleScriptRenderer {
         }
     }
 
+    /**
+     * Centers a multi-glyph "kept intact" cell's base and furigana
+     * together, glyph-by-glyph, instead of independently space-around
+     * distributing each string by its own character count
+     * ([padCenterDisplay] applied separately to base and furigana, the
+     * previous approach) -- found live: for a compound where mora count
+     * doesn't match kanji count (突然 "とつぜん": 2 kanji, 4 morae), the two
+     * independent gap counts (3 gaps for 2 kanji vs 5 gaps for 4 morae)
+     * distribute the same extra width completely differently, drifting the
+     * furigana away from its own kanji -- と landed entirely over blank
+     * padding, never touching 突, despite both rows being individually
+     * "centered."
+     *
+     * Buckets [furigana]'s morae onto each glyph of [base] via
+     * [distributeMorae] (the same bucketing [splitKanjiFurigana] uses when
+     * a word IS split into separate cells), then reuses
+     * [distributeExtraWidth]'s largest-remainder proportional distribution
+     * -- the same mechanism [buildMeasuredRows] already relies on for
+     * cross-cell width sharing -- to size each glyph's own slot, so a
+     * glyph whose bucket needs more room gets proportionally more of the
+     * extra width than one whose bucket already fits. Each glyph is then
+     * centered as a single unit within its own slot
+     * ([padCenterWholeDisplay]), and its bucket is centered the same way
+     * in the SAME slot width, so a glyph and its own reading always land
+     * together. Slots are concatenated with no gap between them (unlike
+     * splitting into separate [MeasuredCell]s, which would also insert a
+     * possible [WORD_GAP]), preserving the "kept intact" compound's tight,
+     * unbroken look when no extra width is needed.
+     */
+    private fun padCenterPerGlyph(base: String, furigana: String, targetWidth: Int, cjkWidth: Int): Pair<String, String> {
+        val glyphs = codePointsAsStrings(base)
+        val buckets = distributeMorae(glueSyllabicN(KanaConverter.morae(furigana)), glyphs.size)
+        val naturalWidths = glyphs.indices.map { i ->
+            maxOf(displayWidth(glyphs[i], cjkWidth), displayWidth(buckets[i], cjkWidth)).coerceAtLeast(1)
+        }
+        val extra = (targetWidth - naturalWidths.sum()).coerceAtLeast(0)
+        val growable = glyphs.indices.map { i -> displayWidth(glyphs[i], cjkWidth) >= displayWidth(buckets[i], cjkWidth) }
+        val widths = distributeExtraWidth(naturalWidths, extra, growable)
+        val baseOut = StringBuilder()
+        val furiOut = StringBuilder()
+        for (i in glyphs.indices) {
+            baseOut.append(padCenterWholeDisplay(glyphs[i], widths[i], cjkWidth))
+            furiOut.append(padCenterWholeDisplay(buckets[i], widths[i], cjkWidth))
+        }
+        return baseOut.toString() to furiOut.toString()
+    }
+
+    /** Splits [text] into a list of its individual codepoints, each as its own (possibly surrogate-pair) String. */
+    private fun codePointsAsStrings(text: String): List<String> {
+        val out = ArrayList<String>()
+        var i = 0
+        while (i < text.length) {
+            val cp = text.codePointAt(i)
+            val charCount = Character.charCount(cp)
+            out += text.substring(i, i + charCount)
+            i += charCount
+        }
+        return out
+    }
+
     private val PAD_CHAR: Char get() = PAD[0]
 
     /**
@@ -1280,7 +1421,7 @@ class TripleScriptRenderer {
 
     private fun codePointDisplayWidth(cp: Int, cjkWidth: Int): Int {
         if (cp <= 0x1F) return 0
-        // Word Joiner (see preventLineWrap) is zero-width by definition.
+        // Word Joiner (see protectRun) is zero-width by definition.
         if (cp == 0x2060) return 0
         // Braille blank used as Discord-safe pad — count as 1 cell
         if (cp == 0x2800) return 1

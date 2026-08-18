@@ -49,9 +49,15 @@
             android:layout="@layout/preference_indented"
             app:defaultValue="ditto"
             app:dependency="include_romaji"
-            app:key="elision_marker"
-            app:title="@string/pref_elision_marker"
+            app:key="line_elision_marker"
+            app:title="@string/pref_line_elision_marker"
             app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            android:layout="@layout/preference_indented"
+            app:dependency="include_romaji"
+            app:key="custom_line_elision_marker"
+            app:summary="@string/pref_custom_line_elision_marker_summary"
+            app:title="@string/pref_custom_line_elision_marker" />
         <ListPreference
             android:layout="@layout/preference_indented"
             app:defaultValue="dot"
@@ -142,6 +148,47 @@
             app:key="writing_orientation"
             app:summary="@string/pref_writing_orientation_summary"
             app:title="@string/pref_writing_orientation" />
+        <ListPreference
+            app:defaultValue="standard"
+            app:key="image_color_scheme"
+            app:summary="@string/pref_image_color_scheme_summary"
+            app:title="@string/pref_image_color_scheme"
+            app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            android:layout="@layout/preference_indented"
+            android:inputType="textNoSuggestions"
+            app:defaultValue="#FFFFFF"
+            app:key="custom_image_bg_color"
+            app:summary="@string/pref_custom_image_color_summary"
+            app:title="@string/pref_custom_image_bg_color" />
+        <EditTextPreference
+            android:layout="@layout/preference_indented"
+            android:inputType="textNoSuggestions"
+            app:defaultValue="#000000"
+            app:key="custom_image_base_color"
+            app:title="@string/pref_custom_image_base_color"
+            app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            android:layout="@layout/preference_indented"
+            android:inputType="textNoSuggestions"
+            app:defaultValue="#555555"
+            app:key="custom_image_furigana_color"
+            app:title="@string/pref_custom_image_furigana_color"
+            app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            android:layout="@layout/preference_indented"
+            android:inputType="textNoSuggestions"
+            app:defaultValue="#555555"
+            app:key="custom_image_romaji_color"
+            app:title="@string/pref_custom_image_romaji_color"
+            app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            android:layout="@layout/preference_indented"
+            android:inputType="textNoSuggestions"
+            app:defaultValue="#1E6B34"
+            app:key="custom_image_gloss_color"
+            app:title="@string/pref_custom_image_gloss_color"
+            app:useSimpleSummaryProvider="true" />
     </PreferenceCategory>
 
     <PreferenceCategory app:title="@string/pref_category_dictionary">
@@ -164,6 +211,14 @@
             app:key="sense_selection_preset"
             app:summary="@string/pref_sense_selection_preset_summary"
             app:title="@string/pref_sense_selection_preset" />
+        <EditTextPreference
+            android:inputType="number"
+            app:defaultValue="12"
+            app:dependency="include_glosses"
+            app:key="max_gloss_length"
+            app:summary="@string/pref_max_gloss_length_summary"
+            app:title="@string/pref_max_gloss_length"
+            app:useSimpleSummaryProvider="true" />
         <EditTextPreference
             android:layout="@layout/preference_indented"
             android:inputType="numberDecimal|numberSigned"

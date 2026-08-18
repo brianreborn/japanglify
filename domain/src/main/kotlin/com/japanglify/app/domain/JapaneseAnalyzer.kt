@@ -69,7 +69,7 @@ class JapaneseAnalyzer(
         val romanizer = Romanizer(settings.romanizationSystem)
         val tokens = readingProvider?.tokenize(text) ?: fallbackTokenize(text)
         val glossResults = if (settings.includeGlosses) {
-            glossAnnotator?.annotate(tokens, settings.effectiveSenseWeights)
+            glossAnnotator?.annotate(tokens, settings.effectiveSenseWeights, settings.maxGlossLength)
                 ?: List(tokens.size) { GlossAnnotator.TokenGloss(null) }
         } else {
             List(tokens.size) { GlossAnnotator.TokenGloss(null) }
