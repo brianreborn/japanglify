@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Declares ShareTargetActivity as a Direct-Share target for text/plain, so
+  a dynamic shortcut tagged with the matching category (see
+  com.japanglify.app.share.ShareTargetShortcuts) shows up as its own icon in
+  the system Share sheet, not just the app's default Share entry.
+-->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <share-target android:targetClass="com.japanglify.app.ShareTargetActivity">
+        <!-- No scheme restriction: a shared EXTRA_TEXT string carries no URI
+             at all, matching ShareTargetActivity's own manifest intent-filter
+             (mimeType only, no scheme). -->
+        <data android:mimeType="text/plain" />
+        <category android:name="com.japanglify.app.category.SHARE_TARGET" />
+    </share-target>
+</shortcuts>

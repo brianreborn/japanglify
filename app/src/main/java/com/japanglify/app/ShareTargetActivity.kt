@@ -1,6 +1,8 @@
 package com.japanglify.app
 
 import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
@@ -8,8 +10,13 @@ import android.os.Looper
 import android.util.Patterns
 import android.widget.Toast
 import com.japanglify.app.clipboard.ClipboardImageRenderCache
+import com.japanglify.app.clipboard.ClipboardImageRenderer
 import com.japanglify.app.clipboard.ClipboardNotifications
 import com.japanglify.app.clipboard.LastResultStore
+import com.japanglify.app.data.ShareTargetRepository
+import com.japanglify.app.domain.OutputFormat
+import com.japanglify.app.domain.ShareTarget
+import com.japanglify.app.domain.ShareTargetAction
 import com.japanglify.app.web.UrlTextExtractor
 import java.util.concurrent.Executors
 
@@ -111,10 +118,26 @@ class ShareTargetActivity : Activity() {
         }
     }
 
+    /**
+     * A user-defined [ShareTarget]'s dynamic shortcut, when picked from the
+     * Share sheet, arrives here as the *original* ACTION_SEND intent plus
+     * this platform-standard extra set to the shortcut's own id — see
+     * [com.japanglify.app.share.ShareTargetShortcuts]'s doc for why that
+     * (not the shortcut's own declared intent) is what actually fires. Null
+     * for the default "Japanglify" Share entry (no shortcut involved) or any
+     * other host that doesn't go through Direct Share.
+     */
+    private fun resolvedTarget(): ShareTarget? {
+        val shortcutId = intent?.getStringExtra(Intent.EXTRA_SHORTCUT_ID) ?: return null
+        return ShareTargetRepository(this).find(shortcutId)
+    }
+
     private fun handlePlainText(source: String) {
         val app = application as JapanglifyApp
+        val target = resolvedTarget()
+        val settings = target?.settings ?: app.preferences.load()
         val expanded = runCatching {
-            app.engine.expand(source, app.preferences.load())
+            app.engine.expand(source, settings)
         }.getOrElse { err ->
             Toast.makeText(
                 this,
@@ -128,12 +151,64 @@ class ShareTargetActivity : Activity() {
         LastResultStore.save(this, source, expanded)
         // Same reasoning as the Copy-hook path (see ClipboardImageRenderCache's
         // doc comment): kicked off now so "Copy image" from the notification
-        // is normally already done by the time it's tapped.
+        // is normally already done by the time it's tapped. Harmless to also
+        // do this for a COPY_IMAGE target below -- it renders with the
+        // *global* settings for that later notification tap, independent of
+        // the target-aware render this method does for the immediate write.
         ClipboardImageRenderCache.prerender(this, source)
         ClipboardNotifications.showResult(this, expanded)
-        LastResultStore.writeToClipboard(this, expanded)
-        Toast.makeText(this, R.string.notif_copied_ready_to_paste, Toast.LENGTH_LONG).show()
-        finish()
+
+        if (target?.action == ShareTargetAction.COPY_IMAGE) {
+            copyImageForTarget(source, settings)
+        } else {
+            LastResultStore.writeToClipboard(this, expanded)
+            Toast.makeText(this, R.string.notif_copied_ready_to_paste, Toast.LENGTH_LONG).show()
+            finish()
+        }
+    }
+
+    /**
+     * Renders [source] to a PNG with [settings] (the target's own frozen
+     * snapshot, not necessarily the current global settings) and puts that
+     * image on the clipboard instead of text — see [ShareTargetAction.COPY_IMAGE].
+     * Doesn't reuse [ClipboardImageRenderCache] directly: that cache always
+     * renders with the *global* live settings (see its own doc), which would
+     * silently ignore a target's frozen snapshot, the same class of bug this
+     * whole feature exists to avoid. Mirrors its render logic minus the
+     * host-field-width adjustment (no accessibility-captured host field here
+     * to size against).
+     */
+    private fun copyImageForTarget(source: String, settings: com.japanglify.app.domain.JapanglifySettings) {
+        val app = application as JapanglifyApp
+        EXECUTOR.execute {
+            val result = runCatching {
+                val bitmap = if (settings.outputFormat == OutputFormat.INTERLINEAR) {
+                    val rows = app.engine.buildInterlinearRows(source, settings)
+                    ClipboardImageRenderer.renderInterlinearToBitmap(this, rows, settings)
+                } else {
+                    ClipboardImageRenderer.renderToBitmap(this, app.engine.expand(source, settings))
+                }
+                ClipboardImageRenderer.saveAndGetUri(this, bitmap)
+            }
+            mainHandler.post {
+                val uri = result.getOrNull()
+                if (uri == null) {
+                    Toast.makeText(this, R.string.error_processing_generic, Toast.LENGTH_SHORT).show()
+                    finish()
+                    return@post
+                }
+                LastResultStore.beginOutgoingWrite(uri.toString())
+                val cm = getSystemService(ClipboardManager::class.java)
+                if (cm == null) {
+                    Toast.makeText(this, R.string.error_processing_generic, Toast.LENGTH_SHORT).show()
+                    finish()
+                    return@post
+                }
+                cm.setPrimaryClip(ClipData.newUri(contentResolver, LastResultStore.CLIP_LABEL, uri))
+                Toast.makeText(this, R.string.notif_copied_image_ready, Toast.LENGTH_LONG).show()
+                finish()
+            }
+        }
     }
 
     companion object {

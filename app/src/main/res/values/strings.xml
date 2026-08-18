@@ -140,6 +140,20 @@
     <string name="pref_selection_overlay_summary">Draws a Japanglify chip over the app when you select text. Off by default — it covers screen space and isn\'t needed if you use Copy or the result notification. Turning it off does not affect Copy detection.</string>
     <string name="pref_cut_replace">Replace text on Cut</string>
     <string name="pref_cut_replace_summary">When you Cut Japanese text in an editable field, replace it in place with the Japanglified version. Separate from Copy (which only shows a result notification). Turn off to leave Cut as an ordinary system cut. Needs Accessibility, same as Copy.</string>
+
+    <string name="pref_category_share_targets">Share targets</string>
+    <string name="pref_save_share_target">Save current settings as a Share target…</string>
+    <string name="pref_save_share_target_summary">Adds a new icon to the system Share sheet that always converts with today\'s settings, even if you change them later — e.g. a "Romaji only" target for a chat that can\'t show furigana well.</string>
+    <string name="pref_manage_share_targets">Manage Share targets</string>
+    <string name="pref_manage_share_targets_summary">Remove saved targets. To change a target\'s settings, delete it and save a new one with the settings you want.</string>
+    <string name="share_target_name_hint">Target name</string>
+    <string name="share_target_name_empty">Enter a name for this target</string>
+    <string name="share_target_saved">"“%1$s” saved — check the Share sheet"</string>
+    <string name="share_target_limit_reached">This device only allows %1$d Share targets. Delete one first.</string>
+    <string name="share_targets_none_saved">No Share targets saved yet</string>
+    <string name="share_target_delete_confirm_title">Delete "%1$s"?</string>
+    <string name="share_target_deleted">"“%1$s” deleted"</string>
+
     <string name="a11y_service_label">Japanglify Copy assist</string>
     <string name="a11y_summary">When you Copy text, Japanglify expands it and notifies you (for apps without a process-text menu)</string>
     <string name="a11y_description">Primary feature: detect Copy in any app, expand Japanese with furigana/romaji, and show a notification. Tap the notification to copy the result for Paste. Also remembers the current selection so processing works even when Android hides clipboard contents. Optional floating chip on selection. Only selected/copied text is used while enabled; not for advertising.</string>

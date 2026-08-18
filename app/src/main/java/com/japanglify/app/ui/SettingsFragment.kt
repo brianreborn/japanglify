@@ -82,6 +82,14 @@ class SettingsFragment : PreferenceFragmentCompat() {
             resetBackgroundServices()
             true
         }
+        findPreference<Preference>(KEY_SAVE_SHARE_TARGET)?.setOnPreferenceClickListener {
+            promptSaveShareTarget()
+            true
+        }
+        findPreference<Preference>(KEY_MANAGE_SHARE_TARGETS)?.setOnPreferenceClickListener {
+            showManageShareTargets()
+            true
+        }
         bindList(
             PreferencesRepository.KEY_ROMANIZATION,
             com.japanglify.app.domain.RomanizationSystem.entries.map { it.id to it.displayName }
@@ -845,6 +853,106 @@ class SettingsFragment : PreferenceFragmentCompat() {
         refreshStatusCard()
     }
 
+    // ── Share targets ───────────────────────────────────────────────
+
+    /**
+     * Prompts for a name, then snapshots the *current* global settings
+     * (exactly what [PreferencesRepository.load] returns right now, not just
+     * a curated subset) into a new [com.japanglify.app.domain.ShareTarget].
+     * Deliberately no separate per-target settings editor -- the global
+     * Settings screen already configures every one of these fields, so
+     * "configure normally, then save a named snapshot" reuses it entirely
+     * instead of duplicating that whole UI. Changing a target later means
+     * delete + save a new one (see [showManageShareTargets]).
+     */
+    private fun promptSaveShareTarget() {
+        val context = requireContext()
+        val repo = com.japanglify.app.data.ShareTargetRepository(context)
+        val max = androidx.core.content.pm.ShortcutManagerCompat.getMaxShortcutCountPerActivity(context)
+            .let { if (it > 0) it else Int.MAX_VALUE }
+        if (repo.list().size >= max) {
+            Toast.makeText(context, getString(R.string.share_target_limit_reached, max), Toast.LENGTH_LONG).show()
+            return
+        }
+        val input = android.widget.EditText(context).apply {
+            hint = getString(R.string.share_target_name_hint)
+            setPadding(48, 32, 48, 32)
+        }
+        // Action picker: which of the two Copy-hook result forms (see
+        // com.japanglify.app.domain.ShareTargetAction) this target produces
+        // -- a share-specific choice with no equivalent on the global
+        // Settings screen, so it's captured here rather than folded into
+        // "configure normally, then save a snapshot" like every other field.
+        val actionGroup = android.widget.RadioGroup(context).apply {
+            orientation = android.widget.RadioGroup.VERTICAL
+            setPadding(48, 16, 48, 32)
+        }
+        val actionButtons = com.japanglify.app.domain.ShareTargetAction.entries.map { action ->
+            android.widget.RadioButton(context).apply {
+                id = android.view.View.generateViewId()
+                text = action.displayName
+                isChecked = action == com.japanglify.app.domain.ShareTargetAction.COPY_TEXT
+                tag = action
+                actionGroup.addView(this)
+            }
+        }
+        val container = android.widget.LinearLayout(context).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            addView(input)
+            addView(actionGroup)
+        }
+        androidx.appcompat.app.AlertDialog.Builder(context)
+            .setTitle(R.string.pref_save_share_target)
+            .setView(container)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                val name = input.text?.toString()?.trim().orEmpty()
+                if (name.isEmpty()) {
+                    Toast.makeText(context, R.string.share_target_name_empty, Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                val action = actionButtons.firstOrNull { it.isChecked }?.tag as? com.japanglify.app.domain.ShareTargetAction
+                    ?: com.japanglify.app.domain.ShareTargetAction.COPY_TEXT
+                val settings = (context.applicationContext as JapanglifyApp).preferences.load()
+                repo.create(name, settings, action)
+                com.japanglify.app.share.ShareTargetShortcuts.sync(context, repo.list())
+                Toast.makeText(context, getString(R.string.share_target_saved, name), Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    /** Tap a saved target's name to delete it (with confirmation) — see [promptSaveShareTarget]'s doc for why there's no separate edit flow. */
+    private fun showManageShareTargets() {
+        val context = requireContext()
+        val repo = com.japanglify.app.data.ShareTargetRepository(context)
+        val targets = repo.list()
+        if (targets.isEmpty()) {
+            Toast.makeText(context, R.string.share_targets_none_saved, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val labels = targets.map { it.label }.toTypedArray()
+        androidx.appcompat.app.AlertDialog.Builder(context)
+            .setTitle(R.string.pref_manage_share_targets)
+            .setItems(labels) { _, index ->
+                confirmDeleteShareTarget(repo, targets[index])
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun confirmDeleteShareTarget(repo: com.japanglify.app.data.ShareTargetRepository, target: com.japanglify.app.domain.ShareTarget) {
+        val context = requireContext()
+        androidx.appcompat.app.AlertDialog.Builder(context)
+            .setTitle(getString(R.string.share_target_delete_confirm_title, target.label))
+            .setPositiveButton(R.string.dictionary_delete_confirm_action) { _, _ ->
+                repo.delete(target.id)
+                com.japanglify.app.share.ShareTargetShortcuts.sync(context, repo.list())
+                Toast.makeText(context, getString(R.string.share_target_deleted, target.label), Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
     private fun bindList(key: String, entries: List<Pair<String, String>>) {
         val pref = findPreference<ListPreference>(key) ?: return
         pref.entryValues = entries.map { it.first }.toTypedArray()
@@ -863,6 +971,8 @@ class SettingsFragment : PreferenceFragmentCompat() {
     companion object {
         const val ARG_PREFILL_TEXT = "prefill_text"
         private const val KEY_RESET_SERVICES = "reset_services"
+        private const val KEY_SAVE_SHARE_TARGET = "save_share_target"
+        private const val KEY_MANAGE_SHARE_TARGETS = "manage_share_targets"
         private const val KEY_STATUS_CARD = "status_card"
         private const val KEY_TRY_IT_CARD = "try_it_card"
         private const val KEY_OUTPUT_FORMAT_PREVIEW = "output_format_preview"

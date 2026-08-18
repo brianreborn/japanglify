@@ -77,6 +77,13 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/*" />
             </intent-filter>
+            <!-- Declares this activity as a Direct-Share target class so
+                 user-defined targets' dynamic shortcuts (see
+                 com.japanglify.app.share.ShareTargetShortcuts) show up as
+                 their own icons in the system Share sheet. -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
         </activity>
 
         <!--

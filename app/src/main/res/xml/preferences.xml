@@ -99,6 +99,17 @@
             app:title="@string/pref_cut_replace" />
     </PreferenceCategory>
 
+    <PreferenceCategory app:title="@string/pref_category_share_targets">
+        <Preference
+            app:key="save_share_target"
+            app:summary="@string/pref_save_share_target_summary"
+            app:title="@string/pref_save_share_target" />
+        <Preference
+            app:key="manage_share_targets"
+            app:summary="@string/pref_manage_share_targets_summary"
+            app:title="@string/pref_manage_share_targets" />
+    </PreferenceCategory>
+
     <PreferenceCategory app:title="@string/pref_category_phonetics">
         <ListPreference
             app:defaultValue="hepburn_modified"
