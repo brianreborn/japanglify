@@ -8,6 +8,8 @@ earlier entries predate the first BETA and describe work already shipped.
 
 ## Open items
 
+- **2026-08-18 release closeout.** RELNOTES.md and `docs/github-release-v1.0.0-beta1.md` corrected to `versionCode` 3 and added entry for the image grouping fix (`74962ec`). GitHub release `v1.0.0-beta1` fully audited live: all 6 assets present and direct download URLs return 200; stable README links (`/latest/download/app-release.apk`, `app-bundled-release.apk`) resolve after redirects with correct sizes matching the published GitHub API values (57 MiB downloadable, 66 MiB bundled). Local built APKs match published sizes exactly. Basic DUT smoke (Pixel 8): uninstalled, downloaded the published `app-bundled-release.apk` from GitHub releases, `adb install -r` succeeded, `SettingsActivity` launches (`Status: ok`), process stays resident, top resumed activity is correct, no crashes in recent logcat. Bundled flavor installed as `versionCode=2` / `1.0.0-beta1-bundled` as expected.
+
 - **Furigana placement still not good enough — deferred past 1.0.0-beta1
   (2026-08-18), explicit "don't spend time on it now."** Image UAT of the
   shipped renderer still shows readings sitting in the wrong place relative
