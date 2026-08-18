@@ -62,7 +62,7 @@ class DictionaryDownloadTestActivity : Activity() {
         DictionarySourceFormat.JMDICT_JSON -> {
             val provider = SqliteDictionaryProvider(applicationContext, source.id)
             val weights = com.japanglify.app.domain.JapanglifySettings.DEFAULT.effectiveSenseWeights
-            SPOT_CHECK_WORDS_JA.joinToString("\n") { "lookup($it) = ${provider.lookup(it, null, weights)}" }
+            SPOT_CHECK_WORDS_JA.joinToString("\n") { "lookup($it) = ${provider.lookup(it, null, null, weights)}" }
         }
         DictionarySourceFormat.CLDR_EMOJI_XML -> {
             val helper = EmojiDatabase(applicationContext, EmojiDatabase.fileNameFor(source.id))

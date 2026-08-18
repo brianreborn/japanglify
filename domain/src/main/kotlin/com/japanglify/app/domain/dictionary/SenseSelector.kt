@@ -14,7 +14,17 @@ data class SenseCandidate(
     val glossCount: Int,
     val isDated: Boolean,
     val rank: Int,
-    val reading: String? = null
+    val reading: String? = null,
+    /**
+     * The dictionary source's own raw part-of-speech code (e.g. JMdict's
+     * "v5r", "vs-i") -- unlike [partOfSpeech], which is deliberately
+     * coarsened to one of a handful of categories, this keeps the granular
+     * verb-conjugation-class distinction a provider needs to match against
+     * [GlossAnnotator.DictionaryProvider.lookup]'s `verbPosHint` (see
+     * [jmdictVerbConjugationPrefix]). Not scored -- carried through the same
+     * way [reading] is.
+     */
+    val rawPos: String? = null
 )
 
 /**

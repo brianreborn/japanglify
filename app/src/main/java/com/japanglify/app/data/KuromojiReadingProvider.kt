@@ -3,6 +3,7 @@ package com.japanglify.app.data
 import com.atilika.kuromoji.ipadic.Token
 import com.atilika.kuromoji.ipadic.Tokenizer
 import com.japanglify.app.domain.JapaneseAnalyzer
+import com.japanglify.app.domain.dictionary.jmdictVerbConjugationPrefix
 
 /**
  * Kuromoji/IPADIC-backed [JapaneseAnalyzer.ReadingProvider].
@@ -26,7 +27,8 @@ class KuromojiReadingProvider(
                 // completes the previous word rather than starting a new one.
                 isBoundToPrevious = token.partOfSpeechLevel1 == "助動詞",
                 isParticle = token.partOfSpeechLevel1 == "助詞",
-                baseForm = token.baseForm
+                baseForm = token.baseForm,
+                verbPosHint = jmdictVerbConjugationPrefix(token.conjugationType)
             )
         }
     }
@@ -44,7 +46,8 @@ class KuromojiReadingProvider(
         val surface: String,
         val rawReading: String?,
         val partOfSpeechLevel1: String,
-        val baseForm: String?
+        val baseForm: String?,
+        val conjugationType: String?
     )
 
     private fun mergeConsecutiveNumbers(tokens: List<Token>): List<MergedToken> {
@@ -59,17 +62,18 @@ class KuromojiReadingProvider(
                     surface.append(tokens[j].surface)
                     j++
                 }
-                // A merged number has no single dictionary reading or base
-                // form of its own.
+                // A merged number has no single dictionary reading, base
+                // form, or conjugation of its own.
                 out += MergedToken(
                     surface = surface.toString(),
                     rawReading = null,
                     partOfSpeechLevel1 = t.partOfSpeechLevel1,
-                    baseForm = null
+                    baseForm = null,
+                    conjugationType = null
                 )
                 i = j
             } else {
-                out += MergedToken(t.surface, t.reading, t.partOfSpeechLevel1, t.baseForm)
+                out += MergedToken(t.surface, t.reading, t.partOfSpeechLevel1, t.baseForm, t.conjugationType)
                 i++
             }
         }

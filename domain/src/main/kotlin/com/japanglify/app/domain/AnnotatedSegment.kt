@@ -19,12 +19,12 @@ package com.japanglify.app.domain
  *   real Japanese typesetting convention — must never be the first thing on a
  *   wrapped line: a lone は dangling at a line start reads as a mistake, not
  *   a sentence continuing.
- * @property romajiMora Same phoneticization as [romaji], but with a
- *   hyphen at each mora boundary (see [Romanizer.romanizeSyllables]) — null
- *   unless populated by a mora-aware caller. Used only for the interlinear
- *   romaji row so a multi-kanji word's reading isn't one unbroken run
- *   hiding which part matches which kana/kanji; every other renderer keeps
- *   using [romaji] as-is.
+ * @property romajiMora Same phoneticization as [romaji], but with a middle
+ *   dot at each mora boundary (see [Romanizer.romanizeMora]) — null unless
+ *   populated by a mora-aware caller. Used only for the interlinear romaji
+ *   row so a multi-kanji word's reading isn't one unbroken run hiding which
+ *   part matches which kana/kanji; every other renderer keeps using [romaji]
+ *   as-is.
  * @property gloss English dictionary gloss (e.g. "paper"), direct with no
  * part-of-speech prefix, formatted
  *   ready to render by [com.japanglify.app.domain.dictionary.GlossAnnotator]
@@ -36,6 +36,13 @@ package com.japanglify.app.domain
  *   was found. When non-null and elision applies (the "always show both"
  *   setting is off), [gloss] is left null instead of the now-redundant
  *   English word — [emoji] is shown on its own line either way.
+ * @property isPhraseContinuation True when this segment's token was absorbed
+ *   into the *previous* segment's multi-token dictionary phrase match (see
+ *   [com.japanglify.app.domain.dictionary.GlossAnnotator.TokenGloss]) rather
+ *   than glossed on its own — e.g. 機嫌 and よう following ご in ご機嫌よう.
+ *   The renderer uses this to forbid a line wrap between this segment and the
+ *   one before it, so a phrase's tokens (and the gloss riding on the first of
+ *   them) never get split across rows.
  */
 data class AnnotatedSegment(
     val surface: String,
@@ -46,7 +53,8 @@ data class AnnotatedSegment(
     val isParticle: Boolean = false,
     val romajiMora: String? = null,
     val gloss: String? = null,
-    val emoji: String? = null
+    val emoji: String? = null,
+    val isPhraseContinuation: Boolean = false
 ) {
     val hasFurigana: Boolean get() = !furigana.isNullOrBlank()
     val hasRomaji: Boolean get() = !romaji.isNullOrBlank()

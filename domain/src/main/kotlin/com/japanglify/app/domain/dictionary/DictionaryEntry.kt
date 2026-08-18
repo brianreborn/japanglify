@@ -67,3 +67,51 @@ enum class PartOfSpeech(val abbreviation: String, val displayName: String) {
         }
     }
 }
+
+/**
+ * Maps Kuromoji/IPADIC's own verb conjugation-class classification (e.g.
+ * "五段・ラ行", "サ変・スル", "カ変・来ル") to the matching JMdict verb-class
+ * code PREFIX ("v5r", "vs", "vk") stored in this app's `pos` column —
+ * translating between the two vocabularies the same way
+ * [PartOfSpeech.fromJmdictCode] already does for JMdict's own codes.
+ *
+ * Purpose: several distinct JMdict *words* can share one kana spelling+reading
+ * (する is also the kana reading of 擦る "to rub", 刷る "to print", 剃る "to
+ * shave" — unrelated verbs, not alternate senses of one word), and nothing in
+ * [SenseCandidate] previously distinguished them, so [SenseSelector] just
+ * scored richest-gloss-wins across all of them regardless of which word
+ * Kuromoji actually parsed this token as — found live: する ("to do")
+ * rendered as "to rub" because 擦る's entry happened to list more English
+ * synonyms. Kuromoji already knows the difference (a light-verb する instance
+ * is tagged サ変・スル, a real 擦る instance is tagged 五段・ラ行) — this hint
+ * lets a lookup prefer the DB row whose stored JMdict verb class actually
+ * matches, without needing to touch which rows get imported at all (an
+ * earlier import-time attempt at this same problem broke 来る "to come" and
+ * is why this lives at lookup time instead — see git history).
+ *
+ * Null for anything Kuromoji doesn't classify as an ordinary modern verb
+ * conjugation (particles/nouns report conjugationType "*"; classical/literary
+ * forms use their own scheme) — callers must treat null as "no hint, don't
+ * filter," not "no match."
+ */
+fun jmdictVerbConjugationPrefix(kuromojiConjugationType: String?): String? {
+    if (kuromojiConjugationType == null || kuromojiConjugationType == "*") return null
+    return when {
+        kuromojiConjugationType.startsWith("サ変") -> "vs"
+        kuromojiConjugationType.startsWith("カ変") -> "vk"
+        kuromojiConjugationType == "一段" -> "v1"
+        kuromojiConjugationType.startsWith("五段") -> when {
+            kuromojiConjugationType.contains("カ行") -> "v5k"
+            kuromojiConjugationType.contains("ガ行") -> "v5g"
+            kuromojiConjugationType.contains("サ行") -> "v5s"
+            kuromojiConjugationType.contains("タ行") -> "v5t"
+            kuromojiConjugationType.contains("ナ行") -> "v5n"
+            kuromojiConjugationType.contains("バ行") -> "v5b"
+            kuromojiConjugationType.contains("マ行") -> "v5m"
+            kuromojiConjugationType.contains("ラ行") -> "v5r"
+            kuromojiConjugationType.contains("ワ行") -> "v5u"
+            else -> null
+        }
+        else -> null
+    }
+}

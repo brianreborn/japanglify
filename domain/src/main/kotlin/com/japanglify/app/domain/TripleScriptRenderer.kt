@@ -219,7 +219,22 @@ class TripleScriptRenderer {
          * and always rendered as the line *after* it (see
          * [InterlinearLineRole.EMOJI]).
          */
-        val emoji: String = ""
+        val emoji: String = "",
+        /**
+         * True for a sub-cell produced by [splitKanjiFurigana] that isn't the
+         * first cell of its call — i.e. this cell shares an
+         * [AnnotatedSegment] (one word) with the cell(s) immediately before
+         * it, rather than being a separate segment/token. Distinct from
+         * [isWordStart]==false on a *different* segment (a bound copula like
+         * です, which is its own single-cell group and never sets this).
+         * [buildMeasuredRows] uses it to group a split word's sub-cells
+         * together when distributing the extra width its single, word-level
+         * romaji/gloss/emoji demand, instead of piling all of it onto the
+         * first sub-cell alone (found live: a gloss-widened 忙+しい visually
+         * split apart, the base characters far from each other, because the
+         * whole word's romaji+gloss only ever widened 忙's own cell).
+         */
+        val isSameSegmentContinuation: Boolean = false
     )
 
     /** Structured (non-flattened) cell, exposed so callers can lay out pixels themselves. */
@@ -230,7 +245,11 @@ class TripleScriptRenderer {
         val isWordStart: Boolean,
         val gloss: String = "",
         val emoji: String = "",
-        val isPunctuation: Boolean = false
+        val isPunctuation: Boolean = false,
+        /** See [InterlinearCell.isSameSegmentContinuation] — a pixel-laying-out
+         * caller (e.g. an image renderer) needs the same word-grouping to
+         * avoid the same first-cell-only width problem. */
+        val isSameSegmentContinuation: Boolean = false
     )
 
     data class InterlinearRowData(val cells: List<InterlinearCellData>)
@@ -249,7 +268,8 @@ class TripleScriptRenderer {
             InterlinearRowData(
                 row.map {
                     InterlinearCellData(
-                        it.furigana, it.base, it.romaji, it.isWordStart, it.gloss, it.emoji, it.isPunctuation
+                        it.furigana, it.base, it.romaji, it.isWordStart, it.gloss, it.emoji, it.isPunctuation,
+                        it.isSameSegmentContinuation
                     )
                 }
             )
@@ -272,55 +292,109 @@ class TripleScriptRenderer {
         val cells = expandToFuriganaCells(segments, settings)
         if (cells.isEmpty()) return emptyList()
 
-        // Measure each cell (halfwidth units: fullwidth kana ≈ 2). Gloss
-        // width is included here too (cell.gloss is already "" when glosses
-        // are off, so this is a no-op then) -- a gloss much wider than its
-        // word's furigana/base/romaji used to just overflow into whatever
-        // followed on the same line, visibly colliding with the next word's
-        // columns. Widening the cell (and therefore the whole row's wrap
-        // budget, via packCellsIntoRows below) to fit its own gloss trades
-        // that collision for short words sometimes sitting in a visually
-        // sparse, wider-than-necessary column -- an accepted tradeoff for
-        // "never overlaps," worth live-testing rather than tuning further
-        // analytically up front (matches how furigana/romaji/HTML ruby were
-        // all actually fixed this session).
+        // Measure each cell (halfwidth units: fullwidth kana ≈ 2), then
+        // GROUP cells that share one word (see
+        // [InterlinearCell.isSameSegmentContinuation]) to size them together
+        // instead of independently. Romaji/gloss/emoji only ever live on a
+        // group's first cell (split-kanji+okurigana romaji stays one
+        // indivisible label, not letter-scattered — see
+        // [splitKanjiFurigana]'s doc), so the WIDTH they demand is really a
+        // property of the whole word, not that one sub-cell alone. Sizing
+        // each cell independently (as before) piled a wide gloss/romaji's
+        // entire extra width onto the first sub-cell only, leaving later
+        // sub-cells at their own small natural size — found live: a
+        // gloss-widened 忙+しい visually split apart, 忙 padded out far past
+        // its own glyph while しい sat snug in its own narrow column right
+        // next to it. Spreading the group's extra width across all its
+        // cells (proportional to each cell's own natural size) keeps the
+        // base/furigana rows visually close together the way one word
+        // should read, while [buildRawTripleLines]/[buildGlossLine]/
+        // [buildEmojiLine] pad the word-level romaji/gloss/emoji against the
+        // GROUP's combined width in one shot so nothing overflows.
         val cjkWidth = settings.cjkDisplayWidthUnits
-        val measured = cells.map { cell ->
-            val furiCompact = compactFurigana(cell.furigana)
-            // Reserve room for the mora seam: buildRawTripleLines prepends it
-            // to this cell's romaji, and romaji only, whenever the cell
-            // abuts the previous one with no WORD_GAP (a bound copula/
-            // auxiliary directly following a word) — see needsMoraSeam's
-            // doc. Without this reservation the romaji line ends up one
-            // unit wider than base/furi from the seam onward, drifting the
-            // three columns out of alignment for the rest of the row (e.g.
-            // すごいです: traced by hand, romaji ends one unit wider than
-            // base/furi right after the です seam without this reservation).
-            // Reserved whenever the cell isn't a word-start (matching
-            // buildRawTripleLines' own !isWordStart guard — a word-start
-            // cell always gets WORD_GAP instead, never a seam) and
-            // needsMoraSeam(cell) is true. The reservation still doesn't
-            // need to know whether this cell ends up first-in-its-wrapped-
-            // row (where no seam actually gets inserted despite
-            // !isWordStart) — that only costs a possibly-unused extra pad
-            // unit, never a misalignment, since base/furi/romaji all still
-            // pad to this same (slightly generous) width together.
-            val seamReserve = if (!cell.isWordStart && needsMoraSeam(cell)) MORA_SEAM_WIDTH else 0
-            val width = maxOf(
+        val naturalWidths = cells.map { cell ->
+            maxOf(
                 displayWidth(cell.base, cjkWidth),
-                displayWidth(furiCompact, cjkWidth),
-                displayWidth(cell.romaji, cjkWidth) + seamReserve,
-                displayWidth(cell.gloss, cjkWidth),
-                displayWidth(cell.emoji, cjkWidth)
+                displayWidth(compactFurigana(cell.furigana), cjkWidth)
             ).coerceAtLeast(1)
+        }
+        val widths = IntArray(cells.size)
+        var i = 0
+        while (i < cells.size) {
+            var end = i + 1
+            while (end < cells.size && cells[end].isSameSegmentContinuation) end++
+            val first = cells[i]
+            // Reserve room for the mora seam: buildRawTripleLines prepends it
+            // to the group's romaji whenever the group abuts the previous one
+            // with no WORD_GAP (a bound copula/auxiliary directly following a
+            // word) — see needsMoraSeam's doc. Without this reservation the
+            // romaji line ends up one unit wider than base/furi from the seam
+            // onward, drifting the three columns out of alignment for the
+            // rest of the row (e.g. すごいです: traced by hand, romaji ends
+            // one unit wider than base/furi right after the です seam without
+            // this reservation). Reserved whenever the group isn't a
+            // word-start (matching buildRawTripleLines' own !isWordStart
+            // guard) and needsMoraSeam is true on its first cell.
+            val seamReserve = if (!first.isWordStart && needsMoraSeam(first)) MORA_SEAM_WIDTH else 0
+            val naturalTotal = (i until end).sumOf { naturalWidths[it] }
+            val groupTotal = maxOf(
+                naturalTotal,
+                displayWidth(first.romaji, cjkWidth) + seamReserve,
+                displayWidth(first.gloss, cjkWidth),
+                displayWidth(first.emoji, cjkWidth)
+            )
+            val extra = (groupTotal - naturalTotal).coerceAtLeast(0)
+            val groupNatural = (i until end).map { naturalWidths[it] }
+            val finalWidths = distributeExtraWidth(groupNatural, extra)
+            for (k in finalWidths.indices) widths[i + k] = finalWidths[k].coerceAtLeast(1)
+            i = end
+        }
+
+        val measured = cells.mapIndexed { idx, cell ->
             MeasuredCell(
-                furiCompact, cell.base, cell.romaji, width,
-                cell.isWordStart, cell.canWrapBefore, cell.isPunctuation, cell.gloss, cell.emoji
+                compactFurigana(cell.furigana), cell.base, cell.romaji, widths[idx],
+                cell.isWordStart, cell.canWrapBefore, cell.isPunctuation, cell.gloss, cell.emoji,
+                cell.isSameSegmentContinuation
             )
         }
 
         val maxHalf = fullwidthToHalfUnits(settings.maxLineWidthFullwidth)
         return packCellsIntoRows(measured, maxHalf, wordGapHalf = WORD_GAP_WIDTH)
+    }
+
+    /**
+     * Distributes [extra] additional display-width units across
+     * [naturalWidths] proportionally to each entry's own size (largest-
+     * remainder method, so the total always lands exactly on
+     * `naturalWidths.sum() + extra` despite integer rounding) — see
+     * [buildMeasuredRows]'s word-group doc for why a multi-cell word's
+     * romaji/gloss/emoji-driven extra width must be spread across all its
+     * cells instead of piled onto the first one alone.
+     */
+    private fun distributeExtraWidth(naturalWidths: List<Int>, extra: Int): List<Int> {
+        if (extra <= 0 || naturalWidths.isEmpty()) return naturalWidths
+        val naturalTotal = naturalWidths.sum()
+        if (naturalTotal <= 0) {
+            // No natural size to proportion against (shouldn't happen in
+            // practice -- every cell carries at least one glyph) -- split
+            // evenly rather than divide by zero.
+            val base = extra / naturalWidths.size
+            var remainder = extra - base * naturalWidths.size
+            return naturalWidths.map {
+                base + if (remainder > 0) { remainder--; 1 } else 0
+            }
+        }
+        val exact = naturalWidths.map { it.toDouble() * extra / naturalTotal }
+        val floors = exact.map { it.toInt() }
+        var leftover = extra - floors.sum()
+        val byRemainderDesc = exact.indices.sortedByDescending { exact[it] - floors[it] }
+        val shares = floors.toIntArray()
+        for (idx in byRemainderDesc) {
+            if (leftover <= 0) break
+            shares[idx] += 1
+            leftover--
+        }
+        return naturalWidths.indices.map { naturalWidths[it] + shares[it] }
     }
 
     private data class MeasuredCell(
@@ -332,7 +406,8 @@ class TripleScriptRenderer {
         val canWrapBefore: Boolean,
         val isPunctuation: Boolean,
         val gloss: String = "",
-        val emoji: String = ""
+        val emoji: String = "",
+        val isSameSegmentContinuation: Boolean = false
     )
 
     private fun compactFurigana(furigana: String): String = furigana
@@ -402,15 +477,38 @@ class TripleScriptRenderer {
             InterlinearDisplayRow(buildDisplayLines(it, settings, preventWrap = true))
         }
 
+    /**
+     * Splits [row] into word-groups: a cell plus any following same-segment
+     * continuation cells (see [MeasuredCell.isSameSegmentContinuation] /
+     * [splitKanjiFurigana]). Romaji/gloss/emoji only ever live on a group's
+     * first cell and are measured/padded against the group's COMBINED width
+     * as one indivisible span — see [buildMeasuredRows]'s word-group doc —
+     * while base/furigana still render per sub-cell within the group. Each
+     * range is `[start, end)` into [row]; a single-cell word yields a
+     * range of size 1, so this is a no-op for the overwhelmingly common case.
+     */
+    private fun wordGroups(row: List<MeasuredCell>): List<IntRange> {
+        val groups = ArrayList<IntRange>()
+        var i = 0
+        while (i < row.size) {
+            var end = i + 1
+            while (end < row.size && row[end].isSameSegmentContinuation) end++
+            groups += i until end
+            i = end
+        }
+        return groups
+    }
+
     private fun buildRawTripleLines(row: List<MeasuredCell>, cjkWidth: Int, seam: String): Triple<String, String, String> {
         val base = StringBuilder()
         val furi = StringBuilder()
         val roma = StringBuilder()
-        row.forEachIndexed { index, cell ->
+        wordGroups(row).forEachIndexed { groupIndex, group ->
+            val cell = row[group.first]
             // Gap only before a new word/particle, never between sub-cells of the
             // same word (split kanji/okurigana) — see [InterlinearCell.isWordStart].
-            val needsSeam = index > 0 && !cell.isWordStart && needsMoraSeam(cell)
-            if (index > 0 && cell.isWordStart) {
+            val needsSeam = groupIndex > 0 && !cell.isWordStart && needsMoraSeam(cell)
+            if (groupIndex > 0 && cell.isWordStart) {
                 base.append(WORD_GAP)
                 furi.append(WORD_GAP)
                 roma.append(WORD_GAP)
@@ -428,36 +526,56 @@ class TripleScriptRenderer {
                 // both one cell wide) is the user's [MoraSeamStyle] choice.
                 roma.append(seam)
             }
-            // The base row uses CSS-ruby space-around ([padCenterDisplay]) so
-            // a whole multi-kanji cell (e.g. 日本語 kept intact) distributes
-            // its kanji evenly under their reading. Furigana/romaji only want
-            // that same interior spread when the base actually has multiple
-            // glyphs to spread *against*; over a single-glyph base (a
-            // split-kanji column, an okurigana cell, punctuation) there's
-            // nothing to align to, so a short reading like すご — or any latin
-            // romaji — must center as one unit ([padCenterWholeDisplay]) or a
-            // wide gloss/emoji widening the cell tears it into "す·ご" with a
-            // pad wedged between the kana. See buildMeasuredRows for how the
-            // gloss/emoji width feeds cell.width.
-            val singleGlyphBase = cell.base.codePointCount(0, cell.base.length) <= 1
-            fun padBase(text: String, width: Int) =
-                if (cell.isPunctuation) padEndDisplay(text, width, cjkWidth)
-                else padCenterDisplay(text, width, cjkWidth)
-            fun padAnnotation(text: String, width: Int) = when {
-                cell.isPunctuation -> padEndDisplay(text, width, cjkWidth)
-                singleGlyphBase -> padCenterWholeDisplay(text, width, cjkWidth)
-                else -> padCenterDisplay(text, width, cjkWidth)
+            for (idx in group) {
+                val c = row[idx]
+                // The base row uses CSS-ruby space-around ([padCenterDisplay])
+                // so a whole multi-kanji cell (e.g. 日本語 kept intact)
+                // distributes its kanji evenly under their reading. Furigana
+                // only wants that same interior spread when ITS OWN base
+                // actually has multiple glyphs to spread against; over a
+                // single-glyph base (a split-kanji column, an okurigana cell,
+                // punctuation) there's nothing to align to, so a short
+                // reading like すご must center as one unit
+                // ([padCenterWholeDisplay]) rather than tear apart into
+                // "す·ご" with a pad wedged between the kana.
+                val singleGlyphBase = c.base.codePointCount(0, c.base.length) <= 1
+                base.append(
+                    if (c.isPunctuation) padEndDisplay(c.base, c.width, cjkWidth)
+                    else padCenterDisplay(c.base, c.width, cjkWidth)
+                )
+                furi.append(
+                    when {
+                        c.isPunctuation -> padEndDisplay(c.furigana, c.width, cjkWidth)
+                        singleGlyphBase -> padCenterWholeDisplay(c.furigana, c.width, cjkWidth)
+                        else -> padCenterDisplay(c.furigana, c.width, cjkWidth)
+                    }
+                )
             }
-            base.append(padBase(cell.base, cell.width))
-            furi.append(padAnnotation(cell.furigana, cell.width))
+            // Romaji is one indivisible label for the whole word (never
+            // letter-scattered per sub-cell — see [splitKanjiFurigana]'s
+            // doc), so it's padded once against the GROUP's combined width
+            // using the same whole-vs-spread choice the group's first cell's
+            // own base would use on its own — for a single-cell group (the
+            // common case) this is exactly the prior per-cell behavior; for
+            // a multi-cell word it's what keeps the romaji from overflowing
+            // its slot now that the group's extra width is spread across
+            // more than one sub-cell (see [buildMeasuredRows]).
+            val singleGlyphBase = cell.base.codePointCount(0, cell.base.length) <= 1
+            val groupWidth = group.sumOf { row[it].width }
             // [needsMoraSeam] is also used in buildMeasuredRows to reserve
-            // MORA_SEAM_WIDTH inside cell.width up front, precisely so this
-            // seam never makes the romaji column wider than base/furi's —
-            // padding romaji to the *reduced* width (cell.width minus the
+            // MORA_SEAM_WIDTH inside the group's width up front, precisely so
+            // this seam never makes the romaji column wider than base/furi's
+            // — padding romaji to the *reduced* width (group width minus the
             // reservation actually being spent here) keeps seam + padded
-            // romaji summing to exactly cell.width, matching base/furi.
-            val romaWidth = if (needsSeam) cell.width - MORA_SEAM_WIDTH else cell.width
-            roma.append(padAnnotation(cell.romaji, romaWidth))
+            // romaji summing to exactly groupWidth, matching base/furi.
+            val romaWidth = if (needsSeam) groupWidth - MORA_SEAM_WIDTH else groupWidth
+            roma.append(
+                when {
+                    cell.isPunctuation -> padEndDisplay(cell.romaji, romaWidth, cjkWidth)
+                    singleGlyphBase -> padCenterWholeDisplay(cell.romaji, romaWidth, cjkWidth)
+                    else -> padCenterDisplay(cell.romaji, romaWidth, cjkWidth)
+                }
+            )
         }
         return Triple(base.toString(), furi.toString(), roma.toString())
     }
@@ -480,29 +598,34 @@ class TripleScriptRenderer {
 
     /**
      * Gloss line, built separately from [buildRawTripleLines]: centered as a
-     * whole block ([padCenterWholeDisplay]) and never truncated. Was
+     * whole block ([padCenterWholeDisplay]) against each WORD-GROUP's
+     * combined width (see [wordGroups]) and never truncated. Was
      * left-anchored ([padEndDisplay]) originally, but found live that read
      * as shoved-left whenever a wide English gloss widened the column
      * beyond the kanji/kana's own width (common: "telephone"/"bicycle" are
      * wider than 電話/自転車) -- furigana/base/romaji all center within
-     * that same widened cell, so gloss sitting flush left looked
+     * that same widened span, so gloss sitting flush left looked
      * misaligned against them. See [InterlinearCell.gloss].
      */
     private fun buildGlossLine(row: List<MeasuredCell>, cjkWidth: Int): String {
         val gloss = StringBuilder()
-        row.forEachIndexed { index, cell ->
-            if (index > 0 && cell.isWordStart) gloss.append(WORD_GAP)
-            gloss.append(padCenterWholeDisplay(cell.gloss, cell.width, cjkWidth))
+        wordGroups(row).forEachIndexed { groupIndex, group ->
+            val cell = row[group.first]
+            if (groupIndex > 0 && cell.isWordStart) gloss.append(WORD_GAP)
+            val groupWidth = group.sumOf { row[it].width }
+            gloss.append(padCenterWholeDisplay(cell.gloss, groupWidth, cjkWidth))
         }
         return gloss.toString()
     }
 
-    /** Emoji line — same centered, never-truncated shape as [buildGlossLine]. */
+    /** Emoji line — same centered, never-truncated, group-padded shape as [buildGlossLine]. */
     private fun buildEmojiLine(row: List<MeasuredCell>, cjkWidth: Int): String {
         val emoji = StringBuilder()
-        row.forEachIndexed { index, cell ->
-            if (index > 0 && cell.isWordStart) emoji.append(WORD_GAP)
-            emoji.append(padCenterWholeDisplay(cell.emoji, cell.width, cjkWidth))
+        wordGroups(row).forEachIndexed { groupIndex, group ->
+            val cell = row[group.first]
+            if (groupIndex > 0 && cell.isWordStart) emoji.append(WORD_GAP)
+            val groupWidth = group.sumOf { row[it].width }
+            emoji.append(padCenterWholeDisplay(cell.emoji, groupWidth, cjkWidth))
         }
         return emoji.toString()
     }
@@ -689,7 +812,14 @@ class TripleScriptRenderer {
                 !KanaConverter.containsKanji(surface) &&
                 !KanaConverter.containsKanji(prev.surface) &&
                 !KanaConverter.isMostlyPunctuation(prev.surface)
-            val canWrapBefore = isWordStart && !seg.isParticle && (!kanaToKanaGap || prev?.isParticle == true)
+            // A segment absorbed into the previous one's dictionary phrase
+            // match (see [AnnotatedSegment.isPhraseContinuation]) must never
+            // start a wrapped line either — a phrase's tokens (and the gloss
+            // riding on the first of them) would otherwise strand across two
+            // rows with no visible link between them. Found live: ご機嫇よう
+            // wrapped between ご and 機嫇.
+            val canWrapBefore = isWordStart && !seg.isParticle && !seg.isPhraseContinuation &&
+                (!kanaToKanaGap || prev?.isParticle == true)
             when {
                 // Punctuation: same mark on the base row always; the furigana
                 // row's copy is optional — punctuation has no reading, so a
@@ -939,6 +1069,17 @@ class TripleScriptRenderer {
         // elsewhere in this file.
         val showKanaFuri = settings.includeFurigana && !settings.furiganaKanjiOnly
         var firstCellPending = isWordStart
+        // True once this call has emitted its first cell -- every cell after
+        // that shares this one AnnotatedSegment (word) with the one before
+        // it, tracked separately from [firstCellPending] (which instead
+        // gates romaji/gloss/emoji/wrap eligibility) so the two concerns
+        // don't get tangled. See [InterlinearCell.isSameSegmentContinuation].
+        var isFirstCellOfCall = true
+        fun sameSegmentContinuation(): Boolean {
+            val continuation = !isFirstCellOfCall
+            isFirstCellOfCall = false
+            return continuation
+        }
 
         for (run in runs) {
             if (!run.isKanji) {
@@ -949,7 +1090,8 @@ class TripleScriptRenderer {
                     isWordStart = firstCellPending,
                     canWrapBefore = if (firstCellPending) canWrapBefore else false,
                     gloss = if (firstCellPending) gloss else "",
-                    emoji = if (firstCellPending) emoji else ""
+                    emoji = if (firstCellPending) emoji else "",
+                    isSameSegmentContinuation = sameSegmentContinuation()
                 )
                 firstCellPending = false
                 continue
@@ -969,7 +1111,8 @@ class TripleScriptRenderer {
                     isWordStart = isTokenFirst,
                     canWrapBefore = if (isTokenFirst) canWrapBefore else false,
                     gloss = if (isTokenFirst) gloss else "",
-                    emoji = if (isTokenFirst) emoji else ""
+                    emoji = if (isTokenFirst) emoji else "",
+                    isSameSegmentContinuation = sameSegmentContinuation()
                 )
             }
             firstCellPending = false

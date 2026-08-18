@@ -20,10 +20,22 @@ class GlossAnnotator(private val dictionary: DictionaryProvider) {
          * it disambiguates same-spelling headwords read differently — e.g.
          * 僕 is read ぼく ("I, me") here, not しもべ ("servant") — so a
          * reading-aware provider restricts its candidate senses to the
-         * matching reading before scoring. [weights] drives [SenseSelector]
-         * when several candidate senses remain.
+         * matching reading before scoring.
+         *
+         * [verbPosHint] (see [jmdictVerbConjugationPrefix]) further
+         * disambiguates same-reading, same-spelling-in-kana but otherwise
+         * unrelated JMdict *words* that a reading match alone can't tell
+         * apart — する ("to do") and 擦る ("to rub") are both read/spelled
+         * する in kana, so a reading-only filter still pools both; Kuromoji's
+         * own conjugation class for this specific token (サ変・スル vs.
+         * 五段・ラ行) is the signal that tells them apart. Null when the
+         * token isn't an ordinary verb conjugation, or when looking up a
+         * multi-token phrase.
+         *
+         * [weights] drives [SenseSelector] when several candidate senses
+         * remain after both filters.
          */
-        fun lookup(baseForm: String, reading: String?, weights: SenseWeights): DictionaryEntry?
+        fun lookup(baseForm: String, reading: String?, verbPosHint: String?, weights: SenseWeights): DictionaryEntry?
     }
 
     /**
@@ -37,18 +49,27 @@ class GlossAnnotator(private val dictionary: DictionaryProvider) {
     data class GlossResult(val text: String, val partOfSpeech: PartOfSpeech?)
 
     /**
-     * One result per input token, same size/order as [tokens] — null means
-     * either no dictionary entry was found (a genuinely missing word, or a
-     * Kuromoji/JMdict lexical mismatch; see the plan's open questions) or a
-     * deliberately omitted gloss (every particle -- see [format] -- plus
-     * every [JapaneseAnalyzer.SurfaceReading.isBoundToPrevious] token, see
-     * below).
+     * One entry per input token, same size/order as [tokens]. [result] null
+     * means either no dictionary entry was found (a genuinely missing word,
+     * or a Kuromoji/JMdict lexical mismatch; see the plan's open questions)
+     * or a deliberately omitted gloss (every particle -- see [format] --
+     * plus every [JapaneseAnalyzer.SurfaceReading.isBoundToPrevious] token,
+     * plus every token past the first in a matched phrase span, see below).
+     * [isPhraseContinuation] is true for exactly that last case: a token
+     * absorbed into the *previous* token's multi-token phrase match, rather
+     * than glossed (or left blank) on its own — the renderer uses this to
+     * keep a phrase's tokens on one row even under a narrow line-wrap
+     * budget, since a wrap landing mid-phrase would strand its gloss on one
+     * row and its remaining kana on the next with no visible link between
+     * them (found live: ご機嫇よう wrapped between ご and 機嫇).
      */
+    data class TokenGloss(val result: GlossResult?, val isPhraseContinuation: Boolean = false)
+
     fun annotate(
         tokens: List<JapaneseAnalyzer.SurfaceReading>,
         senseWeights: SenseWeights = SenseSelectionPreset.MODERN.weights!!
-    ): List<GlossResult?> {
-        val results = arrayOfNulls<GlossResult>(tokens.size)
+    ): List<TokenGloss> {
+        val results = arrayOfNulls<TokenGloss>(tokens.size)
         var i = 0
         while (i < tokens.size) {
             // Longest-match phrase first: several consecutive tokens whose
@@ -58,18 +79,19 @@ class GlossAnnotator(private val dictionary: DictionaryProvider) {
             // glossing the pieces separately is both wrong and noisy, so a
             // whole-phrase entry wins when one exists. The gloss rides on the
             // span's first token (like split-kanji/okurigana romaji does);
-            // the rest stay null.
+            // the rest are marked as phrase continuations (see [TokenGloss]).
             val phrase = longestPhraseMatch(tokens, i, senseWeights)
             if (phrase != null) {
                 val (span, entry) = phrase
-                results[i] = format(entry)?.let { GlossResult(it, entry.partOfSpeech) }
+                results[i] = TokenGloss(format(entry)?.let { GlossResult(it, entry.partOfSpeech) })
+                for (j in 1 until span) results[i + j] = TokenGloss(null, isPhraseContinuation = true)
                 i += span
                 continue
             }
-            results[i] = glossToken(tokens[i], senseWeights)
+            results[i] = TokenGloss(glossToken(tokens[i], senseWeights))
             i++
         }
-        return results.toList()
+        return results.map { it!! }
     }
 
     /**
@@ -88,7 +110,7 @@ class GlossAnnotator(private val dictionary: DictionaryProvider) {
             val surface = buildString {
                 for (j in start until start + span) append(tokens[j].surface)
             }
-            val entry = dictionary.lookup(surface, null, weights) ?: continue
+            val entry = dictionary.lookup(surface, null, null, weights) ?: continue
             // Only accept the span as a real set phrase when the matched entry
             // is an expression or interjection. Without this gate a
             // coincidental concatenation that merely *spells* an ordinary word
@@ -134,9 +156,11 @@ class GlossAnnotator(private val dictionary: DictionaryProvider) {
         // this flag.
         if (token.isParticle) return null
         val key = token.baseForm ?: token.surface
-        // Pass the token's reading so the provider can disambiguate a
-        // same-spelling headword read two ways (see DictionaryProvider.lookup).
-        val entry = dictionary.lookup(key, token.reading, weights) ?: return null
+        // Pass the token's reading and verb-conjugation hint so the provider
+        // can disambiguate a same-spelling headword read two ways, or a
+        // same-reading spelling shared by unrelated words (see
+        // DictionaryProvider.lookup).
+        val entry = dictionary.lookup(key, token.reading, token.verbPosHint, weights) ?: return null
         return format(entry)?.let { GlossResult(it, entry.partOfSpeech) }
     }
 
@@ -169,7 +193,22 @@ class GlossAnnotator(private val dictionary: DictionaryProvider) {
         // where stripping it would corrupt the meaning rather than
         // declutter it -- only a verb's leading "to " is purely a citation-
         // form marker with nothing lost by removing it.
-        return if (entry.partOfSpeech == PartOfSpeech.VERB) entry.gloss.removePrefix("to ") else entry.gloss
+        val gloss = if (entry.partOfSpeech == PartOfSpeech.VERB) entry.gloss.removePrefix("to ") else entry.gloss
+        // For an interjection/expression, DictionaryDownloadManager's stored
+        // synonyms ('/'-joined, see MAX_GLOSSES_PER_SENSE) tend to be pure
+        // register variants of the same one greeting/exclamation ("nice to
+        // see you/good morning/good evening" for ご機嫌よう, "yes/yeah/uh huh"
+        // for よね) rather than distinguishing real information the way a
+        // noun/pronoun's synonyms can (Mr/Mrs/Miss genuinely differ by the
+        // referent's gender) -- direct feedback that showing all of them
+        // reads as clutter, not help, for this category specifically. Keep
+        // just JMdict's own first (typically most standard) synonym; every
+        // other part of speech keeps its full '/'-joined set unchanged.
+        return if (entry.partOfSpeech == PartOfSpeech.INTERJECTION || entry.partOfSpeech == PartOfSpeech.EXPRESSION) {
+            gloss.substringBefore('/')
+        } else {
+            gloss
+        }
     }
 
     private companion object {

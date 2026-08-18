@@ -31,7 +31,7 @@ class SqliteDictionaryProvider(
 
     private val dbHelper = DictionaryDatabase(context, DictionaryDatabase.fileNameFor(sourceId))
 
-    override fun lookup(baseForm: String, reading: String?, weights: SenseWeights): DictionaryEntry? {
+    override fun lookup(baseForm: String, reading: String?, verbPosHint: String?, weights: SenseWeights): DictionaryEntry? {
         val db = dbHelper.readableDatabase
         val candidates = ArrayList<SenseCandidate>()
         db.query(
@@ -59,7 +59,8 @@ class SqliteDictionaryProvider(
                     glossCount = cursor.getInt(3),
                     isDated = cursor.getInt(4) != 0,
                     rank = cursor.getInt(5),
-                    reading = reading
+                    reading = reading,
+                    rawPos = posCode
                 )
                 candidates += candidate
             }
@@ -74,10 +75,21 @@ class SqliteDictionaryProvider(
         // JMdict reading mismatch, or a kanji-form row whose stored reading
         // is a different spelling), so a mismatch never drops the gloss
         // entirely — it just loses the disambiguation.
-        val pool = reading?.let { r ->
+        val readingPool = reading?.let { r ->
             val want = KanaConverter.toHiragana(r)
             candidates.filter { it.reading != null && KanaConverter.toHiragana(it.reading!!) == want }
         }?.takeIf { it.isNotEmpty() } ?: candidates
+        // Verb-conjugation disambiguation, staged after the reading filter:
+        // even same-reading rows can belong to entirely unrelated JMdict
+        // words (する "to do" and 擦る "to rub" are both spelled/read する in
+        // kana, so the reading filter alone can't separate them). Prefer
+        // rows whose stored pos code matches the token's own conjugation
+        // class; same graceful-fallback shape as the reading filter above —
+        // a mismatch (or no hint at all, e.g. non-verb tokens) never drops
+        // the candidate pool, it just loses this extra disambiguation.
+        val pool = verbPosHint?.let { hint ->
+            readingPool.filter { it.rawPos != null && it.rawPos!!.startsWith(hint) }
+        }?.takeIf { it.isNotEmpty() } ?: readingPool
         val winner = SenseSelector.pickBest(pool, weights) ?: return null
         return DictionaryEntry(
             headword = baseForm,

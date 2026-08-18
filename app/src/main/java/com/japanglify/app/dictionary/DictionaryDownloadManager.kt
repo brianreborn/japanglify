@@ -329,6 +329,21 @@ class DictionaryDownloadManager(private val context: Context) {
         // a kanji-only insert would make ordinary, extremely common words
         // unlookupable in practice. Confirmed live: する returned nothing
         // until this was added.
+        //
+        // A same-reading collision this causes (headword="する" also pools
+        // in 擦る "to rub", 刷る "to print", etc., unrelated verbs sharing
+        // that kana reading, whose richer gloss counts can outscore the
+        // correct "to do") looked fixable by gating this on JMdict's "uk"
+        // (usually kana) misc tag -- but that gate was tried live and
+        // reverted: it also silently dropped the bare-kana row for 来る ("to
+        // come"), whose own primary sense isn't uk-tagged despite genuinely
+        // needing this fallback, and cut the imported row count by ~37%
+        // overall -- far more collateral than the one collision it fixed.
+        // No JMdict-side metadata found so far reliably predicts which
+        // words actually need this row without also dropping ones that do.
+        // The real fix belongs at lookup/scoring time (using Kuromoji's own
+        // conjugation-class signal to prefer the right same-reading entry),
+        // not by narrowing which rows get imported.
         if (reading != null && !kanjiMatchesReading) headwords += reading
         if (headwords.isEmpty()) return 0
 

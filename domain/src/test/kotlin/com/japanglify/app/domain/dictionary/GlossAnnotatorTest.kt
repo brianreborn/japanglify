@@ -2,15 +2,17 @@ package com.japanglify.app.domain.dictionary
 
 import com.japanglify.app.domain.JapaneseAnalyzer
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GlossAnnotatorTest {
 
     private fun fakeDictionary(vararg entries: Pair<String, DictionaryEntry>) =
-        GlossAnnotator(GlossAnnotator.DictionaryProvider { key, _, _ -> entries.toMap()[key] })
+        GlossAnnotator(GlossAnnotator.DictionaryProvider { key, _, _, _ -> entries.toMap()[key] })
 
-    private fun texts(result: List<GlossAnnotator.GlossResult?>): List<String?> = result.map { it?.text }
+    private fun texts(result: List<GlossAnnotator.TokenGloss>): List<String?> = result.map { it.result?.text }
 
     @Test
     fun formatsGlossDirectlyWithNoPartOfSpeechPrefix() {
@@ -23,7 +25,7 @@ class GlossAnnotatorTest {
         )
         val result = annotator.annotate(listOf(JapaneseAnalyzer.SurfaceReading("紙", "かみ", baseForm = "紙")))
         assertEquals(listOf("paper"), texts(result))
-        assertEquals(PartOfSpeech.NOUN, result[0]?.partOfSpeech)
+        assertEquals(PartOfSpeech.NOUN, result[0].result?.partOfSpeech)
     }
 
     @Test
@@ -58,6 +60,40 @@ class GlossAnnotatorTest {
             )
         )
         assertEquals(listOf("go", "to a certain extent"), texts(result))
+    }
+
+    @Test
+    fun collapsesInterjectionAndExpressionSynonymsToJustTheFirst() {
+        // Interjection/expression synonyms tend to be pure register variants
+        // of one greeting/exclamation, not distinguishing real information
+        // the way a noun's synonyms can (see keepsFullSynonymSetForOtherPartsOfSpeech)
+        // -- direct feedback that showing all of them read as clutter here.
+        val annotator = fakeDictionary(
+            "ご機嫌よう" to DictionaryEntry(
+                "ご機嫌よう", "ごきげんよう", PartOfSpeech.INTERJECTION,
+                "nice to see you/good morning/good evening"
+            ),
+            "それでも" to DictionaryEntry("それでも", "それでも", PartOfSpeech.EXPRESSION, "but/and yet/nevertheless")
+        )
+        val result = annotator.annotate(
+            listOf(
+                JapaneseAnalyzer.SurfaceReading("ご機嫌よう", "ごきげんよう", baseForm = "ご機嫌よう"),
+                JapaneseAnalyzer.SurfaceReading("それでも", "それでも", baseForm = "それでも")
+            )
+        )
+        assertEquals(listOf("nice to see you", "but"), texts(result))
+    }
+
+    @Test
+    fun keepsFullSynonymSetForOtherPartsOfSpeech() {
+        // Mr/Mrs/Miss genuinely differ by the referent's gender -- collapsing
+        // to just "Mr" would silently drop real, useful information, so the
+        // interjection/expression-only truncation above must not apply here.
+        val annotator = fakeDictionary(
+            "さん" to DictionaryEntry("さん", "さん", PartOfSpeech.OTHER, "Mr/Mrs/Miss")
+        )
+        val result = annotator.annotate(listOf(JapaneseAnalyzer.SurfaceReading("さん", "さん", baseForm = "さん")))
+        assertEquals(listOf("Mr/Mrs/Miss"), texts(result))
     }
 
     @Test
@@ -107,7 +143,7 @@ class GlossAnnotatorTest {
             "の" to DictionaryEntry("の", null, PartOfSpeech.PARTICLE, "possessive / nominalizing particle")
         )
         val result = annotator.annotate(listOf(JapaneseAnalyzer.SurfaceReading("の", "ノ", baseForm = "の")))
-        assertNull(result[0])
+        assertNull(result[0].result)
     }
 
     @Test
@@ -127,7 +163,7 @@ class GlossAnnotatorTest {
         val result = annotator.annotate(
             listOf(JapaneseAnalyzer.SurfaceReading("だ", "ダ", isBoundToPrevious = true, baseForm = "だ"))
         )
-        assertNull(result[0])
+        assertNull(result[0].result)
     }
 
     @Test
@@ -144,7 +180,7 @@ class GlossAnnotatorTest {
         val result = annotator.annotate(
             listOf(JapaneseAnalyzer.SurfaceReading("な", "ナ", isParticle = true, baseForm = "な"))
         )
-        assertNull(result[0])
+        assertNull(result[0].result)
     }
 
     @Test
@@ -152,7 +188,7 @@ class GlossAnnotatorTest {
         val annotator = fakeDictionary()
         val result = annotator.annotate(listOf(JapaneseAnalyzer.SurfaceReading("謎語", null, baseForm = "謎語")))
         assertEquals(1, result.size)
-        assertNull(result[0])
+        assertNull(result[0].result)
     }
 
     @Test
@@ -172,12 +208,17 @@ class GlossAnnotatorTest {
 
     @Test
     fun longestMatchPhraseWinsOverPerTokenGlosses() {
-        // ご機嫌よう is one JMdict entry ("nice to see you / good day"), but
-        // Kuromoji splits it into ご + 機嫌 + よう. The whole-phrase entry must
-        // win, its gloss riding on the span's first token; the consumed pieces
-        // stay null and 機嫌's own "mood" gloss is never used.
+        // ご機嫌よう is one JMdict entry ("nice to see you / good morning /
+        // good evening"), but Kuromoji splits it into ご + 機嫌 + よう. The
+        // whole-phrase entry must win, its gloss riding on the span's first
+        // token; the consumed pieces stay null and 機嫌's own "mood" gloss is
+        // never used. Only the first synonym survives format() for this
+        // interjection entry -- see collapsesInterjectionAndExpressionSynonymsToJustTheFirst.
         val annotator = fakeDictionary(
-            "ご機嫌よう" to DictionaryEntry("ご機嫌よう", "ごきげんよう", PartOfSpeech.INTERJECTION, "nice to see you/good day"),
+            "ご機嫌よう" to DictionaryEntry(
+                "ご機嫌よう", "ごきげんよう", PartOfSpeech.INTERJECTION,
+                "nice to see you/good morning/good evening"
+            ),
             "機嫌" to DictionaryEntry("機嫌", "きげん", PartOfSpeech.NOUN, "mood")
         )
         val tokens = listOf(
@@ -185,7 +226,14 @@ class GlossAnnotatorTest {
             JapaneseAnalyzer.SurfaceReading("機嫌", "キゲン", baseForm = "機嫌"),
             JapaneseAnalyzer.SurfaceReading("よう", "ヨウ", baseForm = "よう")
         )
-        assertEquals(listOf("nice to see you/good day", null, null), texts(annotator.annotate(tokens)))
+        val result = annotator.annotate(tokens)
+        assertEquals(listOf("nice to see you", null, null), texts(result))
+        // The phrase's 2nd/3rd tokens are marked as continuations of the
+        // first (see TokenGloss's doc) so the renderer never wraps a line
+        // between them — found live: ご機嫌よう wrapped between ご and 機嫌.
+        assertFalse(result[0].isPhraseContinuation)
+        assertTrue(result[1].isPhraseContinuation)
+        assertTrue(result[2].isPhraseContinuation)
     }
 
     @Test
@@ -210,7 +258,7 @@ class GlossAnnotatorTest {
         // 僕 read ぼく is "I, me"; read しもべ is "servant". The annotator must
         // pass the token's reading through so a reading-aware provider picks
         // the right sense instead of pooling both by headword.
-        val provider = GlossAnnotator.DictionaryProvider { key, reading, _ ->
+        val provider = GlossAnnotator.DictionaryProvider { key, reading, _, _ ->
             if (key != "僕") null
             else if (reading == "ボク" || reading == "ぼく")
                 DictionaryEntry("僕", "ぼく", PartOfSpeech.NOUN, "I/me")
@@ -222,12 +270,32 @@ class GlossAnnotatorTest {
     }
 
     @Test
+    fun forwardsVerbPosHintToLookupForSameReadingDifferentWordDisambiguation() {
+        // する ("to do") and 擦る ("to rub") are both spelled/read する in
+        // kana -- a reading match alone can't tell them apart, unlike 僕
+        // above. Kuromoji's own conjugation class for this specific token
+        // (サ変・スル vs. 五段・ラ行, mapped by jmdictVerbConjugationPrefix to
+        // "vs" vs. "v5r") is the signal that does. Found live: する rendered
+        // as "to rub" because 擦る's entry listed more English synonyms.
+        val provider = GlossAnnotator.DictionaryProvider { key, _, verbPosHint, _ ->
+            if (key != "する") null
+            else if (verbPosHint == "vs") DictionaryEntry("する", "する", PartOfSpeech.VERB, "to do")
+            else DictionaryEntry("する", "する", PartOfSpeech.VERB, "to rub")
+        }
+        val result = GlossAnnotator(provider).annotate(
+            listOf(JapaneseAnalyzer.SurfaceReading("する", "する", baseForm = "する", verbPosHint = "vs"))
+        )
+        // "to " stripped -- see stripsLeadingToOnlyForVerbs above.
+        assertEquals(listOf("do"), texts(result))
+    }
+
+    @Test
     fun noPartOfSpeechStillFormatsGloss() {
         val annotator = fakeDictionary(
             "謎" to DictionaryEntry("謎", "なぞ", null, "mystery")
         )
         val result = annotator.annotate(listOf(JapaneseAnalyzer.SurfaceReading("謎", "なぞ", baseForm = "謎")))
         assertEquals(listOf("mystery"), texts(result))
-        assertNull(result[0]?.partOfSpeech)
+        assertNull(result[0].result?.partOfSpeech)
     }
 }

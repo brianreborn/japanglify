@@ -102,7 +102,7 @@ object DemoMain {
             )
         )
         val glossAnnotator = com.japanglify.app.domain.dictionary.GlossAnnotator(
-            com.japanglify.app.domain.dictionary.GlossAnnotator.DictionaryProvider { key, _, _ -> fakeDictionary[key] }
+            com.japanglify.app.domain.dictionary.GlossAnnotator.DictionaryProvider { key, _, _, _ -> fakeDictionary[key] }
         )
         val glossAnalyzer = JapaneseAnalyzer(kuromojiProvider, glossAnnotator)
         val glossSegments = glossAnalyzer.annotate(text, JapanglifySettings(includeGlosses = true))
@@ -188,7 +188,10 @@ object DemoMain {
                 } else {
                     t.reading?.takeIf { it.isNotBlank() && it != "*" }
                 }
-                JapaneseAnalyzer.SurfaceReading(t.surface, reading, baseForm = t.baseForm)
+                JapaneseAnalyzer.SurfaceReading(
+                    t.surface, reading, baseForm = t.baseForm,
+                    verbPosHint = com.japanglify.app.domain.dictionary.jmdictVerbConjugationPrefix(t.conjugationType)
+                )
             }
         }
     }

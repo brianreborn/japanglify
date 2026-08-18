@@ -49,7 +49,18 @@ class JapaneseAnalyzer(
          * merged multi-token span with no single base form of its own — see
          * `KuromojiReadingProvider.mergeConsecutiveNumbers`).
          */
-        val baseForm: String? = null
+        val baseForm: String? = null,
+        /**
+         * The matching JMdict verb-class code prefix ("v5r", "vs", "v1",
+         * "vk", ...) for this token's own conjugation, derived from
+         * Kuromoji's conjugation-type classification via
+         * [com.japanglify.app.domain.dictionary.jmdictVerbConjugationPrefix]
+         * — see that function's doc for why this exists (disambiguating
+         * same-reading, same-spelling-in-kana but otherwise unrelated JMdict
+         * words, e.g. する "to do" vs 擦る "to rub"). Null for non-verb
+         * tokens or conjugation types Kuromoji doesn't classify this way.
+         */
+        val verbPosHint: String? = null
     )
 
     fun annotate(text: String, settings: JapanglifySettings): List<AnnotatedSegment> {
@@ -58,16 +69,17 @@ class JapaneseAnalyzer(
         val romanizer = Romanizer(settings.romanizationSystem)
         val tokens = readingProvider?.tokenize(text) ?: fallbackTokenize(text)
         val glossResults = if (settings.includeGlosses) {
-            glossAnnotator?.annotate(tokens, settings.effectiveSenseWeights) ?: List(tokens.size) { null }
+            glossAnnotator?.annotate(tokens, settings.effectiveSenseWeights)
+                ?: List(tokens.size) { GlossAnnotator.TokenGloss(null) }
         } else {
-            List(tokens.size) { null }
+            List(tokens.size) { GlossAnnotator.TokenGloss(null) }
         }
         // Only meaningful once glosses are actually resolved -- matches
         // against a token's *gloss text*, never the Japanese word itself,
         // so with glosses off glossResults is already all-null and this
         // naturally yields all-null too via EmojiAnnotator's own null check.
         val emojis = if (settings.includeEmoji) {
-            emojiAnnotator?.annotate(glossResults, settings.emojiPosScope, settings.emojiPrecisionTier)
+            emojiAnnotator?.annotate(glossResults.map { it.result }, settings.emojiPosScope, settings.emojiPrecisionTier)
                 ?: List(tokens.size) { null }
         } else {
             List(tokens.size) { null }
@@ -78,8 +90,8 @@ class JapaneseAnalyzer(
             // A precise emoji match makes the English word redundant --
             // drop it unless the user asked to always show both.
             val elideGloss = emoji != null && !settings.emojiAlwaysShowBoth
-            val gloss = if (elideGloss) null else glossResults[i]?.text
-            toSegment(token, settings, romanizer, gloss, emoji)
+            val gloss = if (elideGloss) null else glossResults[i].result?.text
+            toSegment(token, settings, romanizer, gloss, emoji, glossResults[i].isPhraseContinuation)
         }
     }
 
@@ -88,7 +100,8 @@ class JapaneseAnalyzer(
         settings: JapanglifySettings,
         romanizer: Romanizer,
         gloss: String?,
-        emoji: String?
+        emoji: String?,
+        isPhraseContinuation: Boolean = false
     ): AnnotatedSegment {
         val surface = token.surface
 
@@ -108,7 +121,8 @@ class JapaneseAnalyzer(
                 needsFurigana = false,
                 isBoundToPrevious = token.isBoundToPrevious,
                 isParticle = token.isParticle,
-                emoji = emoji
+                emoji = emoji,
+                isPhraseContinuation = isPhraseContinuation
             )
         }
 
@@ -191,7 +205,8 @@ class JapaneseAnalyzer(
             isParticle = token.isParticle,
             romajiMora = romajiMora,
             gloss = gloss,
-            emoji = emoji
+            emoji = emoji,
+            isPhraseContinuation = isPhraseContinuation
         )
     }
 
