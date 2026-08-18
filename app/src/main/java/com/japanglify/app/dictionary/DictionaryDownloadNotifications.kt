@@ -30,6 +30,13 @@ object DictionaryDownloadNotifications {
         )
     }
 
+    /**
+     * Builds the ongoing progress notification. Only ever called for
+     * DOWNLOADING/PARSING/FAILED -- [update] intercepts READY and
+     * NOT_DOWNLOADED (cancelled) before reaching here and just clears the
+     * notification instead, since neither leaves the user anything to act
+     * on.
+     */
     fun forProgress(context: Context, source: DictionarySource, progress: DictionaryDownloadProgress?): Notification {
         ensureChannel(context)
         val builder = NotificationCompat.Builder(context, CHANNEL_DICTIONARY)
@@ -49,29 +56,32 @@ object DictionaryDownloadNotifications {
                 .setOngoing(true)
                 .setProgress(0, 0, true)
 
-            DictionaryDownloadStatus.READY -> builder
-                .setContentTitle(context.getString(R.string.notif_dictionary_ready_title, source.displayName))
-                .setOngoing(false)
-                .setAutoCancel(true)
-
             DictionaryDownloadStatus.FAILED -> builder
                 .setContentTitle(context.getString(R.string.notif_dictionary_failed_title, source.displayName))
                 .setContentText(progress.errorMessage)
                 .setOngoing(false)
                 .setAutoCancel(true)
 
-            // Only reached with a non-null progress -- i.e. a user cancel
-            // came back through (see DictionaryDownloadService.onProgress),
-            // never the pre-download state, which is the `null` branch above.
-            DictionaryDownloadStatus.NOT_DOWNLOADED -> builder
-                .setContentTitle(context.getString(R.string.notif_dictionary_cancelled_title, source.displayName))
-                .setOngoing(false)
-                .setAutoCancel(true)
+            DictionaryDownloadStatus.READY, DictionaryDownloadStatus.NOT_DOWNLOADED ->
+                error("forProgress should never be called for $progress -- see update()")
         }
         return builder.build()
     }
 
     fun update(context: Context, source: DictionarySource, progress: DictionaryDownloadProgress) {
+        // A finished-successfully (or self-cancelled) download has nothing
+        // left for the user to act on -- direct feedback that a lingering
+        // "ready"/"cancelled" notification serves no purpose once the
+        // ongoing progress notification it replaces is gone. Just clear it
+        // silently instead. FAILED keeps notifying: that's the one terminal
+        // state carrying information the user actually needs (something
+        // went wrong and the download didn't complete).
+        if (progress.status == DictionaryDownloadStatus.READY ||
+            progress.status == DictionaryDownloadStatus.NOT_DOWNLOADED
+        ) {
+            NotificationManagerCompat.from(context).cancel(ID_PROGRESS)
+            return
+        }
         try {
             NotificationManagerCompat.from(context).notify(ID_PROGRESS, forProgress(context, source, progress))
         } catch (_: SecurityException) {
