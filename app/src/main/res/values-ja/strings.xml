@@ -59,6 +59,9 @@
     <string name="status_menu_not_a_bug">登録バグではありません。ProcessTextActivity は正しく export されています。他アプリが PROCESS_TEXT 項目を出すかどうかは相手次第です。非対応の場合はコピー支援（アクセシビリティ）をお使いください。対応状況はアプリによって異なります。</string>
     <string name="status_overflow_hint">切り取り／コピーだけ＋⋮無し = そのホストは PROCESS_TEXT を 0 件と判定（または未使用）。コピー支援か下の試用欄を。</string>
 
+    <string name="url_text_extracted">ページのテキストを下の欄に読み込みました — 変換したい部分だけ残してから Japanglify をタップ</string>
+    <string name="url_fetch_failed">そのページを読み込めませんでした — リンクを確認してもう一度</string>
+
     <string name="try_it_title">ここで試す（システムメニュー不要）</string>
     <string name="try_it_instructions">日本語を入力／貼り付け — 下にライブ出力。ボタンは欄内変換またはクリップボードから。下のオプションも同じスクロールで一続きです。</string>
     <string name="try_it_output_label">ライブ出力</string>
@@ -69,7 +72,6 @@
     <string name="clipboard_done">変換結果を欄に入れました</string>
     <string name="try_it_empty">変換する文字がありません</string>
     <string name="try_it_done">変換しました</string>
-    <string name="shared_text_loaded">共有テキストを読み込みました</string>
     <string name="options_heading">オプション</string>
 
     <string name="pref_category_clipboard">コピー支援（PROCESS_TEXT 非対応アプリ向け）</string>

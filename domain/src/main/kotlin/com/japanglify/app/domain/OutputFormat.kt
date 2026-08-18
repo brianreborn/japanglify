@@ -39,7 +39,9 @@ enum class OutputFormat(val id: String, val displayName: String) {
     ),
 
     /**
-     * W3C double-sided ruby: furigana in `<rt>`, romaji in `<rtc>`.
+     * HTML fragment: furigana in `<ruby><rt>`, romaji (and gloss/emoji)
+     * as smaller stacked block `<span>`s. Not `<rb>`/`<rtc>` — those
+     * were dropped from HTML and do not position in current browsers.
      * Only useful in HTML hosts — Discord/X will show raw tags.
      */
     HTML_RUBY(

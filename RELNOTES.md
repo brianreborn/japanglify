@@ -17,6 +17,9 @@ on rendering, glosses, share/copy, and the offline install.
 - **Better interlinear layout.** Phrase matches stay on one row;
   split-word columns even out; furigana/romaji stay intact over a
   single-glyph cell; alignment no longer depends on a second tokenizer.
+- **HTML ruby actually stacks.** Furigana uses `<ruby><rt>`; romaji is a
+  smaller block span. The old `<rb>`/`<rtc>` markup (dropped from HTML)
+  left romaji as unstyled inline text.
 - **Smarter glosses.** Reading-aware lookup, longest-match phrases
   (expressions/interjections), up to three synonyms per sense,
   Modern/Classical/custom sense-selection presets, and disambiguation
@@ -59,7 +62,7 @@ copy-paste into a separate translator app required.
   the converted result via notification instead.
 - **Five output formats**: interlinear (furigana / base / romaji /
   gloss / emoji stacked lines), inline furigana (《ruby》-style),
-  parenthetical (`漢字（かんじ / kanji）`), double-sided HTML ruby, and
+  parenthetical (`漢字（かんじ / kanji）`), HTML ruby, and
   compact bracket notation.
 - **Copy as image** — a rendered PNG of the converted text, pre-built
   in the background so it's ready the moment you tap "Copy image."

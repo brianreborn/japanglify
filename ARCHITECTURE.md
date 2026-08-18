@@ -98,7 +98,7 @@ depend on.
 Fans out to one of 5 `OutputFormat` renderers — `FURIGANA_INLINE` (Aozora
 《》-bracket style, the most readable in plain-text chat), `PARENTHETICAL`
 (漢字（かんじ / kanji）), `INTERLINEAR` (aligned three-line blocks, the
-default), `HTML_RUBY` (W3C double-sided `<ruby>`/`<rt>`/`<rtc>`), and
+default), `HTML_RUBY` (furigana via `<ruby><rt>`; romaji/gloss as stacked block `<span>`s — not `<rb>`/`<rtc>`, which browsers no longer position), and
 `COMPACT` (漢字〔かんじ〕[kanji]) — each honoring `RomajiPosition` (above /
 below / before / after the base) independently. The interlinear path is
 where most of the engine's complexity lives:

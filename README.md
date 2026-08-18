@@ -59,14 +59,14 @@ Since this isn't a Play Store install, Android will warn about installing from a
 | Furigana | Hiragana readings; kanji-only by default |
 | Romaji systems | Modified Hepburn, Traditional Hepburn, Kunrei-shiki, Nihon-shiki, Wāpuro |
 | Romaji position | Below (default, max visibility), above, after, before |
-| Output formats | Interlinear (default), furigana inline (《》), parenthetical, HTML double-sided ruby, compact brackets |
+| Output formats | Interlinear (default), furigana inline (《》), parenthetical, HTML ruby, compact brackets |
 | Orientation | Horizontal default; vertical (tategaki) experimental hook for future UI |
 | Offline | Kuromoji dictionary bundled; no network required — except the optional English-translation line below, off by default |
 | Build hosts | Linux, macOS, Windows, **FreeBSD** (Linuxulator + Linux SDK) |
 
 ### Triple-script conventions
 
-- **HTML ruby**: W3C double-sided ruby — `<rt>` furigana, `<rtc>` romaji (`ruby-position: under` by default).  
+- **HTML ruby**: furigana via `<ruby><rt>` (the markup browsers actually support); romaji as a smaller block `<span>` under/over the base. (`<rb>`/`<rtc>` were dropped from HTML and do not position correctly.)  
 - **Parenthetical plain text**: `漢字（かんじ / kanji）` — common when ruby is unavailable.  
 - **Interlinear**: three aligned lines (furigana / base / romaji) for maximum legibility.  
 - **Vertical**: settings flag + HTML `writing-mode: vertical-rl` path; plain-text hosts get a marked approximation until a dedicated vertical view lands.
@@ -88,7 +88,6 @@ clipboard/accessibility assist pipeline, and the build setup).
 The core conversion pipeline is a pure JVM module. You only need **JDK 17+** (21 recommended) and the Gradle wrapper — **no Android SDK, no Android Studio**.
 
 ```bash
-cd Projects/Japanglify
 ./scripts/verify-domain.sh
 # or:
 ./gradlew :domain:test :domain:runDemo
@@ -112,8 +111,8 @@ Requires:
 
 ```bash
 echo "sdk.dir=$HOME/Android/Sdk" > local.properties
-./gradlew :app:assembleDebug
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+./gradlew :app:assembleDownloadableDebug
+adb install -r app/build/outputs/apk/downloadable/debug/app-downloadable-debug.apk
 ```
 
 ### Option B — bootstrap a minimal SDK (no Android Studio)
@@ -145,7 +144,6 @@ pkg install linux_base-rl9   # provides /compat/linux (glibc, ld-linux)
 #### Build on FreeBSD
 
 ```bash
-cd Projects/Japanglify
 # Prefer OpenJDK 17/21 for Gradle (not a bleeding-edge default JDK)
 export JAVA_HOME=/usr/local/openjdk21
 export PATH="$JAVA_HOME/bin:$PATH"
@@ -156,7 +154,7 @@ export PATH="$JAVA_HOME/bin:$PATH"
 ./gradlew :app:assembleDebug         # auto-runs :brandLinuxElfs
 ```
 
-`sdkmanager` and AGP are told `os.name=Linux` via `JAVA_TOOL_OPTIONS` so they offer/download the **Linux** package set (`platform-tools`, `build-tools`, aapt2). Fresh Linux ELFs are marked with `brandelf -t Linux` so the kernel Linuxulator runs them (verified: `aapt2 version`, `adb version`, and a full `:app:assembleDebug` producing `app/build/outputs/apk/debug/app-debug.apk`).
+`sdkmanager` and AGP are told `os.name=Linux` via `JAVA_TOOL_OPTIONS` so they offer/download the **Linux** package set (`platform-tools`, `build-tools`, aapt2). Fresh Linux ELFs are marked with `brandelf -t Linux` so the kernel Linuxulator runs them (verified: `aapt2 version`, `adb version`, and a full `:app:assembleDownloadableDebug` producing `app/build/outputs/apk/downloadable/debug/app-downloadable-debug.apk`).
 
 If AGP downloads a fresh aapt2 into `~/.gradle/caches` mid-build and a native tool fails with “Exec format error”, re-brand and retry:
 
@@ -188,7 +186,7 @@ Skip the Android app module (domain only): `./gradlew -PincludeApp=false :domain
 |-------|------------|
 | Overflow | Open ⋮ / “…” on the floating toolbar — custom actions often live there |
 | Host app (e.g. **Twitter/X**) | Custom menus never call `PROCESS_TEXT` — use **Clipboard assist** instead |
-| MIME type | App registers `text/plain` **and** `text/*` |
+| MIME type | `PROCESS_TEXT` is registered as `text/plain` only (what the platform actually queries) |
 | Not installed / disabled | Reinstall APK; check Settings → Apps that Japanglify is enabled |
 
 ### Copy hook (primary path for X)
@@ -271,10 +269,13 @@ Parenthetical:
 日本語（にほんご / nihongo）を（o）勉強（べんきょう / benkyou）する（suru）
 ```
 
-HTML double-sided ruby (paste into HTML-capable hosts):
+HTML ruby (paste into HTML-capable hosts; furigana is real ruby, romaji is a stacked span — `<rb>`/`<rtc>` are not used):
 
 ```html
-<ruby><rb>日本語</rb><rt>にほんご</rt><rtc style="ruby-position:under">nihongo</rtc></ruby>
+<span style="display:inline-block;text-align:center">
+  <ruby>日本語<rt>にほんご</rt></ruby>
+  <span style="display:block;font-size:0.62em">nihongo</span>
+</span>
 ```
 
 ## License
