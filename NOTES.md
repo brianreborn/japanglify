@@ -1,12 +1,23 @@
 # Japanglify — status
 
-**1.0.0-beta1 shipped 2026-08-18** (tag `v1.0.0-beta1`, `versionCode` 2).
-The first public BETA was `v1.0.0-beta` (2026-08-07 / 2026-08-08). This
-file now tracks what's left for a stable/final 1.0 and 1.1 scope, not a
-pre-1.0 checklist — treat items below accordingly; some earlier entries
-predate the first BETA and describe work already shipped.
+**1.0.0-beta1 shipped 2026-08-18** (tag `v1.0.0-beta1`, current APK
+`versionCode` 3). The first public BETA was `v1.0.0-beta` (2026-08-07 /
+2026-08-08). This file now tracks what's left for a stable/final 1.0 and
+1.1 scope, not a pre-1.0 checklist — treat items below accordingly; some
+earlier entries predate the first BETA and describe work already shipped.
 
 ## Open items
+
+- **Furigana placement still not good enough — deferred past 1.0.0-beta1
+  (2026-08-18), explicit "don't spend time on it now."** Image UAT of the
+  shipped renderer still shows readings sitting in the wrong place relative
+  to their kanji: 被造物 wrapping so ひ rides on a lone 被 at the end of
+  the previous row; 語れ / 思う leaving かた / おも on the kanji cell while
+  okurigana sits apart; 章だった fusing as `sho·uda·t·ta`. The beta1 image
+  fix (`74962ec`) only spread *romaji* across a kanji+okurigana group so
+  懐かしい no longer blows out the first cell — it did not retune furigana
+  glyph placement. Resume against real Copy-image PNGs, not the Try-it
+  text box.
 
 - **Duplicate "Japanglify" entries in Android's Accessibility panel —
   found and fixed this session.** Root cause: the `bundled` product flavor

@@ -5,6 +5,13 @@
 .DS_Store
 /build/
 **/build/
+
+# Device UAT dumps (Discord chat, notifications, DUT screens, pulled
+# Copy-image PNGs). Covered by **/build/ when they live under
+# app/build/reports/acceptance/ — listed explicitly so they never get
+# committed if someone copies them out of build/.
+app/build/reports/acceptance/
+**/acceptance/beta1/
 /captures/
 .externalNativeBuild/
 .cxx/
