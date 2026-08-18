@@ -1,5 +1,44 @@
 # Release Notes
 
+## v1.0.0-beta1 — 2026-08-18
+
+Second public BETA. Same app as the first BETA, plus a large polish pass
+on rendering, glosses, share/copy, and the offline install.
+
+### What's new
+
+- **Two APKs.** Downloadable (smaller; dictionaries fetched on demand)
+  and bundled (dictionaries ship in the APK, works fully offline).
+  Installing one replaces the other — they share the same package name.
+- **User-defined Share targets.** Save a named settings snapshot and
+  share to it from any app, as copy-text or copy-image.
+- **Image color schemes.** Copy-as-image can follow the system theme
+  or use a light/dark print-style scheme, with max width/height.
+- **Better interlinear layout.** Phrase matches stay on one row;
+  split-word columns even out; furigana/romaji stay intact over a
+  single-glyph cell; alignment no longer depends on a second tokenizer.
+- **Smarter glosses.** Reading-aware lookup, longest-match phrases
+  (expressions/interjections), up to three synonyms per sense,
+  Modern/Classical/custom sense-selection presets, and disambiguation
+  of same-reading different words via conjugation class.
+- **Elided-line markers** (default 〃) and a **bound copula/auxiliary
+  separator** (mora dot vs space).
+- **Separate "Replace text on Cut"** toggle; clipboard progress bar;
+  cancelable dictionary downloads with a wall-clock timeout (no more
+  hangs on a trickling connection).
+- **PROCESS_TEXT** filter narrowed to the single AOSP `text/plain`
+  form, matching other open-source process-text apps.
+
+### Known limitations (same as the first BETA)
+
+- X/Twitter Copy-hook is still silent on genuine Japanese text.
+- Word/particle glosses and emoji annotation stay Experimental and
+  off by default.
+- Print-to-PDF is not in this build.
+
+APK is self-signed (not Play Store signed) — allow installs from this
+source. Upgrading from `v1.0.0-beta` is supported (`versionCode` 2).
+
 ## v1.0 — Initial Release
 
 Japanglify turns selected Japanese text into readable furigana + romaji

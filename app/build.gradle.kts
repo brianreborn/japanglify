@@ -25,8 +25,8 @@ android {
         applicationId = "com.japanglify.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.0.0-beta1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -286,10 +286,13 @@ val acceptanceSmokeTest by tasks.registering(Exec::class) {
 // no-op, since "publish" has no sensible degraded behavior the way an
 // unsigned release build does.
 //
-// Defaults the release tag to "v<versionName>" (e.g. "v1.0.0"); override
-// with -PreleaseTag=v1.0.0-beta to update an existing tagged release (like
-// this project's actual first public release, tagged "v1.0.0-beta" by
-// hand) instead of creating a new one every run.
+// Defaults the release tag to "v<versionName>" (e.g. "v1.0.0-beta1");
+// override with -PreleaseTag=v1.0.0-beta to update an existing tagged
+// release instead of creating a new one. Optional -PreleaseNotesFile=
+// points gh at a markdown notes file when creating the release.
+// Also uploads stable aliases app-release.apk / app-debug.apk (the
+// downloadable flavor) so README's releases/latest/download/ links keep
+// working across flavor-named artifacts.
 val publishApks by tasks.registering {
     group = "distribution"
     description = "Builds and publishes all flavor/build-type APKs (downloadable + bundled, debug + release) as assets on a GitHub Release."
@@ -301,6 +304,8 @@ val publishApks by tasks.registering {
     doLast {
         val tag = (project.findProperty("releaseTag") as String?)
             ?: "v${android.defaultConfig.versionName}"
+        val notesFile = (project.findProperty("releaseNotesFile") as String?)
+            ?.let { rootProject.file(it) }
         val apks = listOf(
             "outputs/apk/downloadable/debug/app-downloadable-debug.apk",
             "outputs/apk/downloadable/release/app-downloadable-release.apk",
@@ -310,6 +315,14 @@ val publishApks by tasks.registering {
         apks.forEach {
             require(it.exists()) { "Expected APK not found: ${it.path}" }
         }
+
+        // Stable names for the README / releases/latest/download/ URLs.
+        val aliasDir = layout.buildDirectory.dir("outputs/apk/aliases").get().asFile
+        aliasDir.mkdirs()
+        val aliasRelease = aliasDir.resolve("app-release.apk")
+        val aliasDebug = aliasDir.resolve("app-debug.apk")
+        apks[1].copyTo(aliasRelease, overwrite = true)
+        apks[0].copyTo(aliasDebug, overwrite = true)
 
         fun run(vararg args: String): Int {
             val proc = ProcessBuilder(*args).redirectErrorStream(true).start()
@@ -326,17 +339,25 @@ val publishApks by tasks.registering {
 
         val releaseExists = run("gh", "release", "view", tag) == 0
         if (!releaseExists) {
-            val created = run(
+            val createArgs = mutableListOf(
                 "gh", "release", "create", tag,
                 "--title", "Japanglify $tag",
-                "--notes", "Published via :app:publishApks."
+                "--prerelease"
             )
+            if (notesFile != null && notesFile.exists()) {
+                createArgs += listOf("--notes-file", notesFile.absolutePath)
+            } else {
+                createArgs += listOf("--notes", "Published via :app:publishApks.")
+            }
+            val created = run(*createArgs.toTypedArray())
             require(created == 0) { "gh release create failed for tag $tag" }
         }
 
         val uploaded = run(
             "gh", "release", "upload", tag,
             *apks.map { it.path }.toTypedArray(),
+            aliasRelease.path,
+            aliasDebug.path,
             "--clobber"
         )
         require(uploaded == 0) { "gh release upload failed for tag $tag" }

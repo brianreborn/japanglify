@@ -1,10 +1,10 @@
 # Japanglify — status
 
-**1.0 BETA shipped 2026-08-07** (commit `93b1c36`, tagged in the commit
-message, not a git tag object). This file now tracks what's left for a
-stable/final 1.0 and 1.1 scope, not a pre-1.0 checklist — treat items below
-accordingly; some earlier entries predate the BETA and describe work already
-shipped.
+**1.0.0-beta1 shipped 2026-08-18** (tag `v1.0.0-beta1`, `versionCode` 2).
+The first public BETA was `v1.0.0-beta` (2026-08-07 / 2026-08-08). This
+file now tracks what's left for a stable/final 1.0 and 1.1 scope, not a
+pre-1.0 checklist — treat items below accordingly; some earlier entries
+predate the first BETA and describe work already shipped.
 
 ## Open items
 

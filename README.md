@@ -42,9 +42,12 @@ No prompts on the menu action. All options live on a separate settings screen (a
 
 Not on the Play Store — install the APK directly from the latest GitHub Release:
 
-**[⬇ Download app-release.apk](https://github.com/brianreborn/japanglify/releases/latest/download/app-release.apk)** (signed, recommended)
+**[⬇ Download app-release.apk](https://github.com/brianreborn/japanglify/releases/latest/download/app-release.apk)** (signed, dictionaries on demand)
 
-A debug build is also available on the [Releases page](https://github.com/brianreborn/japanglify/releases/latest) for development/testing.
+A fully-offline **bundled** build (dictionaries included, larger APK) is
+`app-bundled-release.apk` on the [Releases page](https://github.com/brianreborn/japanglify/releases/latest). Debug builds of both flavors are there too.
+
+Current release: **1.0.0-beta1**.
 
 Since this isn't a Play Store install, Android will warn about installing from an unknown source the first time — that's expected; allow it for this APK.
 
