@@ -1,4 +1,4 @@
-Second public BETA (`versionCode` 2). Upgrade-installs over `v1.0.0-beta`.
+Second public BETA (`versionCode` 3). Upgrade-installs over `v1.0.0-beta`.
 
 ### What's new
 

@@ -31,6 +31,9 @@ on rendering, glosses, share/copy, and the offline install.
   hangs on a trickling connection).
 - **PROCESS_TEXT** filter narrowed to the single AOSP `text/plain`
   form, matching other open-source process-text apps.
+- **Image grouping fix** (`versionCode` 3). Romaji now spreads across
+  kanji+okurigana cells (e.g. 懐かしい) instead of blowing out the first
+  cell.
 
 ### Known limitations (same as the first BETA)
 
@@ -40,7 +43,7 @@ on rendering, glosses, share/copy, and the offline install.
 - Print-to-PDF is not in this build.
 
 APK is self-signed (not Play Store signed) — allow installs from this
-source. Upgrading from `v1.0.0-beta` is supported (`versionCode` 2).
+source. Upgrading from `v1.0.0-beta` is supported (`versionCode` 3).
 
 ## v1.0 — Initial Release
 
