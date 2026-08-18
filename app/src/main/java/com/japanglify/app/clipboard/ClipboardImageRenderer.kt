@@ -77,6 +77,7 @@ object ClipboardImageRenderer {
         val gloss: String,
         val emoji: String,
         val isPunctuation: Boolean,
+        val isSameSegmentContinuation: Boolean,
         val width: Float
     )
 
@@ -139,21 +140,57 @@ object ClipboardImageRenderer {
         val lineHeight = paint.fontSpacing
         val order = lineOrder(settings)
 
+        // Mirror TripleScriptRenderer.buildMeasuredRows: romaji/gloss/emoji
+        // are word-level labels that live on the first sub-cell of a split
+        // word (kanji + okurigana). Measuring each cell independently piles
+        // that label's entire pixel width onto the first sub-cell and leaves
+        // the rest snug — found live on 1.0.0-beta1: 懐 widened to fit
+        // "na·tsu·ka·shi·i" while かしい sat in its own narrow column, so
+        // the word read as two islands. Natural width is base/furigana only;
+        // any extra the word-level labels demand is spread across the group.
         val measuredRows = rows.map { row ->
-            row.cells.map { c ->
+            data class Raw(
+                val cell: MeasuredCell,
+                val natural: Float,
+                val baseDriven: Boolean
+            )
+            val raw = row.cells.map { c ->
                 val furi = if (settings.includeFurigana) c.furigana else ""
                 val roma = if (settings.includeRomaji) c.romaji else ""
                 val gloss = if (settings.includeGlosses) c.gloss else ""
                 val emoji = if (settings.includeEmoji) c.emoji else ""
-                val width = maxOf(
-                    paint.measureText(c.base),
-                    furiganaPaint.measureText(furi),
-                    paint.measureText(roma),
-                    paint.measureText(gloss),
-                    paint.measureText(emoji)
-                ).coerceAtLeast(1f)
-                MeasuredCell(furi, c.base, roma, c.isWordStart, gloss, emoji, c.isPunctuation, width)
+                val baseW = paint.measureText(c.base)
+                val furiW = furiganaPaint.measureText(furi)
+                val natural = maxOf(baseW, furiW).coerceAtLeast(1f)
+                Raw(
+                    MeasuredCell(
+                        furi, c.base, roma, c.isWordStart, gloss, emoji,
+                        c.isPunctuation, c.isSameSegmentContinuation, natural
+                    ),
+                    natural,
+                    baseDriven = baseW >= furiW
+                )
             }
+            val widths = FloatArray(raw.size)
+            var i = 0
+            while (i < raw.size) {
+                var end = i + 1
+                while (end < raw.size && raw[end].cell.isSameSegmentContinuation) end++
+                val first = raw[i].cell
+                val naturalTotal = (i until end).sumOf { raw[it].natural.toDouble() }.toFloat()
+                val groupDemand = maxOf(
+                    naturalTotal,
+                    paint.measureText(first.romaji),
+                    paint.measureText(first.gloss),
+                    paint.measureText(first.emoji)
+                )
+                val extra = (groupDemand - naturalTotal).coerceAtLeast(0f)
+                val slice = raw.subList(i, end)
+                val distributed = distributeExtraWidthPx(slice.map { it.natural }, extra, slice.map { it.baseDriven })
+                for (k in distributed.indices) widths[i + k] = distributed[k]
+                i = end
+            }
+            raw.mapIndexed { idx, r -> r.cell.copy(width = widths[idx]) }
         }
 
         fun rowWidth(row: List<MeasuredCell>): Float {
@@ -189,25 +226,34 @@ object ClipboardImageRenderer {
                 var x = padding.toFloat()
                 row.forEachIndexed { i, cell ->
                     if (i > 0 && cell.isWordStart) x += wordGapPx
+                    val spansGroup = line == Line.ROMAJI || line == Line.GLOSS || line == Line.EMOJI
+                    if (spansGroup && cell.isSameSegmentContinuation) {
+                        x += cell.width
+                        return@forEachIndexed
+                    }
                     val text = cell.text(line)
                     if (text.isNotEmpty()) {
-                        // Gloss/emoji are centered like every other line now -- found
-                        // live that left-anchoring them read as shoved-left whenever a
-                        // wide English gloss widened the column beyond the kanji/kana's
-                        // own width (common: "telephone"/"bicycle" are wider than 電話/
-                        // 自転車), since furigana/base/romaji all center within that same
-                        // widened cell but gloss/emoji sat flush at its left edge.
-                        // Punctuation is still left-anchored on every line (unrelated
-                        // reason): found live that centering it let the base row's "、"
-                        // and the romaji row's "," -- different glyphs with different
-                        // intrinsic widths -- drift to different horizontal offsets
-                        // within their shared cell width even though each was
-                        // individually centered.
+                        // Word-level labels (romaji/gloss/emoji) center across
+                        // the whole kanji+okurigana group. Per-cell labels
+                        // (furigana/base) still center in their own cell.
+                        // Punctuation stays left-anchored: centering let "、"
+                        // and "," (different glyph widths) drift apart.
+                        val spanWidth = if (spansGroup) {
+                            var w = cell.width
+                            var j = i + 1
+                            while (j < row.size && row[j].isSameSegmentContinuation) {
+                                w += row[j].width
+                                j++
+                            }
+                            w
+                        } else {
+                            cell.width
+                        }
                         val tx = if (cell.isPunctuation) {
                             x
                         } else {
                             val tw = linePaint.measureText(text)
-                            x + (cell.width - tw) / 2f
+                            x + (spanWidth - tw) / 2f
                         }
                         canvas.drawText(text, tx, y + baselineOffset, linePaint)
                     }
@@ -218,6 +264,30 @@ object ClipboardImageRenderer {
             y += rowGroupGapPx
         }
         return bitmap
+    }
+
+    /**
+     * Spreads [extra] px across [natural] widths, preferring [growable]
+     * cells (base-driven: growing them does not shift a kanji off the
+     * middle of its furigana). Falls back to every cell if none qualify.
+     * Last eligible cell absorbs the remainder so the group sums exactly.
+     */
+    private fun distributeExtraWidthPx(
+        natural: List<Float>,
+        extra: Float,
+        growable: List<Boolean>
+    ): List<Float> {
+        if (extra <= 0f || natural.isEmpty()) return natural
+        val eligible = natural.indices.filter { growable[it] }.ifEmpty { natural.indices.toList() }
+        val eligibleTotal = eligible.sumOf { natural[it].toDouble() }.toFloat().coerceAtLeast(1f)
+        val out = natural.toMutableList()
+        var remaining = extra
+        for ((k, idx) in eligible.withIndex()) {
+            val share = if (k == eligible.lastIndex) remaining else extra * (natural[idx] / eligibleTotal)
+            out[idx] += share
+            remaining -= share
+        }
+        return out
     }
 
     /** Plain rasterization for non-columnar output formats (no cell alignment to preserve). */
