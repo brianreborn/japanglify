@@ -14,6 +14,7 @@ import com.japanglify.app.clipboard.ClipboardImageRenderer
 import com.japanglify.app.clipboard.ClipboardNotifications
 import com.japanglify.app.clipboard.LastResultStore
 import com.japanglify.app.data.ShareTargetRepository
+import com.japanglify.app.domain.JapanglifySettings
 import com.japanglify.app.domain.OutputFormat
 import com.japanglify.app.domain.ShareTarget
 import com.japanglify.app.domain.ShareTargetAction
@@ -133,9 +134,23 @@ class ShareTargetActivity : Activity() {
     }
 
     private fun handlePlainText(source: String) {
-        val app = application as JapanglifyApp
         val target = resolvedTarget()
-        val settings = target?.settings ?: app.preferences.load()
+        if (target != null) {
+            // Legacy pinned per-target shortcut (or explicit Direct Share target).
+            // Honor it directly (no chooser) for compatibility.
+            processShare(source, target.settings, target.action)
+            return
+        }
+
+        // Generic "Japanglify" share (the single entry in the system sheet).
+        // Show an in-app chooser (dropdown-style) of current settings + saved targets,
+        // modeled after apps like X that present variant actions after picking the
+        // top-level share target instead of cluttering the sheet with many icons.
+        showShareChooser(source)
+    }
+
+    private fun processShare(source: String, settings: JapanglifySettings, action: ShareTargetAction) {
+        val app = application as JapanglifyApp
         val expanded = runCatching {
             app.engine.expand(source, settings)
         }.getOrElse { err ->
@@ -149,22 +164,72 @@ class ShareTargetActivity : Activity() {
         }
 
         LastResultStore.save(this, source, expanded)
-        // Same reasoning as the Copy-hook path (see ClipboardImageRenderCache's
-        // doc comment): kicked off now so "Copy image" from the notification
-        // is normally already done by the time it's tapped. Harmless to also
-        // do this for a COPY_IMAGE target below -- it renders with the
-        // *global* settings for that later notification tap, independent of
-        // the target-aware render this method does for the immediate write.
-        ClipboardImageRenderCache.prerender(this, source)
+        // Image rendering (full PNG or cheap notification preview) is deliberately
+        // NOT started here. It is expensive and the user may never tap "Copy image".
+        // It is kicked off on-demand only when the user taps the action in the
+        // notification (ClipboardWriteActivity falls back to synchronous render
+        // via await() if nothing was pre-rendered).
+        //
+        // Translation is also lazy — only performed when the user taps "Translate".
         ClipboardNotifications.showResult(this, expanded)
 
-        if (target?.action == ShareTargetAction.COPY_IMAGE) {
+        if (action == ShareTargetAction.COPY_IMAGE) {
             copyImageForTarget(source, settings)
         } else {
             LastResultStore.writeToClipboard(this, expanded)
             Toast.makeText(this, R.string.notif_copied_ready_to_paste, Toast.LENGTH_LONG).show()
             finish()
         }
+    }
+
+    private data class ShareChoice(
+        val label: String,
+        val settings: JapanglifySettings,
+        val action: ShareTargetAction
+    )
+
+    /**
+     * Present a simple in-app chooser (effectively a drop-down list) when the
+     * single generic "Japanglify" share target is picked.
+     * Options:
+     *   - Current settings (text)
+     *   - Current settings (image)
+     *   - each saved ShareTarget (using its frozen snapshot + its declared action)
+     */
+    private fun showShareChooser(source: String) {
+        val app = application as JapanglifyApp
+        val global = app.preferences.load()
+        val repo = ShareTargetRepository(this)
+        val saved = repo.list()
+
+        val choices = mutableListOf<ShareChoice>()
+        choices += ShareChoice("Current settings (text)", global, ShareTargetAction.COPY_TEXT)
+        choices += ShareChoice("Current settings (image)", global, ShareTargetAction.COPY_IMAGE)
+        saved.forEach { t ->
+            choices += ShareChoice(t.label, t.settings, t.action)
+        }
+
+        if (choices.isEmpty()) {
+            // Shouldn't happen (we always add the two Current ones), but be safe.
+            processShare(source, global, ShareTargetAction.COPY_TEXT)
+            return
+        }
+
+        val labels = choices.map { it.label }.toTypedArray()
+
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(R.string.share_chooser_title)
+            .setItems(labels) { dialog, which ->
+                dialog.dismiss()
+                val ch = choices.getOrNull(which) ?: return@setItems
+                processShare(source, ch.settings, ch.action)
+            }
+            .setNegativeButton(android.R.string.cancel) { dialog, _ ->
+                dialog.dismiss()
+                finish()
+            }
+            .setOnCancelListener { finish() }
+            .show()
     }
 
     /**

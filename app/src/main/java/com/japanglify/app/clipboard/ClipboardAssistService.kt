@@ -34,7 +34,22 @@ class ClipboardAssistService : Service() {
         when (ClipboardProcessor.processClipboardIfNew(this)) {
             ClipboardProcessor.ProcessOutcome.EMPTY_OR_UNREADABLE -> {
                 if (!LastResultStore.isSuppressing()) {
-                    ClipboardNotifications.showTapToProcess(this)
+                    // The platform denied/hid the clipboard to this background
+                    // service ("emptied clipboard", focus restriction). Handle it
+                    // entirely automatically by launching the focused shim activity.
+                    // It will read with a window, process, and post the normal
+                    // rich result notification. No "Tap to process" notification
+                    // is required for the user.
+                    ClipboardNotifications.cancelTapToProcess(this)
+                    try {
+                        startActivity(
+                            Intent(this, ProcessClipboardActivity::class.java)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                    } catch (_: Exception) {
+                        // Rare launch failure — fall back to the explicit notif.
+                        ClipboardNotifications.showTapToProcess(this)
+                    }
                 }
             }
             else -> Unit

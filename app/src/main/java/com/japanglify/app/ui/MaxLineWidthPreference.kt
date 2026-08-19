@@ -5,7 +5,6 @@ import android.graphics.Paint
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.AttributeSet
-import android.view.View
 import android.widget.EditText
 import android.widget.SeekBar
 import android.widget.TextView
@@ -51,7 +50,8 @@ class MaxLineWidthPreference(context: Context, attrs: AttributeSet?) : Preferenc
         override fun afterTextChanged(s: Editable?) {
             if (syncing) return
             val typed = s?.toString()?.toIntOrNull() ?: return
-            applyValue(clamp(typed), fromField = true)
+            // Field accepts any >=0 (including > slider). Clamp only for slider.
+            applyValue(typed.coerceAtLeast(0), fromField = true)
         }
     }
 
@@ -77,26 +77,31 @@ class MaxLineWidthPreference(context: Context, attrs: AttributeSet?) : Preferenc
         previewDefault = holder.findViewById(R.id.max_line_width_preview_default) as? TextView
         previewMonospace = holder.findViewById(R.id.max_line_width_preview_monospace) as? TextView
 
-        val current = clamp(
-            PreferencesRepository.parseMaxLineWidth(getPersistedString(DEFAULT.toString()))
-        )
-        setFieldsSilently(current)
-        updatePreview(current)
+        // Show whatever is persisted (including > slider max or 0=unlimited).
+        // Slider only ever shows up to SLIDER_MAX.
+        val persisted = PreferencesRepository.parseMaxLineWidth(getPersistedString(DEFAULT.toString()))
+        val sliderVal = persisted.coerceIn(0, SLIDER_MAX)
+        setFieldsSilently(sliderVal, displayValue = persisted)
+        updatePreview(persisted)
 
         sb?.setOnSeekBarChangeListener(seekListener)
         field?.addTextChangedListener(textWatcher)
         field?.setOnFocusChangeListener { _, hasFocus ->
             if (!hasFocus) {
-                // Re-normalize on blur (e.g. field left blank or out of range).
-                val normalized = clamp(field.text?.toString()?.toIntOrNull() ?: current)
-                setFieldsSilently(normalized)
-                updatePreview(normalized)
+                // Re-normalize on blur; allow any >=0 (slider will cap visually).
+                val raw = field.text?.toString()?.toIntOrNull() ?: persisted
+                val v = raw.coerceAtLeast(0)
+                val forSlider = v.coerceIn(0, SLIDER_MAX)
+                setFieldsSilently(forSlider, displayValue = v)
+                updatePreview(v)
             }
         }
     }
 
     private fun applyValue(value: Int, fromField: Boolean) {
-        setFieldsSilently(value, skipField = fromField)
+        // Accept any >=0 from the field (wide blocks need >32). Slider caps visually.
+        val forSlider = value.coerceIn(0, SLIDER_MAX)
+        setFieldsSilently(forSlider, skipField = fromField, displayValue = value)
         updatePreview(value)
         persistString(value.toString())
     }
@@ -145,14 +150,18 @@ class MaxLineWidthPreference(context: Context, attrs: AttributeSet?) : Preferenc
         return (cjkPx / padPx).roundToInt().coerceIn(1, 4)
     }
 
-    /** Updates both widgets without re-firing each other's listeners. */
-    private fun setFieldsSilently(value: Int, skipField: Boolean = false) {
+    /** Updates both widgets without re-firing each other's listeners.
+     *  [displayValue] lets the EditText show the real persisted value (e.g. 60)
+     *  while the slider stays capped at SLIDER_MAX.
+     */
+    private fun setFieldsSilently(sliderValue: Int, skipField: Boolean = false, displayValue: Int? = null) {
         syncing = true
-        seekBar?.progress = value
+        seekBar?.progress = sliderValue.coerceIn(0, SLIDER_MAX)
         if (!skipField) {
+            val shown = (displayValue ?: sliderValue).coerceAtLeast(0)
             valueField?.let {
-                if (it.text?.toString() != value.toString()) {
-                    it.setText(value.toString())
+                if (it.text?.toString() != shown.toString()) {
+                    it.setText(shown.toString())
                     it.setSelection(it.text?.length ?: 0)
                 }
             }
@@ -160,22 +169,22 @@ class MaxLineWidthPreference(context: Context, attrs: AttributeSet?) : Preferenc
         syncing = false
     }
 
-    private fun clamp(value: Int): Int = value.coerceIn(0, MAX_SLIDER)
+    private fun clampForSlider(value: Int): Int = value.coerceIn(0, SLIDER_MAX)
 
     override fun onGetDefaultValue(a: android.content.res.TypedArray, index: Int): Any? =
         a.getString(index)
 
     override fun onSetInitialValue(defaultValue: Any?) {
-        val initial = clamp(
-            PreferencesRepository.parseMaxLineWidth(
-                getPersistedString(defaultValue as? String ?: DEFAULT.toString())
-            )
+        val persisted = PreferencesRepository.parseMaxLineWidth(
+            getPersistedString(defaultValue as? String ?: DEFAULT.toString())
         )
-        setFieldsSilently(initial)
+        val forSlider = persisted.coerceIn(0, SLIDER_MAX)
+        setFieldsSilently(forSlider, displayValue = persisted)
     }
 
     companion object {
-        private const val MAX_SLIDER = 32
+        /** Slider cap — values above this are still valid and editable via the number field. */
+        private const val SLIDER_MAX = 120
         private const val DEFAULT = 14
 
         /** One full-width kana glyph — representative CJK width for [calibratedCjkWidth]. */

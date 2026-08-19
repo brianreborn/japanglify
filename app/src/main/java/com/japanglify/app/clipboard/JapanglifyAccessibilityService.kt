@@ -366,8 +366,24 @@ class JapanglifyAccessibilityService : AccessibilityService() {
                                 val o = ClipboardProcessor.processText(this, sel, force = true)
                                 CopyHookDiagnostics.log(this, "fallback selection → $o")
                             } else {
-                                CopyHookDiagnostics.log(this, "no clip/selection — tap-to-process")
-                                ClipboardNotifications.showTapToProcess(this)
+                                // The OS/host hid the clipboard from background readers
+                                // ("emptied clipboard", "not in focus"). Handle it
+                                // automatically by launching our focused shim activity.
+                                // It will read the clip with focus, process, and show
+                                // the normal rich result notification. The user never
+                                // has to tap a "Tap to process" notification.
+                                CopyHookDiagnostics.log(this, "clipboard hidden/denied — auto-launch focused processor")
+                                ClipboardNotifications.cancelTapToProcess(this)
+                                try {
+                                    startActivity(
+                                        Intent(this, ProcessClipboardActivity::class.java)
+                                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    )
+                                } catch (_: Exception) {
+                                    // Rare: couldn't launch the focused shim.
+                                    // Only then surface the explicit notification.
+                                    ClipboardNotifications.showTapToProcess(this)
+                                }
                             }
                         }
                     }
@@ -422,7 +438,25 @@ class JapanglifyAccessibilityService : AccessibilityService() {
                 if (insertAtCollapsedCursor(converted, selected)) {
                     cutReplaceDone = true
                     LastResultStore.save(this, selected, converted)
+                    // Make the converted text available on the system clipboard too
+                    // (as a self-write) so subsequent pastes and host "Copy" gestures
+                    // see the Japanglified form without forcing the user to re-select.
+                    LastResultStore.writeToClipboard(this, converted)
                     CopyHookDiagnostics.log(this, "cut auto-replace OK @${delay}ms")
+                    // Always surface the result notification (with Copy / Copy image /
+                    // Replace field / Translate actions) even on the Cut path.
+                    // Without this, a successful Cut auto-replace leaves the user with
+                    // the converted text in the field but no way to reach the "Copy"
+                    // action or "Copy image" — exactly the trap visible when the host
+                    // only offers Cut or when the user tapped Cut.
+                    ClipboardNotifications.cancelTapToProcess(this)
+                    ClipboardNotifications.showResult(this, converted)
+
+                    // Preemptive background images are now allowed (generation-tracked,
+                    // low-prio, length-gated, cooperative checkpoints). Cancel priors
+                    // then kick the cheap preview + (for short text) a full PNG.
+                    ClipboardImageRenderCache.cancelPreviousPreemptive()
+                    ClipboardImageRenderCache.startPreemptive(this, converted)
                 } else if (delay == delays.last()) {
                     // The host never reflected the Cut deletion within the
                     // retry window (or the field lost focus) — fall back to

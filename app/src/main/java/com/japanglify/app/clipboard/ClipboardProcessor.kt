@@ -6,6 +6,9 @@ import com.japanglify.app.JapanglifyApp
 import com.japanglify.app.data.PreferencesRepository
 import com.japanglify.app.domain.KanaConverter
 
+// ClipboardImageRenderCache is used for preemptive background image work
+// after producing a textual result (cheap preview + gated full PNG).
+
 /**
  * Shared “read clipboard → Japanglify → result notification” pipeline.
  *
@@ -114,12 +117,17 @@ object ClipboardProcessor {
 
         lastHandledRaw = text
         LastResultStore.save(context, text, result)
-        // Kicked off now, in parallel with showing the result -- rendering
-        // the "Copy image" bitmap is real work (see
-        // ClipboardImageRenderCache's doc comment), and by the time a user
-        // notices the notification and taps "Copy image" this is normally
-        // already done, instead of running synchronously at tap time.
-        ClipboardImageRenderCache.prerender(context, text)
+
+        // Preemptive background image work is now allowed, but only under
+        // strict controls: generation tracking, lastSource validation on every
+        // completion, low-priority threads, length gates for full renders,
+        // and cooperative checkpoints inside the renderers.
+        //
+        // Cancel any previous preemptive jobs for an older result first.
+        ClipboardImageRenderCache.cancelPreviousPreemptive()
+        // Kick off cheap preview (always) + gated full PNG (short sources only).
+        ClipboardImageRenderCache.startPreemptive(context, text)
+
         ClipboardNotifications.cancelTapToProcess(context)
         ClipboardNotifications.showResult(context, result)
 

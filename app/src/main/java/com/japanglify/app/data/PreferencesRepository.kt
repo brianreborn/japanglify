@@ -188,7 +188,10 @@ class PreferencesRepository(context: Context) {
             return when {
                 n == null -> JapanglifySettings.DEFAULT_MAX_LINE_WIDTH_FULLWIDTH
                 n < 0 -> 0
-                n > 64 -> 64
+                // Allow wide blocks for big interlinear text; 0 means unlimited.
+                // Cap at a generous but sane ceiling so absurd values don't
+                // produce huge measurement work downstream.
+                n > 200 -> 200
                 else -> n
             }
         }

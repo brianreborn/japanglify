@@ -6,8 +6,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.graphics.BitmapFactory
-import android.net.Uri
+import android.graphics.Bitmap
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -87,7 +86,8 @@ object ClipboardNotifications {
 
     fun showResult(context: Context, result: String) {
         ensureChannels(context)
-        LastResultStore.save(context, LastResultStore.lastSource.orEmpty(), result)
+        // Callers MUST have done LastResultStore.save(sourceText, result) with the
+        // *original Japanese source* before calling us. Do not touch lastSource here.
 
         // getActivity, not getBroadcast -- see ClipboardWriteActivity's doc
         // comment for why an actual clipboard write needs a real focused
@@ -179,7 +179,108 @@ object ClipboardNotifications {
         }
 
         notifySafe(context, ID_RESULT, builder.build())
+
+        // Intentionally do not attach any image preview (cheap or full) here.
+        // Both full image rendering ("Copy image") and the cheap notification
+        // largeIcon preview are expensive. We only kick them off when the user
+        // explicitly taps the corresponding action on the notification.
+        // Translation is already lazy (only on its action tap).
     }
+
+    /**
+     * Re-post the result notification (same ID) with a largeIcon preview bitmap.
+     * Used by the background preview renderer once it has a cheap thumbnail.
+     * Safe to call from any thread.
+     */
+    fun attachPreviewToResult(context: Context, source: String, preview: Bitmap) {
+        // Only attach if this is still the current result.
+        val currentSource = LastResultStore.lastSource
+        if (currentSource != source) return
+
+        ensureChannels(context)
+
+        // Rebuild a minimal result notification that carries the icon.
+        // We preserve the same actions and text we would have shown.
+        val copyPi = PendingIntent.getActivity(
+            context, 3,
+            Intent(context, ClipboardWriteActivity::class.java)
+                .setAction(ClipboardAssistReceiver.ACTION_COPY_RESULT),
+            pendingFlags()
+        )
+        val copyImagePi = PendingIntent.getActivity(
+            context, 6,
+            Intent(context, ClipboardWriteActivity::class.java)
+                .setAction(ClipboardAssistReceiver.ACTION_COPY_IMAGE),
+            pendingFlags()
+        )
+        val translatePi = PendingIntent.getBroadcast(
+            context, 5,
+            Intent(context, ClipboardAssistReceiver::class.java)
+                .setAction(ClipboardAssistReceiver.ACTION_TRANSLATE),
+            pendingFlags()
+        )
+        val replaceFieldPi = PendingIntent.getBroadcast(
+            context, 7,
+            Intent(context, ClipboardAssistReceiver::class.java)
+                .setAction(ClipboardAssistReceiver.ACTION_REPLACE_FIELD),
+            pendingFlags()
+        )
+
+        val imageFirst = LastResultStore.hostPrefersImage()
+        val fieldReplaceAvailable = LastResultStore.lastHostFieldEditable &&
+            JapanglifyAccessibilityService.isRunning()
+
+        data class Action(val label: Int, val icon: Int, val pi: PendingIntent)
+
+        val actions = buildList {
+            if (fieldReplaceAvailable) {
+                add(Action(R.string.notif_action_replace_field, R.drawable.ic_action_replace_field, replaceFieldPi))
+                add(
+                    if (imageFirst) Action(R.string.notif_action_copy_image, R.drawable.ic_action_copy_image, copyImagePi)
+                    else Action(R.string.notif_action_copy, R.drawable.ic_action_copy_text, copyPi)
+                )
+            } else if (imageFirst) {
+                add(Action(R.string.notif_action_copy_image, R.drawable.ic_action_copy_image, copyImagePi))
+                add(Action(R.string.notif_action_copy, R.drawable.ic_action_copy_text, copyPi))
+            } else {
+                add(Action(R.string.notif_action_copy, R.drawable.ic_action_copy_text, copyPi))
+                add(Action(R.string.notif_action_copy_image, R.drawable.ic_action_copy_image, copyImagePi))
+            }
+            add(Action(R.string.notif_action_translate, R.drawable.ic_action_translate, translatePi))
+        }.take(3)
+
+        val defaultTapPi = if (imageFirst) copyImagePi else copyPi
+        val last = LastResultStore.lastResult ?: ""
+        val previewText = last.replace('\n', ' ').let { if (it.length > 180) it.take(177) + "…" else it }
+
+        val builder = NotificationCompat.Builder(context, CHANNEL_RESULT)
+            .setSmallIcon(R.drawable.ic_japanglify_action)
+            .setContentTitle(context.getString(R.string.notif_result_title))
+            .setContentText(previewText)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(last))
+            .setLargeIcon(preview)
+            .setAutoCancel(true)
+            .setContentIntent(defaultTapPi)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+
+        for (action in actions) {
+            builder.addAction(
+                NotificationCompat.Action.Builder(
+                    androidx.core.graphics.drawable.IconCompat.createWithResource(context, action.icon),
+                    context.getString(action.label),
+                    action.pi
+                ).build()
+            )
+        }
+
+        notifySafe(context, ID_RESULT, builder.build())
+    }
+
+    /**
+     * The source text we should consider "current" when deciding whether to
+     * attach a just-finished preview. Falls back to lastSource.
+     */
+    private fun resultSourceForPreview(): String = LastResultStore.lastSource.orEmpty()
 
     fun showTapToProcess(context: Context) {
         ensureChannels(context)

@@ -34,34 +34,27 @@ import com.japanglify.app.domain.ShareTarget
  * [Intent.EXTRA_SHORTCUT_ID] back to [ShareTargetRepository.find].
  */
 object ShareTargetShortcuts {
-    /** Must match the `<category>` inside `res/xml/shortcuts.xml`'s `<share-target>`. */
-    const val CATEGORY = "com.japanglify.app.category.SHARE_TARGET"
-
     /**
-     * Full sync: replaces the entire dynamic shortcut list with exactly
-     * [targets], capped to the platform's per-activity max (older devices/
-     * launchers can be as low as 4) — silently drops any beyond that rather
-     * than failing the whole sync, since a partial set of targets is still
-     * useful and [androidx.preference] callers should not need to reason
-     * about a platform shortcut-count limit themselves.
+     * New model (2026-08): single "Japanglify" entry in the system Share sheet.
+     * When chosen, ShareTargetActivity shows an in-app dropdown/chooser of:
+     *   - current settings (text)
+     *   - current settings (image)
+     *   - each saved ShareTarget (with its frozen snapshot + action)
+     *
+     * We no longer publish per-target dynamic shortcuts as Direct Share targets.
+     * That approach caused:
+     *   - multiple "Japanglify" icons cluttering the sheet
+     *   - flakiness of Direct Share across launchers/OEMs/Android versions
+     *   - pinned shortcuts going stale when the user renamed/reordered targets
+     *
+     * Legacy pinned per-target shortcuts (if any still exist on device) are
+     * still honored via EXTRA_SHORTCUT_ID for a transition period.
      */
     fun sync(context: Context, targets: List<ShareTarget>) {
-        val max = ShortcutManagerCompat.getMaxShortcutCountPerActivity(context).let { if (it > 0) it else Int.MAX_VALUE }
-        val shortcuts = targets.take(max).map { buildShortcut(context, it) }
-        ShortcutManagerCompat.setDynamicShortcuts(context, shortcuts)
-    }
-
-    private fun buildShortcut(context: Context, target: ShareTarget): ShortcutInfoCompat {
-        val fallbackIntent = Intent(context, ShareTargetActivity::class.java).apply {
-            action = Intent.ACTION_SEND
-            type = "text/plain"
-        }
-        return ShortcutInfoCompat.Builder(context, target.id)
-            .setShortLabel(target.label)
-            .setLongLabel(target.label)
-            .setIcon(IconCompat.createWithResource(context, R.mipmap.ic_launcher))
-            .setIntent(fallbackIntent)
-            .setCategories(setOf(CATEGORY))
-            .build()
+        // Stop publishing per-target Direct Share icons.
+        // This leaves only the single generic "Japanglify" ACTION_SEND entry.
+        ShortcutManagerCompat.removeAllDynamicShortcuts(context)
+        // We intentionally publish nothing here. The dropdown is driven inside
+        // ShareTargetActivity when the generic share target is chosen.
     }
 }

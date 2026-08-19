@@ -1,60 +1,85 @@
 package com.japanglify.app.clipboard
 
 import android.app.Activity
+import android.os.Handler
+import android.os.Looper
 import android.widget.Toast
 import com.japanglify.app.R
 
 /**
- * Brief focused activity so Android allows clipboard reads when the
- * accessibility path still cannot see the clip (rare OEM cases).
+ * Brief focused activity used to read the clipboard (and run the pipeline)
+ * in cases where the background accessibility service or FGS cannot see the
+ * clip because of Android's focus restrictions ("ClipboardService: Denying
+ * clipboard access ... application is not in focus", the "emptied clipboard"
+ * symptom after Copy in many hosts).
  *
- * The read must happen in [onWindowFocusChanged], not [onCreate]: Android's
- * ClipboardService gates `getPrimaryClip()` on the window *currently* having
- * input focus, and a just-created Activity's window doesn't have it yet —
- * confirmed live via logcat (`ActivityTaskManager: START ... isFocused=false`
- * immediately followed by `ClipboardService: Denying clipboard access to
- * com.japanglify.app, application is not in focus`). Reading in onCreate()
- * defeated the entire point of this activity, failing almost every time it
- * was launched from a notification action.
+ * The key point: we launch this *automatically* from the background paths
+ * (JapanglifyAccessibilityService, ClipboardAssistService) when a normal
+ * poll/clip-listener read comes back empty/unreadable. The user never has
+ * to tap a "Tap to process" notification to deal with the OS protection.
+ *
+ * The read (and subsequent processing + rich result notification) happens
+ * while this activity has (or quickly gains) focus. It finishes quickly.
  */
 class ProcessClipboardActivity : Activity() {
 
     private var handled = false
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (!hasFocus || handled) return
         handled = true
 
-        val outcome = ClipboardProcessor.processClipboardIfNew(this)
+        // The clipboard may become visible a moment after we gain focus.
+        // Do a short focused retry loop here so that launching us "early"
+        // (as soon as the background path sees a denial) still succeeds.
+        // This is what makes the emptied-clipboard case entirely automatic.
+        attemptFocusedProcess(attempt = 0)
+    }
+
+    private fun attemptFocusedProcess(attempt: Int) {
+        val maxAttempts = 5
+        val delays = longArrayOf(0L, 40L, 120L, 280L, 520L)
+
+        val outcome = ClipboardProcessor.processClipboardIfNew(this, force = true)
+
         when (outcome) {
             ClipboardProcessor.ProcessOutcome.SUCCESS -> {
-                Toast.makeText(this, R.string.notif_result_ready, Toast.LENGTH_SHORT).show()
-            }
-            ClipboardProcessor.ProcessOutcome.EMPTY_OR_UNREADABLE -> {
-                Toast.makeText(this, R.string.clipboard_empty, Toast.LENGTH_LONG).show()
-            }
-            ClipboardProcessor.ProcessOutcome.SELF_WRITE -> {
-                Toast.makeText(this, R.string.clipboard_assist_skip_self, Toast.LENGTH_SHORT).show()
+                // We were launched automatically to defeat the focus/emptied-clip
+                // restriction. The pipeline has already posted the rich result
+                // notification (Copy / Copy image / etc.). Make sure any
+                // stale "Tap to process" card is gone and exit.
+                ClipboardNotifications.cancelTapToProcess(this)
+                finish()
             }
             ClipboardProcessor.ProcessOutcome.DUPLICATE -> {
                 val existing = LastResultStore.load(this)
                 if (!existing.isNullOrEmpty()) {
                     ClipboardNotifications.showResult(this, existing)
-                    Toast.makeText(this, R.string.notif_result_ready, Toast.LENGTH_SHORT).show()
+                }
+                finish()
+            }
+            ClipboardProcessor.ProcessOutcome.EMPTY_OR_UNREADABLE,
+            ClipboardProcessor.ProcessOutcome.ERROR -> {
+                if (attempt < maxAttempts - 1) {
+                    mainHandler.postDelayed({
+                        if (!isFinishing) attemptFocusedProcess(attempt + 1)
+                    }, delays.getOrElse(attempt) { 200L })
+                } else {
+                    // Still unreadable even with focus. This is either a genuinely
+                    // empty clipboard or a host that is actively protecting it.
+                    // For the automatic "emptied clipboard after Copy" case we
+                    // were launched for, just exit silently. The user will simply
+                    // not see a Japanglify result notification (which is the
+                    // correct signal). No extra "tap to process" or error toast.
+                    finish()
                 }
             }
-            ClipboardProcessor.ProcessOutcome.DISABLED -> {
-                Toast.makeText(this, R.string.clipboard_assist_disabled_hint, Toast.LENGTH_LONG).show()
-            }
-            ClipboardProcessor.ProcessOutcome.NO_JAPANESE -> {
-                Toast.makeText(this, R.string.clipboard_no_japanese, Toast.LENGTH_SHORT).show()
-            }
-            ClipboardProcessor.ProcessOutcome.TOO_LONG,
-            ClipboardProcessor.ProcessOutcome.ERROR -> {
-                Toast.makeText(this, R.string.error_processing_generic, Toast.LENGTH_SHORT).show()
+            else -> {
+                // DISABLED, NO_JAPANESE, TOO_LONG, SELF_WRITE, etc.
+                finish()
             }
         }
-        finish()
     }
 }

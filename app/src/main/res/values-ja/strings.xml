@@ -25,7 +25,7 @@
     <string name="pref_category_rendering">表示形式</string>
     <string name="pref_output_format">出力フォーマット</string>
     <string name="pref_max_line_width">最大行幅（全角単位）</string>
-    <string name="pref_max_line_width_summary">インターリニアをこの全角幅で折り返し（既定 14 ≈ 短い語が数語）。0 で折り返しなし。</string>
+    <string name="pref_max_line_width_summary">インターリニアをこの全角幅で折り返し。既定 14 は狭い。広いブロック用に 40–80+（または 0＝無制限）を使う。</string>
     <string name="max_line_width_preview_heading">プレビュー — 実際の折り返しはホストのフォント／サイズ次第</string>
     <string name="max_line_width_preview_small">小 (sans-serif, 12sp)</string>
     <string name="max_line_width_preview_default">標準 (sans-serif, 16sp)</string>

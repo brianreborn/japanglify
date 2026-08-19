@@ -62,9 +62,174 @@ object ClipboardImageRenderer {
         }
     }
 
+    /** Target longest side for a notification largeIcon preview (px). Keeps memory and draw cost low. */
+    private const val NOTIF_PREVIEW_MAX_PX = 144
+
+    /** Scale down a full render for use as notification largeIcon. */
+    fun createNotificationPreview(src: Bitmap): Bitmap {
+        val w = src.width
+        val h = src.height
+        if (w <= NOTIF_PREVIEW_MAX_PX && h <= NOTIF_PREVIEW_MAX_PX) return src
+        val scale = minOf(NOTIF_PREVIEW_MAX_PX.toFloat() / w, NOTIF_PREVIEW_MAX_PX.toFloat() / h)
+        val nw = (w * scale).toInt().coerceAtLeast(1)
+        val nh = (h * scale).toInt().coerceAtLeast(1)
+        return Bitmap.createScaledBitmap(src, nw, nh, true)
+    }
+
+    /**
+     * Cooperative cancellation hook for preemptive background renders.
+     * When this returns true the renderer should stop as soon as it can
+     * (between rows for full renders, before heavy work for previews).
+     * Default (null) means "never abort".
+     */
+    fun interface AbortCheck { fun shouldAbort(): Boolean }
+
+    private val NEVER_ABORT: AbortCheck? = null
+
     /** Full-width kana glyph width in px at our render text size — for sizing the wrap budget. */
     fun fullwidthUnitPx(context: Context): Float =
         buildPaint(context).measureText(SAMPLE_FULLWIDTH_CHAR)
+
+    /**
+     * Ultra-cheap preview renderer used **only** for the notification largeIcon.
+     * Much smaller text, capped rows, tight padding. Never used for the actual copy image.
+     *
+     * [abort] (when non-null) is polled before starting heavy measurement.
+     */
+    fun renderInterlinearToBitmapPreview(
+        context: Context,
+        rows: List<TripleScriptRenderer.InterlinearRowData>,
+        settings: JapanglifySettings,
+        abort: AbortCheck? = null
+    ): Bitmap {
+        if (abort?.shouldAbort() == true) {
+            // Return a tiny 1x1 placeholder; callers treat null-or-small as "no preview".
+            return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+        }
+        val density = context.resources.displayMetrics.density
+        val previewSp = 9f
+        val paint = buildPaint(context, previewSp)
+        val furiganaPaint = buildPaint(context, previewSp * FURIGANA_RELATIVE_SIZE)
+        val padding = (4f * density).toInt()
+        val wordGapPx = 3f * density
+        val rowGroupGapPx = 2f * density
+        val lineHeight = paint.fontSpacing
+        val order = lineOrder(settings)
+
+        val measuredRows = rows.map { row ->
+            data class Raw(
+                val cell: MeasuredCell,
+                val natural: Float,
+                val baseDriven: Boolean
+            )
+            val raw = row.cells.map { c ->
+                val furi = if (settings.includeFurigana) c.furigana else ""
+                val roma = if (settings.includeRomaji) c.romaji else ""
+                val gloss = if (settings.includeGlosses) c.gloss else ""
+                val emoji = if (settings.includeEmoji) c.emoji else ""
+                val baseW = paint.measureText(c.base)
+                val furiW = furiganaPaint.measureText(furi)
+                val natural = maxOf(baseW, furiW).coerceAtLeast(1f)
+                Raw(
+                    MeasuredCell(
+                        furi, c.base, roma, c.isWordStart, gloss, emoji,
+                        c.isPunctuation, c.isSameSegmentContinuation, natural
+                    ),
+                    natural,
+                    baseDriven = baseW >= furiW
+                )
+            }
+            val widths = FloatArray(raw.size)
+            var i = 0
+            while (i < raw.size) {
+                var end = i + 1
+                while (end < raw.size && raw[end].cell.isSameSegmentContinuation) end++
+                val first = raw[i].cell
+                val naturalTotal = (i until end).sumOf { raw[it].natural.toDouble() }.toFloat()
+                val groupDemand = maxOf(
+                    naturalTotal,
+                    paint.measureText(first.romaji),
+                    paint.measureText(first.gloss),
+                    paint.measureText(first.emoji)
+                )
+                val extra = (groupDemand - naturalTotal).coerceAtLeast(0f)
+                val slice = raw.subList(i, end)
+                val distributed = distributeExtraWidthPx(slice.map { it.natural }, extra, slice.map { it.baseDriven })
+                for (k in distributed.indices) widths[i + k] = distributed[k]
+                i = end
+            }
+            raw.mapIndexed { idx, r -> r.cell.copy(width = widths[idx]) }
+        }
+
+        fun rowWidth(row: List<MeasuredCell>): Float {
+            var w = 0f
+            row.forEachIndexed { i, cell -> if (i > 0 && cell.isWordStart) w += wordGapPx; w += cell.width }
+            return w
+        }
+
+        fun rowVisibleLines(row: List<MeasuredCell>): List<Line> = order.filter { line ->
+            line == Line.BASE || row.any { it.text(line).isNotBlank() }
+        }
+
+        val capped = measuredRows.take(3)
+
+        val contentWidth = capped.maxOfOrNull(::rowWidth) ?: 0f
+        val rowLineCounts = capped.map { rowVisibleLines(it).size }
+        val totalHeight = rowLineCounts.sum() * lineHeight +
+            (capped.size - 1).coerceAtLeast(0) * rowGroupGapPx
+
+        val bitmap = Bitmap.createBitmap(
+            (contentWidth + padding * 2).toInt().coerceAtLeast(1),
+            (totalHeight + padding * 2).toInt().coerceAtLeast(1),
+            Bitmap.Config.ARGB_8888
+        )
+        val canvas = Canvas(bitmap)
+        val scheme = settings.effectiveImageColorScheme
+        canvas.drawColor(scheme.color(ImageColorRole.BACKGROUND))
+
+        val baselineOffset = -paint.fontMetrics.top
+        var y = padding.toFloat()
+        for (row in capped) {
+            for (line in rowVisibleLines(row)) {
+                val linePaint = if (line == Line.FURIGANA) furiganaPaint else paint
+                linePaint.color = scheme.color(line.role())
+                var x = padding.toFloat()
+                row.forEachIndexed { i, cell ->
+                    if (i > 0 && cell.isWordStart) x += wordGapPx
+                    val spansGroup = line == Line.ROMAJI || line == Line.GLOSS || line == Line.EMOJI
+                    if (spansGroup && cell.isSameSegmentContinuation) {
+                        x += cell.width
+                        return@forEachIndexed
+                    }
+                    val text = cell.text(line)
+                    if (text.isNotEmpty()) {
+                        val spanWidth = if (spansGroup) {
+                            var w = cell.width
+                            var j = i + 1
+                            while (j < row.size && row[j].isSameSegmentContinuation) {
+                                w += row[j].width
+                                j++
+                            }
+                            w
+                        } else {
+                            cell.width
+                        }
+                        val tx = if (cell.isPunctuation) {
+                            x
+                        } else {
+                            val tw = linePaint.measureText(text)
+                            x + (spanWidth - tw) / 2f
+                        }
+                        canvas.drawText(text, tx, y + baselineOffset, linePaint)
+                    }
+                    x += cell.width
+                }
+                y += lineHeight
+            }
+            y += rowGroupGapPx
+        }
+        return bitmap
+    }
 
     fun paddingPx(context: Context): Int =
         (PADDING_DP * context.resources.displayMetrics.density).toInt()
@@ -125,11 +290,15 @@ object ClipboardImageRenderer {
      * internal measurement of a run differs by even a pixel from a standalone
      * [android.graphics.Paint.measureText] call, e.g. across BiDi-adjacent
      * punctuation).
+     *
+     * [abort] (when non-null) is polled between major row groups so a
+     * preemptive background job can exit early when a newer result has arrived.
      */
     fun renderInterlinearToBitmap(
         context: Context,
         rows: List<TripleScriptRenderer.InterlinearRowData>,
-        settings: JapanglifySettings
+        settings: JapanglifySettings,
+        abort: AbortCheck? = null
     ): Bitmap {
         val paint = buildPaint(context)
         val furiganaPaint = buildPaint(context, TEXT_SIZE_SP * FURIGANA_RELATIVE_SIZE)
@@ -219,7 +388,13 @@ object ClipboardImageRenderer {
 
         val baselineOffset = -paint.fontMetrics.top
         var y = padding.toFloat()
-        for (row in measuredRows) {
+        for ((rowIdx, row) in measuredRows.withIndex()) {
+            // Cooperative abort between rows for long preemptive renders.
+            if (abort?.shouldAbort() == true) {
+                // Return the (partially drawn) bitmap; callers that care about
+                // preemption will drop it via lastSource/generation checks.
+                return bitmap
+            }
             for (line in rowVisibleLines(row)) {
                 val linePaint = if (line == Line.FURIGANA) furiganaPaint else paint
                 linePaint.color = scheme.color(line.role())
