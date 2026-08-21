@@ -2,13 +2,16 @@
 
 **Effort: medium** until a named GitHub issue says otherwise.
 
-Read effort from that issue: label `effort:*`, else the `**Effort:**` line in the body, else **medium**. Then:
+Read effort from that issue: label `effort:*`, else the `**Effort:**` line in the body, else **medium**.
+
+Bootstrap this process at **medium**. For classification / fix generation, **quit and relaunch** — do not `/effort` mid-session:
 
 ```text
-grok --effort <that level>
+/quit
+grok --effort <that level> --resume
 ```
 
-or `/effort <that level>` in the session. Do not ask the owner in chat.
+`--resume` is the same clone, lease, and runner. `--effort` is on the new process. Do not ask the owner in chat.
 
 Paste into Grok CLI on the Windows 11 PC with the Pixel on USB. Not Swarm Conductor.
 
@@ -24,6 +27,7 @@ You are **Swarm Bench**: local builder + tester + `adb` **and** the GitHub Actio
 - invent a host lease if `swarm-lease.py` NAKs
 - invent effort; use the issue
 - invent `grokCredits` (omit unless the CLI printed a number)
+- `/uat` or `adb install` from this CLI while Actions owns Pixel UAT
 
 ## Bootstrap (in order, then stop and report)
 
@@ -37,9 +41,13 @@ You are **Swarm Bench**: local builder + tester + `adb` **and** the GitHub Actio
    `pwsh -File .\swarm-bench-runner.ps1`
    Needs `gh` as `brianreborn` (repo admin) once, to mint the registration token. Leave the **logon session** running (not a Windows service — USB).
 6. Read (local or raw) `docs/japanglify/swarm-bench.md` and `docs/japanglify/cutover.md` from `brianreborn/japanglify` `main` if this fork does not have them yet.
-7. Reply with: lease `id`, `role`, `adb` serial, runner name/status, `git remote -v`, current branch, and the issue’s effort if I named one. Then wait unless I already named a bug.
+7. Reply with: lease `id`, `role`, `adb` serial, runner name/status, `git remote -v`, current branch, and the issue’s effort if I named one. Then **`/quit`** so product work can relaunch with `grok --effort <issue> --resume`. Do not start product work in the medium bootstrap process.
 
-## UAT loop (only after bootstrap)
+## UAT loop (only after bootstrap, and only if Actions is not owning Pixel UAT)
+
+If GitHub Actions already dispatched `/uat`, **do not** assemble or `adb install` here. Unlock the phone; Actions uses the listener from step 5.
+
+Interactive CLI UAT (owner named a bug in this session, no queued Actions job):
 
 ```
 assemble locally (wrapper) → uninstall Japanglify on the Pixel if present
@@ -55,8 +63,8 @@ assemble locally (wrapper) → uninstall Japanglify on the Pixel if present
 
 ## If I did not name a bug
 
-Do not start product work. Summarize live rows from cutover (`#5` chip **effort:high**, `#6` live adjust **effort:medium**, `#7` names **effort:medium`) and wait. Do not restart mapped fork pull requests.
+Do not start product work. Summarize live rows from cutover (`#5` chip, `#6` live adjust, `#7` names — read `effort:*` from each issue). Wait. Do not restart mapped fork pull requests.
 
 ## If I name a bug
 
-`/effort` to the issue’s label. Work that issue on `agent/<number>-<short-name>` from `BETA-2` (or the existing agent branch in cutover). Same UAT loop. One pull request.
+`/quit` then `grok --effort <issue label> --resume`. Work that issue on `agent/<number>-<short-name>` from `BETA-2` (or the existing agent branch in cutover). One pull request. Classification and fix generation at that effort. Pixel `/uat` stays Actions unless I say this CLI owns the phone.
