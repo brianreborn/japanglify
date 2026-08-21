@@ -10,11 +10,13 @@ The conductor dispatches; it does not implement, build, or sign.
 | `/accept` `/block` | Grok automation `japanglify-swarm-conductor` | posts as the trusted actor |
 | `/uat` | Actions `swarm-conductor-uat.yml` | `github-actions[bot]` → self-hosted `swarm-bench` |
 | quota trip | Actions `swarm-watchdog.yml` (schedule) | `github-actions[bot]` |
-| JSON + lease self-test | Actions `conductor-config.yml` | `ubuntu-latest` |
+| JSON + lease/usage self-test | Actions `conductor-config.yml` | `ubuntu-latest` |
 
 There is **no** Actions `/accept` workflow. GitHub’s `/` dropdown cannot hold our commands — use [Saved replies](https://github.com/settings/replies).
 
 `GITHUB_TOKEN` cannot list self-hosted runners (admin API). Do not call it.
+
+Worker **cost** (wall, CPU, optional Grok credits) is a fence on the same state-change comment, not a heartbeat. See [usage.md](usage.md).
 
 This directory has **no product domain**. Japanese linguistics, Android
 intents, APKs, and in-flight Japanglify bugs live under `docs/japanglify/`.
