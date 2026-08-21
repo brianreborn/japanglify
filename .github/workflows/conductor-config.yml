@@ -43,7 +43,7 @@ jobs:
           assert all("role" in l for l in hosts["leases"])
           print("conductor config valid")
           PY
-      - name: swarm-lease + uat-map + usage + cmd + launch + kick self-test
+      - name: swarm-lease + uat-map + usage + cmd + launch + kick + ping self-test
         run: |
           python3 scripts/swarm-lease.py --self-test
           python3 scripts/swarm-lease.py --from local --id win11-pixel
@@ -53,6 +53,7 @@ jobs:
           python3 scripts/swarm-launch.py --self-test
           python3 scripts/swarm_kick.py --self-test
           python3 scripts/swarm-kick.py --self-test
+          python3 scripts/swarm_ping.py --self-test
       - name: Prove per-step host routing (dry-run, no spawn)
         run: |
           set -euo pipefail
@@ -61,7 +62,6 @@ jobs:
           python3 scripts/swarm-launch.py --step classify --issue 5 --id win11-pixel --effort xhigh
           python3 scripts/swarm-launch.py --step fix --issue 7 --id win11-pixel --effort xhigh
           python3 scripts/swarm-launch.py --step uat --issue 5 --id win11-pixel
-          # wrong host must NAK (prove we will not launch intake on the Pixel box)
           if python3 scripts/swarm-launch.py --step intake --issue 5 --id win11-pixel; then
             echo "FAIL intake on win11-pixel should NAK" >&2
             exit 1
