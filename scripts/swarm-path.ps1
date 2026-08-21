@@ -10,7 +10,8 @@ param(
 $ErrorActionPreference = "Continue"
 
 function Test-Exe([string]$p) {
-    return ($p -and (Test-Path -LiteralPath $p -PathType Leaf))
+    if (-not $p -or -not (Test-Path -LiteralPath $p -PathType Leaf)) { return $false }
+    try { return ((Get-Item -LiteralPath $p).Length -gt 0) } catch { return $false }
 }
 
 function Add-Dir([System.Collections.Generic.List[string]]$list, [string]$dir) {
@@ -111,6 +112,45 @@ function Find-SwarmTools {
             Add-Dir $dirs (Join-Path $loc "Scripts")
             $c = Join-Path $loc "python.exe"
             if (Test-Exe $c) { $python = $c }
+        }
+    }
+
+    foreach ($core in @(
+        "HKLM:\SOFTWARE\Python\PythonCore",
+        "HKCU:\SOFTWARE\Python\PythonCore",
+        "HKLM:\SOFTWARE\WOW6432Node\Python\PythonCore"
+    )) {
+        if (-not (Test-Path $core)) { continue }
+        Get-ChildItem $core -ErrorAction SilentlyContinue | Sort-Object Name -Descending | ForEach-Object {
+            $ipKey = Join-Path $_.PSPath "InstallPath"
+            $ip = Get-ItemProperty $ipKey -ErrorAction SilentlyContinue
+            if (-not $ip) { return }
+            $exe = [string]$ip.ExecutablePath
+            $root = [string]$ip.'(default)'
+            if (-not $exe -and $root) { $exe = Join-Path $root "python.exe" }
+            if (Test-Exe $exe) { $python = $exe }
+            if ($root) {
+                Add-Dir $dirs $root
+                Add-Dir $dirs (Join-Path $root "Scripts")
+            }
+            $launcher = Join-Path $root "py.exe"
+            if (-not (Test-Exe $launcher) -and $root) {
+                $launcher = Join-Path (Split-Path $root) "Launcher\py.exe"
+            }
+            if (Test-Exe $launcher) { $py = $launcher }
+        }
+    }
+    foreach ($pat in @(
+        "C:\Program Files\Python*",
+        "C:\Program Files (x86)\Python*",
+        "C:\Python*",
+        "$env:LOCALAPPDATA\Programs\Python\Python3*",
+        "$env:USERPROFILE\miniconda3",
+        "$env:USERPROFILE\anaconda3"
+    )) {
+        Get-Item $pat -ErrorAction SilentlyContinue | ForEach-Object {
+            $c = Join-Path $_.FullName "python.exe"
+            if (Test-Exe $c) { $python = $c; Add-Dir $dirs $_.FullName }
         }
     }
 
