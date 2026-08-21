@@ -144,7 +144,11 @@ jobs:
           extra_run = f"\n\nRun: {url}" if url else ""
           comment(
               f"{marker}\n## Swarm Bench\n**UAT dispatched** for issue #{issue} → `{dev}` `{branch}`{extra} (via `{row.get('source')}`).{extra_run}\n\n"
-              f"{runner_line()}\n\nUnlock the Pixel. Do not type a second command. This does not merge."
+              f"{runner_line()}\n\nUnlock the Pixel. Do not type a second command. This does not merge. USB missing holds **this** issue only; the runner stays up."
+          )
+          subprocess.run(
+              ["gh", "api", "-X", "DELETE", f"repos/{repo}/issues/{issue}/labels/uat-hold"],
+              check=False,
           )
           out("go", "true")
           out("issue", issue)
@@ -162,8 +166,10 @@ jobs:
     outputs:
       apk: ${{ steps.install.outputs.apk }}
       serial: ${{ steps.install.outputs.serial }}
+      hold: ${{ steps.prove.outputs.hold }}
     steps:
       - name: Prove host + adb
+        id: prove
         timeout-minutes: 5
         shell: pwsh
         run: |
@@ -171,10 +177,21 @@ jobs:
           Write-Host "computer=$env:COMPUTERNAME"
           Get-Process Runner.Listener -ErrorAction SilentlyContinue | Format-Table Id,ProcessName -AutoSize
           adb version
-          adb devices -l
-          $devs = @(adb devices | Select-String "\tdevice$")
-          if ($devs.Count -lt 1) { throw "no adb device (unlock / authorize USB)" }
-          if ($devs.Count -gt 1) { throw "more than one adb device" }
+          $deadline = (Get-Date).AddSeconds(60)
+          $devs = @()
+          do {
+            adb devices -l
+            $devs = @(adb devices | Select-String "\tdevice$")
+            if ($devs.Count -eq 1) { break }
+            if ($devs.Count -gt 1) { throw "more than one adb device" }
+            Write-Host "usb ephemeral: no device yet, retry"
+            Start-Sleep -Seconds 5
+          } while ((Get-Date) -lt $deadline)
+          if ($devs.Count -lt 1) {
+            echo "hold=usb" >> $env:GITHUB_OUTPUT
+            throw "usb-hold"
+          }
+          echo "hold=" >> $env:GITHUB_OUTPUT
 
       - name: Clone agent branch
         timeout-minutes: 5
@@ -270,6 +287,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
           ISSUE: ${{ needs.dispatch.outputs.issue }}
           RESULT: ${{ needs.bench.result }}
+          HOLD: ${{ needs.bench.outputs.hold }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           BRANCH: ${{ needs.dispatch.outputs.branch }}
         run: |
@@ -278,16 +296,31 @@ jobs:
           import json, os, subprocess
           issue = os.environ["ISSUE"]
           result = os.environ.get("RESULT") or "unknown"
+          hold = (os.environ.get("HOLD") or "").strip()
           url = os.environ["RUN_URL"]
           branch = os.environ.get("BRANCH") or ""
           repo = os.environ["GH_REPO"]
           marker = "<!-- swarm-bench-uat -->"
-          body = (
-              f"{marker}\n## Swarm Bench\n**UAT failed** (`{result}`) for issue #{issue} `{branch}`.\n\n"
-              f"The Pixel may be unlocked and still have nothing new — this job never reached **UAT installed**.\n"
-              f"Logs: {url}\n\n"
-              f"Do not `/accept` again. Same `agent/*` branch. A later `/uat` or `workflow_dispatch` is allowed because this never installed."
-          )
+          if hold == "usb":
+              body = (
+                  f"{marker}\n## Swarm Bench\n**UAT holding** (USB) for issue #{issue} `{branch}`.\n\n"
+                  f"No `adb` device after a short retry. **This issue only** is on hold. "
+                  f"`SHALOM-swarm-bench` stays up; other issues can still `/uat`.\n\n"
+                  f"Plug USB, unlock the Pixel, then `/uat` again on this issue. Same `agent/*`. Logs: {url}"
+              )
+              subprocess.run(
+                  ["gh", "api", f"repos/{repo}/issues/{issue}/labels", "--input", "-"],
+                  input=json.dumps({"labels": ["uat-hold"]}),
+                  text=True,
+                  check=False,
+              )
+          else:
+              body = (
+                  f"{marker}\n## Swarm Bench\n**UAT failed** (`{result}`) for issue #{issue} `{branch}`.\n\n"
+                  f"The Pixel may be unlocked and still have nothing new — this job never reached **UAT installed**.\n"
+                  f"Logs: {url}\n\n"
+                  f"Do not `/accept` again. Same `agent/*` branch. A later `/uat` is allowed because this never installed."
+              )
           subprocess.run(
               ["gh", "api", "-X", "POST", f"repos/{repo}/issues/{issue}/comments", "--input", "-"],
               input=json.dumps({"body": body}),

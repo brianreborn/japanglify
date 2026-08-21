@@ -22,7 +22,7 @@ Saved replies — [github.com/settings/replies](https://github.com/settings/repl
 |---|---|---|
 | `/accept` | owner | Intake ACCEPTED |
 | `/block` | owner | Intake BLOCKED |
-| `/uat` | owner | Install that issue’s `agent/<n>-*` on the Pixel. **USB plugged** (one `adb device`) is the rubric that UAT can happen. Unplugged = do not `/uat`. |
+| `/uat` | owner | Install that issue’s `agent/<n>-*` on the Pixel. USB missing **holds this issue only** (label `uat-hold`). Runner stays up. `/uat` again when the phone is back. |
 | `/kick` | owner | Mailbox: list pending. Does not install |
 | `/clip-shrink` | owner (also auto on attach) | Offer a compact copy **unless** already small (≤512 KB) |
 | `/clip-ok` | owner **or reporter** | Put that compact file in the original comment |

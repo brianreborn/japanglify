@@ -2,7 +2,7 @@
 
 Not for reporters. Public repo, but this page is the admin cheat sheet.
 
-**USB rubric:** plugged + one `adb` device = Pixel UAT is possible. Unplugged = no `/uat`. Listener arm does not need USB; idle stop while unplugged so a leftover listener cannot grab the queue.
+**USB rubric:** plugged + one `adb` device = that issue's Pixel UAT can install. Unplugged = **hold that issue only** (`uat-hold`); retry with `/uat`. Do **not** take `SHALOM-swarm-bench` offline. Idle stop is owner-idle, not USB.
 
 | What | Path (from `scripts/swarm_paths.py --id win11-pixel`) |
 |---|---|
