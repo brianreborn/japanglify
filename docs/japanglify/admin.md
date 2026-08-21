@@ -48,7 +48,7 @@ Validate: after resume it reports lease `win11-pixel`, one `adb` `device`, and *
 Bodies exactly: `/accept` `/block` `/uat` `/clip-ok`. [How](saved-replies.md).
 
 | You type | What you are telling the swarm |
-|---|---|---|
+|---|---|
 | `/accept` | Intake ACCEPTED. Cloud conductor only. Does **not** start a bench worker |
 | `/block` | Stop intake |
 | `/uat` | Install this issue’s `agent/<n>-*` on the Pixel via the **same** win11-pixel listener |
