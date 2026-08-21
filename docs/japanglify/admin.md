@@ -16,6 +16,8 @@ git pull origin main
 scripts\swarm-grok.cmd
 ```
 
+First machine: [paths.md](paths.md) (`swarm-bootstrap.ps1` / `swarm-bootstrap.sh`). Grok CLI is the other client.
+
 `swarm-grok.py` cds to the official clone from its own location. `C:\actions-runner` is only `Runner.Listener` / `swarm-run-loop.cmd`.
 
 CLI ritual is **not** this page. It is [prompt-bench.md](../swarm-conductor/prompt-bench.md) ([raw](https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt-bench.md)). This page is github.com + when to use that ritual.

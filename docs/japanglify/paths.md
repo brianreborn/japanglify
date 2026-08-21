@@ -15,9 +15,39 @@ Given a lease id, the tree is always the same. Matcher: `scripts/swarm_paths.py`
 
 `$SWARM_SRC` replaces `{home}/src` on any OS.
 
-```text
-python3 scripts/swarm_paths.py --id win11-pixel
-python3 scripts/swarm_paths.py --id unix-pixel --json
+## Fresh machine (Grok CLI + this script)
+
+Need **git** and **Grok CLI**. Python 3 for `swarm-grok`. Android JDK/SDK/`adb`/`gh` for Bench UAT. This script only checks out the two trees.
+
+Windows (save, then run — do not `irm | iex`, `param()` needs `-File`):
+
+```bat
+curl -L -o %TEMP%\swarm-bootstrap.ps1 https://raw.githubusercontent.com/brianreborn/japanglify/main/scripts/swarm-bootstrap.ps1
+powershell -ExecutionPolicy Bypass -File %TEMP%\swarm-bootstrap.ps1
+```
+
+```powershell
+irm https://raw.githubusercontent.com/brianreborn/japanglify/main/scripts/swarm-bootstrap.ps1 -OutFile $env:TEMP\swarm-bootstrap.ps1
+powershell -ExecutionPolicy Bypass -File $env:TEMP\swarm-bootstrap.ps1
+# optional: -Runner  (listener)   -Start  (swarm-grok)   -DryRun
+```
+
+Unix:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/brianreborn/japanglify/main/scripts/swarm-bootstrap.sh | sh
+# or save and: sh swarm-bootstrap.sh --dry-run
+# optional: --runner --start
+```
+
+Then, from the official clone:
+
+```bat
+%USERPROFILE%\src\brianreborn\japanglify\scripts\swarm-grok.cmd
+```
+
+```sh
+$HOME/src/brianreborn/japanglify/scripts/swarm-grok
 ```
 
 ## Which tree (not “conductor vs everything else”)
@@ -43,6 +73,11 @@ python3 scripts/swarm_paths.py --id unix-pixel --json
 | `/uat` job assemble+install | workflow on official; checkout of **dev** `agent/*` into runner workspace |
 
 Cloud conductor never needs a laptop clone. Swarm Bench on SHALOM keeps **both** clones. Do not implement Japanglify app code on official `main`. Do not keep swarm scripts only on the fork — `/uat` and `swarm-grok` would drift.
+
+```text
+python3 scripts/swarm_paths.py --id win11-pixel
+python3 scripts/swarm_paths.py --id unix-pixel --json
+```
 
 SHALOM (`win11-pixel`), if `USERPROFILE=C:\Users\brian`:
 

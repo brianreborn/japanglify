@@ -70,6 +70,8 @@ jobs:
           python3 scripts/swarm-grok.py --dry-run --no-pull
           python3 scripts/swarm_paths.py --self-test
           python3 scripts/swarm_paths.py --id win11-pixel
+          bash -n scripts/swarm-bootstrap.sh
+          sh scripts/swarm-bootstrap.sh --dry-run
       - name: Prove per-step host routing (dry-run, no spawn)
         run: |
           set -euo pipefail
