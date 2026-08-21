@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""DHCP-style host lease: ask GitHub (or the local clone) who this machine is."""
+"""DHCP-style host lease: ask GitHub who this machine is. Wildcards allowed; most specific wins."""
 
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import os
 import platform
@@ -75,7 +76,86 @@ def load_table(root: Path, source: str) -> tuple[dict, str]:
         return json.loads(resp.read().decode("utf-8")), RAW_URL
 
 
-def resolve_id(args_id: str | None, f: dict, table: dict) -> str | None:
+def _patterns(lease: dict) -> list[str]:
+    m = lease.get("match") or {}
+    raw = m.get("hostname") if m.get("hostname") is not None else lease.get("matchHostnames")
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        raw = [raw]
+    return [p for p in raw if p]
+
+
+def _field_ok(got: str, want) -> bool:
+    if want is None or want == "*":
+        return True
+    if isinstance(want, list):
+        g = got.lower()
+        return any(fnmatch.fnmatch(g, str(w).lower()) for w in want if w and w != "*") or "*" in list(want)
+    return fnmatch.fnmatch(got.lower(), str(want).lower())
+
+
+def score_lease(lease: dict, f: dict, pinned_id: str | None) -> int:
+    if pinned_id and lease.get("id") == pinned_id:
+        return 10_000
+    m = lease.get("match") or {}
+    hostnames = _patterns(lease)
+    constraints = 0
+    s = 0
+
+    if "osFamily" in m:
+        constraints += 1
+        if not _field_ok(f["osFamily"], m["osFamily"]):
+            return 0
+        s += 10 if m["osFamily"] != "*" else 1
+    if "os" in m:
+        constraints += 1
+        if not _field_ok(f["os"], m["os"]):
+            return 0
+        s += 15 if m["os"] != "*" else 1
+    if hostnames:
+        constraints += 1
+        host = f["hostname"].lower()
+        hits = [p for p in hostnames if fnmatch.fnmatch(host, p.lower())]
+        if not hits:
+            return 0
+        s += max(80 - p.count("*") * 25 - p.count("?") * 10 + min(len(p), 20) for p in hits)
+    if "adbPresent" in m:
+        constraints += 1
+        if bool(f.get("adb")) != bool(m["adbPresent"]):
+            return 0
+        s += 8
+    if "adbAttached" in m:
+        constraints += 1
+        if bool(f.get("adbDevices")) != bool(m["adbAttached"]):
+            return 0
+        s += 25
+
+    if constraints == 0:
+        return 0
+    return s
+
+
+def pick_lease(table: dict, f: dict, pinned_id: str | None) -> tuple[dict | None, list[str]]:
+    if pinned_id:
+        for lease in table.get("leases", []):
+            if lease.get("id") == pinned_id:
+                return lease, []
+        return None, []
+    ranked = []
+    for lease in table.get("leases", []):
+        sc = score_lease(lease, f, None)
+        if sc > 0:
+            ranked.append((sc, lease["id"], lease))
+    if not ranked:
+        return None, []
+    ranked.sort(key=lambda t: (-t[0], t[1]))
+    best = ranked[0][0]
+    winners = [t for t in ranked if t[0] == best]
+    return winners[0][2], [t[1] for t in winners[1:]]
+
+
+def pinned_id(args_id: str | None) -> str | None:
     if args_id:
         return args_id
     env = os.environ.get("SWARM_HOST_ID")
@@ -83,24 +163,12 @@ def resolve_id(args_id: str | None, f: dict, table: dict) -> str | None:
         return env.strip()
     if ID_FILE.is_file():
         return ID_FILE.read_text(encoding="utf-8").strip() or None
-    host = f["hostname"].lower()
-    for lease in table.get("leases", []):
-        names = [n.lower() for n in lease.get("matchHostnames") or [] if n]
-        if host in names:
-            return lease["id"]
-    return None
-
-
-def find_lease(table: dict, host_id: str) -> dict | None:
-    for lease in table.get("leases", []):
-        if lease.get("id") == host_id:
-            return lease
     return None
 
 
 def offer(f: dict) -> dict:
     family = f["osFamily"]
-    suggested = "win11-pixel" if family == "windows" else "unix-pixel"
+    suggested = "pool-bench-windows" if family == "windows" else "pool-bench-unix"
     return {
         "id": suggested,
         "role": "swarm-bench",
@@ -108,8 +176,12 @@ def offer(f: dict) -> dict:
         "device": "adb" if f["adbDevices"] else None,
         "devRepo": "electrobrian/japanglify",
         "branch": "BETA-2",
-        "notes": "Offered from %s; add matchHostnames and check in." % f["hostname"],
-        "matchHostnames": [f["hostname"]],
+        "notes": "Offered from %s. Prefer a pool match, or add match.hostname." % f["hostname"],
+        "match": {
+            "osFamily": family,
+            "hostname": [f["hostname"]],
+            "adbAttached": bool(f["adbDevices"]),
+        },
         "never": [
             "gradle.assemble-release",
             "secret.keystore-release",
@@ -119,9 +191,55 @@ def offer(f: dict) -> dict:
     }
 
 
+def self_test() -> int:
+    table, _ = load_table(repo_root(), "local")
+
+    def f(**kw):
+        base = {
+            "hostname": "x",
+            "os": "linux",
+            "osFamily": "unix",
+            "adb": None,
+            "adbDevices": [],
+        }
+        base.update(kw)
+        return base
+
+    cases = [
+        (f(hostname="DESKTOP-1", os="windows", osFamily="windows", adb="/adb", adbDevices=["R"]), "pool-bench-windows"),
+        (f(hostname="box", osFamily="unix", adb="/adb", adbDevices=["R"]), "pool-bench-unix"),
+        (f(hostname="box", osFamily="windows", adb="/adb", adbDevices=[]), None),
+        (f(hostname="fv-az123", os="linux", osFamily="unix"), "github-actions"),
+    ]
+    failed = 0
+    for facts_row, want in cases:
+        got, _ = pick_lease(table, facts_row, None)
+        gid = None if got is None else got["id"]
+        ok = gid == want
+        print("self-test", "ok" if ok else "FAIL", facts_row["hostname"], "->", gid, "want", want)
+        failed += not ok
+    pinned, _ = pick_lease(table, f(osFamily="unix"), "win11-pixel")
+    if not pinned or pinned["id"] != "win11-pixel":
+        print("self-test FAIL pin")
+        failed += 1
+    else:
+        print("self-test ok pin win11-pixel")
+    named = json.loads(json.dumps(table))
+    for lease in named["leases"]:
+        if lease["id"] == "win11-pixel":
+            lease["match"] = {"hostname": ["MY-PIXEL-PC"]}
+    got, _ = pick_lease(named, f(hostname="MY-PIXEL-PC", osFamily="windows", adb="/adb", adbDevices=["R"]), None)
+    if not got or got["id"] != "win11-pixel":
+        print("self-test FAIL named hostname beats pool", got)
+        failed += 1
+    else:
+        print("self-test ok named hostname beats pool")
+    return 1 if failed else 0
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--id", help="lease id (else SWARM_HOST_ID, .swarm-host-id, hostname)")
+    p.add_argument("--id", help="pin a lease id (else SWARM_HOST_ID, .swarm-host-id, then wildcards)")
     p.add_argument(
         "--from",
         dest="source",
@@ -135,15 +253,19 @@ def main() -> int:
         action="store_true",
         help="print a lease stub to check in if this machine is unknown",
     )
+    p.add_argument("--self-test", action="store_true")
     args = p.parse_args()
 
     root = repo_root()
     os.chdir(root)
+    if args.self_test:
+        return self_test()
+
     f = facts()
     src = "github" if args.source == "github" else "auto"
     table, loaded_from = load_table(root, src)
-    host_id = resolve_id(args.id, f, table)
-    lease = find_lease(table, host_id) if host_id else None
+    pin = pinned_id(args.id)
+    lease, ties = pick_lease(table, f, pin)
 
     if lease is None:
         stub = offer(f)
@@ -151,7 +273,7 @@ def main() -> int:
             json.dumps(
                 {
                     "status": "nak",
-                    "message": "No lease. Check this stub into docs/japanglify/hosts.json (leases), then re-run.",
+                    "message": "No lease. Attach the Pixel (pool) or check in a reservation. Stub:",
                     "loadedFrom": loaded_from,
                     "offer": stub,
                 },
@@ -172,6 +294,8 @@ def main() -> int:
         "devRepo": lease.get("devRepo"),
         "branch": lease.get("branch"),
         "never": lease.get("never") or [],
+        "match": lease.get("match") or {},
+        "ties": ties,
         "loadedFrom": loaded_from,
         "facts": f,
     }
