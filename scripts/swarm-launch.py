@@ -27,6 +27,7 @@ STEPS = {
         "process": "grok-automation:japanglify-swarm-conductor",
         "effort": "medium",
         "never": ["/uat", "adb", "gradle", "git.push-agent-branch"],
+        "adminHint": "Already running. Saved reply /accept on github.com. Do not start Grok CLI for intake.",
     },
     "classify": {
         "role": "swarm-bench",
@@ -35,6 +36,7 @@ STEPS = {
         "process": "grok --effort {effort} --resume",
         "effortFromIssue": True,
         "never": ["/uat", "/accept", "adb.install"],
+        "adminHint": "On win11-pixel: /quit then grok --effort <issue> --resume. Do not /uat from CLI.",
     },
     "fix": {
         "role": "swarm-bench",
@@ -43,6 +45,7 @@ STEPS = {
         "process": "grok --effort {effort} --resume",
         "effortFromIssue": True,
         "never": ["/uat", "/accept"],
+        "adminHint": "Same session as classify. Stay on the existing agent/* branch. Do not open a second pull request.",
     },
     "uat": {
         "role": "swarm-bench",
@@ -51,6 +54,7 @@ STEPS = {
         "process": "actions:swarm-conductor-uat.yml on the same win11-pixel listener",
         "effort": None,
         "never": ["grok --effort", "second /uat", "ubuntu assemble"],
+        "adminHint": "Saved reply /uat on github.com. Unlock the Pixel. If queued: pwsh -File scripts/swarm-bench-runner.ps1 in the logon session. No second /uat.",
     },
     "watchdog": {
         "role": "watchdog",
@@ -59,6 +63,7 @@ STEPS = {
         "process": "actions:swarm-watchdog.yml",
         "effort": None,
         "never": ["adb", "gradle", "/accept"],
+        "adminHint": "Cloud. Ready for Pixel UAT is your cue to /uat. Do not run watchdog on the Pixel box.",
     },
 }
 
@@ -94,12 +99,14 @@ def plan(step: str, *, issue: str, lease_id: str | None, effort: str | None) -> 
             "step": step,
             "lease": lease_id,
             "role": role,
+            "adminHint": "Wrong host. See docs/japanglify/admin.md",
         }
     if lease_id not in spec["leaseIds"]:
         return {
             "status": "nak",
             "reason": f"lease {lease_id} not live for {step} (live bench: {spec['leaseIds']})",
             "step": step,
+            "adminHint": "One live bench: win11-pixel. Pools are dormant.",
         }
     if spec.get("effortFromIssue"):
         eff = effort or "xhigh"
@@ -116,6 +123,7 @@ def plan(step: str, *, issue: str, lease_id: str | None, effort: str | None) -> 
         "process": proc,
         "effort": eff,
         "never": spec["never"],
+        "adminHint": spec["adminHint"],
         "note": "one live bench: win11-pixel. dry-run; does not start grok or post /uat",
     }
 
@@ -129,12 +137,14 @@ def self_test() -> int:
         for k, v in contains.items():
             if got.get(k) != v:
                 ok = False
+        if want_status == "ack" and not got.get("adminHint"):
+            ok = False
         print(
             "ok" if ok else "FAIL",
             got.get("status"),
             got.get("step"),
             got.get("lease"),
-            got.get("reason", got.get("process")),
+            got.get("reason", got.get("adminHint") or got.get("process")),
         )
         failed += not ok
 
