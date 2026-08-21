@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "name": "Swarm Conductor",
+  "note": "Generic starting sets. No product language, no Android, no GitHub logins. Instance overlays add those.",
+  "roles": {
+    "swarm-conductor": [
+      "task.create",
+      "assignment.propose",
+      "assignment.cancel",
+      "github.ingest",
+      "github.issue-comment",
+      "github.status-edit",
+      "ledger.append"
+    ],
+    "watchdog": [
+      "assignment.cancel",
+      "github.status-edit",
+      "actions.cancel-run",
+      "ledger.append",
+      "alert.human"
+    ],
+    "swarm-bench": [
+      "git.push-agent-branch",
+      "github.pr-create",
+      "github.issue-comment",
+      "test.domain",
+      "ledger.append",
+      "patch.propose",
+      "hypothesis.propose"
+    ],
+    "reproducer": [
+      "git.push-agent-branch",
+      "test.domain",
+      "ledger.append",
+      "hypothesis.propose"
+    ],
+    "analyzer": [
+      "ledger.append",
+      "hypothesis.propose",
+      "hypothesis.contradict"
+    ],
+    "synthesizer": [
+      "git.push-agent-branch",
+      "github.pr-create",
+      "test.domain",
+      "ledger.append",
+      "patch.propose"
+    ],
+    "verifier": [
+      "github.issue-comment",
+      "review.record",
+      "ledger.append"
+    ]
+  },
+  "never": {
+    "swarm-conductor": [
+      "git.push-agent-branch",
+      "github.pr-create",
+      "test.domain",
+      "secret.*",
+      "device.*"
+    ],
+    "watchdog": [
+      "assignment.propose",
+      "git.push-agent-branch",
+      "github.pr-create"
+    ],
+    "swarm-bench": [
+      "assignment.propose",
+      "secret.keystore-release",
+      "ci.remote-assemble"
+    ]
+  },
+  "accept": {
+    "wholeComment": ["/accept", "/block"],
+    "issueBodyReaction": "+1"
+  }
+}

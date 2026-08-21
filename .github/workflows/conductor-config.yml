@@ -1,0 +1,40 @@
+# Proves instance JSON and role files load. Safe on GitHub-hosted runners.
+name: Swarm Conductor config
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Load conductor + instance JSON
+        run: |
+          python3 - <<'PY'
+          import json, pathlib
+
+          def load(p):
+              data = json.loads(pathlib.Path(p).read_text(encoding="utf-8"))
+              print(p, "ok")
+              return data
+
+          cfg = load(".github/swarm-conductor.json")
+          roles = load("docs/swarm-conductor/roles.json")
+          inst = load("docs/japanglify/instance.json")
+          assert cfg["trustedActor"] == "brianreborn", cfg
+          assert cfg["statusMarker"].startswith("<!--")
+          assert "swarm-conductor" in roles["roles"]
+          assert "swarm-bench" in roles["roles"]
+          assert "ci.remote-assemble" in roles["never"]["swarm-bench"]
+          assert "swarm-bench" in inst["capabilityOverlay"]
+          assert "adb.install" in inst["capabilityOverlay"]["swarm-bench"]
+          assert "windows-workstation" in inst["hosts"]["swarm-bench"]
+          print("conductor config valid")
+          PY

@@ -1,0 +1,58 @@
+{
+  "project": "japanglify",
+  "extends": "docs/swarm-conductor/roles.json",
+  "trustedActor": "brianreborn",
+  "officialRepo": "brianreborn/japanglify",
+  "devRepo": "electrobrian/japanglify",
+  "devIntegrationBranch": "BETA-2",
+  "profiles": ["android-app", "japanese-nlp"],
+  "hosts": {
+    "swarm-conductor": ["github-actions", "grok-cloud"],
+    "watchdog": ["github-actions"],
+    "swarm-bench": ["windows-workstation", "unix-workstation"],
+    "swarm-benchRule": "Run on the machine with the Pixel (adb). Windows and Unix are both valid. Do not assemble on GitHub-hosted runners for this role."
+  },
+  "capabilityOverlay": {
+    "swarm-bench": [
+      "gradle.assemble-tester",
+      "adb.install",
+      "adb.tap",
+      "adb.logcat",
+      "secret.gh-electrobrian"
+    ],
+    "ci-tester": ["gradle.assemble-tester"],
+    "official-signer": ["gradle.assemble-release", "secret.keystore-release"],
+    "synthesizer": ["secret.gh-electrobrian"],
+    "reproducerOptional": ["adb.logcat"],
+    "neverOnConductor": [
+      "gradle.assemble-tester",
+      "gradle.assemble-release",
+      "adb.install",
+      "adb.tap",
+      "secret.gh-electrobrian",
+      "secret.keystore-release"
+    ],
+    "neverOnBench": [
+      "gradle.assemble-release",
+      "secret.keystore-release",
+      "ci.remote-assemble"
+    ]
+  },
+  "domain": {
+    "language": "ja",
+    "linguisticsDoc": "docs/GLOSSARY.md",
+    "rules": [
+      "Product linguistics (furigana, romaji, gloss, mora, Kuromoji) are not Swarm Conductor.",
+      "Proper nouns: prefer tokenizer POS 名詞,固有名詞; do not add a names dictionary unless coverage is measured.",
+      "Domain tests stay offline and deterministic.",
+      "PROCESS_TEXT / copy-assist UAT is Pixel-side Swarm Bench, not a conductor cap."
+    ]
+  },
+  "quotas": {
+    "agentsLivePerIssue": 4,
+    "openPrsPerIssue": 1,
+    "prLifetimePerIssue": 3,
+    "testerReleasesPerPr": 5,
+    "grandfatherOpenPrs": [4, 8, 10, 11, 12]
+  }
+}
