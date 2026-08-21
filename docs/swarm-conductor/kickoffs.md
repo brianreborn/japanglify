@@ -1,19 +1,24 @@
 # Kickoffs
 
-Every kickoff **states effort** as the first operational line. Grok CLI defaults to `high` if you omit it. That is usually the wrong default.
+Effort lives on the **GitHub issue**, not in chat.
+
+1. Label `effort:low` | `effort:medium` | `effort:high` | `effort:xhigh`
+2. First line of the issue body: `**Effort: high** (`grok --effort high`)`
+3. If both missing: **medium** (do not use the CLI default `high`)
 
 ```text
-Effort: <low|medium|high|xhigh>
-grok --effort <level>
+grok --effort <from the issue>
 ```
 
-In a running session: `/effort <level>` before the rest of the paste.
+In a running session: `/effort <from the issue>` after reading the issue.
+
+Bootstrap (clone, `adb`, lease) is always **medium**. Switch to the issue’s level when product work starts.
 
 | Level | Use |
 |---|---|
-| `low` | Mechanical one-shot (too thin for lease/`adb` checks) |
-| `medium` | Swarm Bench bootstrap + local UAT (clone, lease, assemble, `adb`) |
-| `high` | Nasty overlay/timing/a11y hunt, or conductor/policy design |
-| `xhigh` | grok-4.6 only; not bench bootstrap |
+| `low` | Mechanical one-shot |
+| `medium` | Default; domain tests; design hash-out |
+| `high` | Overlay / timing / a11y on device |
+| `xhigh` | grok-4.6 only; rare |
 
-Do not leave effort implicit. Product kickoff text lives in the instance overlay (Japanglify: `docs/japanglify/swarm-bench-kickoff.md`).
+Do not debate effort in a Conductor thread. Change the label on the issue.

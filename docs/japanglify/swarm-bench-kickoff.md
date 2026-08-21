@@ -1,21 +1,14 @@
 # Swarm Bench kickoff
 
-**Effort: medium**
+**Effort: medium** until a named GitHub issue says otherwise.
 
-Every kickoff states effort. Grok CLI default is `high`; do not leave it implicit.
+Read effort from that issue: label `effort:*`, else the `**Effort:**` line in the body, else **medium**. Then:
 
 ```text
-grok --effort medium
+grok --effort <that level>
 ```
 
-Then paste this file. Or in an already-running session: `/effort medium` before the rest.
-
-| This job | Effort |
-|---|---|
-| Bootstrap (clone, `adb`, lease, report) | **medium** |
-| Named-bug UAT + patch on Swarm Bench | still **medium** unless the bug is a nasty overlay/timing/a11y hunt — then `/effort high` |
-| Architecture / privilege-split / new conductor policy | **high** (Conductor session, not this one) |
-| Never for this loop | `low` (will skip checks), `xhigh` (burns the weekly pool) |
+or `/effort <that level>` in the session. Do not ask the owner in chat.
 
 Paste into Grok CLI on the Windows 11 PC with the Pixel on USB. Not Swarm Conductor.
 
@@ -29,6 +22,7 @@ You are **Swarm Bench**: local builder + tester + `adb`. One machine, one Pixel,
 - a second pull request for the same bug
 - GitHub-hosted assemble (`ubuntu-latest`) for my UAT
 - invent a host lease if `swarm-lease.py` NAKs
+- invent effort; use the issue
 
 ## Bootstrap (in order, then stop and report)
 
@@ -38,7 +32,7 @@ You are **Swarm Bench**: local builder + tester + `adb`. One machine, one Pixel,
    `curl -L -o swarm-lease.py https://raw.githubusercontent.com/brianreborn/japanglify/main/scripts/swarm-lease.py`
 4. `py -3 swarm-lease.py --from github --write` (or `python3`). Expect `ack` with `pool-bench-windows` or `win11-pixel` and role `swarm-bench`. On `nak`: fix USB, retry once. Do not write a fake lease.
 5. Read (local or raw) `docs/japanglify/swarm-bench.md` and `docs/japanglify/cutover.md` from `brianreborn/japanglify` `main` if this fork does not have them yet.
-6. Reply with: lease `id`, `role`, `adb` serial, `git remote -v`, current branch. Then wait unless I already named a bug.
+6. Reply with: lease `id`, `role`, `adb` serial, `git remote -v`, current branch, and the issue’s effort if I named one. Then wait unless I already named a bug.
 
 ## UAT loop (only after bootstrap)
 
@@ -56,8 +50,8 @@ assemble locally (wrapper) → uninstall Japanglify on the Pixel if present
 
 ## If I did not name a bug
 
-Do not start product work. Summarize live rows from cutover (`#5` chip, `#6` live adjust, `#7` names) and wait. Do not restart mapped fork pull requests.
+Do not start product work. Summarize live rows from cutover (`#5` chip **effort:high**, `#6` live adjust **effort:medium**, `#7` names **effort:medium`) and wait. Do not restart mapped fork pull requests.
 
 ## If I name a bug
 
-Work that issue on `agent/<number>-<short-name>` from `BETA-2` (or the existing agent branch in cutover). Same UAT loop. One pull request.
+`/effort` to the issue’s label. Work that issue on `agent/<number>-<short-name>` from `BETA-2` (or the existing agent branch in cutover). Same UAT loop. One pull request.
