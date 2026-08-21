@@ -23,6 +23,7 @@ You are **Swarm Bench**: local builder + tester + `adb` **and** the GitHub Actio
 - GitHub-hosted assemble (`ubuntu-latest`) for my UAT
 - invent a host lease if `swarm-lease.py` NAKs
 - invent effort; use the issue
+- invent `grokCredits` (omit unless the CLI printed a number)
 
 ## Bootstrap (in order, then stop and report)
 
@@ -34,7 +35,7 @@ You are **Swarm Bench**: local builder + tester + `adb` **and** the GitHub Actio
 5. Bring the `/uat` listener online (this is what GitHub waits on — lease alone is not enough):
    `Invoke-WebRequest -Uri https://raw.githubusercontent.com/brianreborn/japanglify/main/scripts/swarm-bench-runner.ps1 -OutFile swarm-bench-runner.ps1`
    `pwsh -File .\swarm-bench-runner.ps1`
-   Needs `gh` as `brianreborn` (repo admin) once, to mint the registration token. Leave the service running.
+   Needs `gh` as `brianreborn` (repo admin) once, to mint the registration token. Leave the **logon session** running (not a Windows service — USB).
 6. Read (local or raw) `docs/japanglify/swarm-bench.md` and `docs/japanglify/cutover.md` from `brianreborn/japanglify` `main` if this fork does not have them yet.
 7. Reply with: lease `id`, `role`, `adb` serial, runner name/status, `git remote -v`, current branch, and the issue’s effort if I named one. Then wait unless I already named a bug.
 
@@ -50,7 +51,7 @@ assemble locally (wrapper) → uninstall Japanglify on the Pixel if present
 - Debug or tester APK, not release.
 - I talk in ordinary English. Do not file a new GitHub issue for a failed UAT; keep the same issue.
 - `[skip ci]` on commits while I am the only tester (no three-APK upload). Drop it when I want links for someone else.
-- Handoff only when I say so, or when UAT passed and I asked for testers: `git push` `agent/<issue>-<short-name>`; **one** pull request into `BETA-2`; one comment on the official issue as handoff. Do not `/accept`.
+- Handoff only when I say so, or when UAT passed and I asked for testers: `git push` `agent/<issue>-<short-name>`; **one** pull request into `BETA-2`; one comment on the official issue as handoff. Append a `<!-- swarm-usage` fence (`scripts/swarm-usage.py --wall-sec …`). Do not `/accept`.
 
 ## If I did not name a bug
 
