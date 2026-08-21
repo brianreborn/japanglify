@@ -91,23 +91,21 @@ if ($DryRun) {
     return
 }
 
-if ($Restore) {
-    $Stop = $true
-    $Runner = $true
-    $Start = $true
-}
+$doStop = [bool]$Stop -or [bool]$Restore
+$doArm = [bool]$Runner -or [bool]$Restore
+$doGrok = [bool]$Start -or [bool]$Restore
 
-if ($Stop) {
-    $stop = Join-Path $official "scripts\swarm-bench-stop.ps1"
-    if (Test-Path $stop) {
+if ($doStop) {
+    $stopScript = Join-Path $official "scripts\swarm-bench-stop.ps1"
+    if (Test-Path $stopScript) {
         Write-Host "idle stop"
-        & $stop
+        & $stopScript
     } else {
-        Write-Warning "missing $stop"
+        Write-Warning "missing $stopScript"
     }
 }
 
-if ($Runner) {
+if ($doArm) {
     $bench = Join-Path $official "scripts\swarm-bench-runner.ps1"
     if (-not (Test-Path $bench)) { throw "missing $bench" }
     Write-Host "arm listener"
@@ -117,7 +115,7 @@ if ($Runner) {
 $startCmd = Join-Path $official "scripts\swarm-grok.cmd"
 Write-Host "next: $startCmd"
 Write-Host "     (product work in $dev)"
-if ($Start) {
+if ($doGrok) {
     if (-not (Test-Path $startCmd)) { throw "missing $startCmd" }
     & $startCmd
     exit $LASTEXITCODE
