@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Effective Grok effort/model: min(issue request, fleet cap, per-role cap)."""
+"""Effective Grok effort/model: issue, fleet cap, per-role, then host env band."""
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,6 +13,8 @@ from pathlib import Path
 DEFAULT_PATH = Path("docs/japanglify/budget.json")
 HOST_DEFAULT_EFFORT = "medium"
 ORDER = ("low", "medium", "high", "xhigh")
+ENV_MIN = "SWARM_EFFORT_MIN"
+ENV_MAX = "SWARM_EFFORT_MAX"
 
 
 def load(path: Path) -> dict:
@@ -42,7 +45,7 @@ def rank(level: str | None, order: list[str] | tuple[str, ...] = ORDER) -> int |
     if not level:
         return None
     try:
-        return list(order).index(level)
+        return list(order).index(str(level).strip().lower())
     except ValueError:
         return None
 
@@ -54,6 +57,31 @@ def clamp(*levels: str | None, order: list[str] | tuple[str, ...] = ORDER) -> st
     return list(order)[min(ranks)]
 
 
+def env_level(env: dict, key: str, order: tuple[str, ...] = ORDER) -> str | None:
+    raw = (env.get(key) or "").strip().lower()
+    if not raw:
+        return None
+    if rank(raw, order) is None:
+        return None
+    return raw
+
+
+def band(effort: str, lo: str | None, hi: str | None, order: tuple[str, ...] = ORDER) -> str:
+    """Raise to min, then cut to max. If min > max, max wins (wallet)."""
+    r = rank(effort, order)
+    if r is None:
+        r = rank(HOST_DEFAULT_EFFORT, order) or 0
+    lo_i = rank(lo, order)
+    hi_i = rank(hi, order)
+    if lo_i is not None and hi_i is not None and lo_i > hi_i:
+        lo_i = hi_i
+    if lo_i is not None:
+        r = max(r, lo_i)
+    if hi_i is not None:
+        r = min(r, hi_i)
+    return list(order)[r]
+
+
 def first_model(*models: str | None) -> str | None:
     for m in models:
         if m:
@@ -61,21 +89,36 @@ def first_model(*models: str | None) -> str | None:
     return None
 
 
-def decide(budget: dict, *, role: str, issue_effort: str | None = None, issue_model: str | None = None, now=None) -> dict:
+def decide(
+    budget: dict,
+    *,
+    role: str,
+    issue_effort: str | None = None,
+    issue_model: str | None = None,
+    now=None,
+    env: dict | None = None,
+) -> dict:
+    env = env if env is not None else dict(os.environ)
     order = tuple(budget.get("order") or ORDER)
     cap = budget.get("cap") or {}
     role_cfg = (budget.get("perRole") or {}).get(role) or {}
     fleet_effort = cap.get("effort") if cap_active(budget, now) else None
     fleet_model = cap.get("model") if cap_active(budget, now) else None
+    lo = env_level(env, ENV_MIN, order)
+    hi = env_level(env, ENV_MAX, order)
     effort = clamp(issue_effort, fleet_effort, role_cfg.get("effort"), order=order)
-    model = first_model(role_cfg.get("model"), fleet_model, issue_model)
+    effort = band(effort, lo, hi, order)
+    model = first_model(role_cfg.get("model"), fleet_model, issue_model, env.get("SWARM_MODEL") or None)
+    requested = issue_effort or HOST_DEFAULT_EFFORT
     return {
         "role": role,
         "effort": effort,
         "model": model,
         "argvEffort": None if effort == HOST_DEFAULT_EFFORT else effort,
         "argvModel": model,
-        "clamped": effort != (issue_effort or HOST_DEFAULT_EFFORT),
+        "clamped": effort != requested,
+        "envMin": lo,
+        "envMax": hi,
     }
 
 
@@ -97,6 +140,7 @@ def self_test() -> int:
             "swarm-bench": {"effort": None},
         },
     }
+    empty = {}
     failed = 0
 
     def check(name, got, **want):
@@ -107,21 +151,21 @@ def self_test() -> int:
 
     check(
         "xhigh-clamped-to-medium",
-        decide(budget, role="swarm-bench", issue_effort="xhigh"),
+        decide(budget, role="swarm-bench", issue_effort="xhigh", env=empty),
         effort="medium",
         argvEffort=None,
         clamped=True,
     )
     check(
         "conductor-stays-low",
-        decide(budget, role="swarm-conductor", issue_effort="xhigh"),
+        decide(budget, role="swarm-conductor", issue_effort="xhigh", env=empty),
         effort="low",
         argvEffort="low",
         clamped=True,
     )
     check(
         "unlabeled-is-medium",
-        decide(budget, role="swarm-bench", issue_effort=None),
+        decide(budget, role="swarm-bench", issue_effort=None, env=empty),
         effort="medium",
         argvEffort=None,
         clamped=False,
@@ -132,10 +176,32 @@ def self_test() -> int:
     }
     check(
         "until-past-lifts-fleet-cap",
-        decide(expired, role="swarm-bench", issue_effort="high"),
+        decide(expired, role="swarm-bench", issue_effort="high", env=empty),
         effort="high",
         argvEffort="high",
         clamped=False,
+    )
+    check(
+        "env-max-cuts-xhigh",
+        decide(expired, role="swarm-bench", issue_effort="xhigh", env={ENV_MAX: "medium"}),
+        effort="medium",
+        envMax="medium",
+    )
+    check(
+        "env-min-raises-low",
+        decide(expired, role="swarm-bench", issue_effort="low", env={ENV_MIN: "high"}),
+        effort="high",
+        envMin="high",
+    )
+    check(
+        "env-min-gt-max-uses-max",
+        decide(expired, role="swarm-bench", issue_effort="low", env={ENV_MIN: "xhigh", ENV_MAX: "medium"}),
+        effort="medium",
+    )
+    check(
+        "env-max-cuts-conductor-low-stays-low",
+        decide(budget, role="swarm-conductor", issue_effort="xhigh", env={ENV_MAX: "high"}),
+        effort="low",
     )
     with_model = {
         **budget,
@@ -143,7 +209,7 @@ def self_test() -> int:
     }
     check(
         "model-cap",
-        decide(with_model, role="swarm-bench", issue_effort="medium"),
+        decide(with_model, role="swarm-bench", issue_effort="medium", env=empty),
         model="grok-build",
         argvModel="grok-build",
     )
