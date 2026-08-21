@@ -43,7 +43,7 @@ jobs:
           assert all("role" in l for l in hosts["leases"])
           print("conductor config valid")
           PY
-      - name: swarm-lease + uat-map + usage + cmd + launch self-test
+      - name: swarm-lease + uat-map + usage + cmd + launch + kick self-test
         run: |
           python3 scripts/swarm-lease.py --self-test
           python3 scripts/swarm-lease.py --from local --id win11-pixel
@@ -51,6 +51,7 @@ jobs:
           python3 scripts/swarm-usage.py --self-test
           python3 scripts/swarm_cmd.py --self-test
           python3 scripts/swarm-launch.py --self-test
+          python3 scripts/swarm-kick.py --self-test
       - name: Prove per-step host routing (dry-run, no spawn)
         run: |
           set -euo pipefail
