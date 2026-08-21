@@ -1,6 +1,23 @@
 # Swarm Bench kickoff
 
-Paste this whole file into Grok CLI (or: `grok` in the clone, then paste). Run it on the Windows 11 PC with the Pixel on USB. Not Swarm Conductor.
+**Effort: medium**
+
+Every kickoff states effort. Grok CLI default is `high`; do not leave it implicit.
+
+```text
+grok --effort medium
+```
+
+Then paste this file. Or in an already-running session: `/effort medium` before the rest.
+
+| This job | Effort |
+|---|---|
+| Bootstrap (clone, `adb`, lease, report) | **medium** |
+| Named-bug UAT + patch on Swarm Bench | still **medium** unless the bug is a nasty overlay/timing/a11y hunt — then `/effort high` |
+| Architecture / privilege-split / new conductor policy | **high** (Conductor session, not this one) |
+| Never for this loop | `low` (will skip checks), `xhigh` (burns the weekly pool) |
+
+Paste into Grok CLI on the Windows 11 PC with the Pixel on USB. Not Swarm Conductor.
 
 You are **Swarm Bench**: local builder + tester + `adb`. One machine, one Pixel, minimize network.
 
