@@ -17,48 +17,27 @@ jobs:
       !contains(github.event.comment.body, 'swarm-bench-uat') &&
       !contains(github.event.comment.body, 'swarm-uat-ready') &&
       !contains(github.event.comment.body, 'swarm-clip-compact') &&
+      !contains(github.event.comment.body, 'swarm-kick') &&
       !(
         github.event.comment.user.login == github.event.issue.user.login &&
         (
           startsWith(github.event.comment.body, '/clip-ok') ||
-          endsWith(github.event.comment.body, '/clip-ok') ||
-          contains(github.event.comment.body, '
-/clip-ok') ||
-          contains(github.event.comment.body, '/clip-ok
-')
+          endsWith(github.event.comment.body, '/clip-ok')
         )
       ) &&
       (
         startsWith(github.event.comment.body, '/uat') ||
         endsWith(github.event.comment.body, '/uat') ||
-        contains(github.event.comment.body, '
-/uat') ||
-        contains(github.event.comment.body, '/uat
-') ||
         startsWith(github.event.comment.body, '/accept') ||
         endsWith(github.event.comment.body, '/accept') ||
-        contains(github.event.comment.body, '
-/accept') ||
-        contains(github.event.comment.body, '/accept
-') ||
         startsWith(github.event.comment.body, '/block') ||
         endsWith(github.event.comment.body, '/block') ||
-        contains(github.event.comment.body, '
-/block') ||
-        contains(github.event.comment.body, '/block
-') ||
+        startsWith(github.event.comment.body, '/kick') ||
+        endsWith(github.event.comment.body, '/kick') ||
         startsWith(github.event.comment.body, '/clip-ok') ||
         endsWith(github.event.comment.body, '/clip-ok') ||
-        contains(github.event.comment.body, '
-/clip-ok') ||
-        contains(github.event.comment.body, '/clip-ok
-') ||
         startsWith(github.event.comment.body, '/clip-shrink') ||
-        endsWith(github.event.comment.body, '/clip-shrink') ||
-        contains(github.event.comment.body, '
-/clip-shrink') ||
-        contains(github.event.comment.body, '/clip-shrink
-')
+        endsWith(github.event.comment.body, '/clip-shrink')
       )
     runs-on: ubuntu-latest
     steps:
