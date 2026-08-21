@@ -3,9 +3,8 @@
 # Do not list runners (GITHUB_TOKEN is not admin — 403).
 # New bugs: scripts/uat-map.py finds electrobrian agent/<issue>-* (JSON is override).
 #
-# Loop guards: ignore bots and our own markers. Whole-comment /uat only
-# (startsWith so a trailing newline still counts; NEVER contains("/uat") —
-# watchdog ready-text mentions the command).
+# Loop guards: ignore bots and our own markers. /uat only at start or end of a
+# line (scripts/swarm_cmd.py). NEVER YAML contains("/uat") — watchdog quotes it.
 name: Swarm Conductor UAT
 
 concurrency:
@@ -36,7 +35,14 @@ jobs:
         !contains(github.event.comment.body, 'swarm-bench-uat') &&
         !contains(github.event.comment.body, 'swarm-uat-ready') &&
         !contains(github.event.comment.body, 'swarm-conductor-status') &&
-        startsWith(github.event.comment.body, '/uat')
+        (
+          startsWith(github.event.comment.body, '/uat') ||
+          endsWith(github.event.comment.body, '/uat') ||
+          contains(github.event.comment.body, '
+/uat') ||
+          contains(github.event.comment.body, '/uat
+')
+        )
       )
     runs-on: ubuntu-latest
     outputs:
@@ -60,12 +66,14 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           import json, os, subprocess, sys
+          sys.path.insert(0, "scripts")
+          import swarm_cmd
 
           cfg = json.loads(open(".github/swarm-conductor.json", encoding="utf-8").read())
           trusted = cfg["trustedActor"]
           actor = os.environ.get("ACTOR") or ""
           event = os.environ["EVENT"]
-          body = (os.environ.get("BODY") or "").replace("\r", "").strip()
+          body = os.environ.get("BODY") or ""
 
           def out(k, v):
               with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
@@ -75,8 +83,8 @@ jobs:
               print("ignored actor", actor)
               out("go", "false")
               raise SystemExit(0)
-          if event == "issue_comment" and body != "/uat":
-              print("not whole-comment /uat", repr(body[:40]))
+          if event == "issue_comment" and not swarm_cmd.has_command(body, "/uat"):
+              print("no /uat at start or end of a line", repr(body[:80]))
               out("go", "false")
               raise SystemExit(0)
 
@@ -197,7 +205,7 @@ jobs:
           $human = "usage `swarm-bench` `installed` $($env:COMPUTERNAME) wall ${wall}s"
           if ($null -ne $cpu) { $human += " · cpu ${cpu}s" }
           $human += " · gh 0min · grok credits unknown"
-          $body = @"
+          $payload = @{ body = @"
           <!-- swarm-bench-uat -->
           ## Swarm Bench
           **UAT installed** for issue #$env:ISSUE
@@ -210,5 +218,5 @@ jobs:
 
           $fence
           $human
-          "@
-          gh api -X POST "repos/$env:GH_REPO/issues/$env:ISSUE/comments" -f body="$body"
+          "@ }
+          $payload | ConvertTo-Json | gh api -X POST "repos/$env:GH_REPO/issues/$env:ISSUE/comments" --input -
