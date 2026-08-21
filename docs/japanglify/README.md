@@ -13,19 +13,21 @@ GitHub **issue** = bug report. GitHub **pull request** = proposed merge. Not a â
 | Pull-request follow | [../swarm-conductor/prompt-pr.md](../swarm-conductor/prompt-pr.md) | Zero comments on plain issues |
 | `/commands` table | [commands.md](commands.md) | admin, saved-replies |
 | Owner github.com cheat sheet | [admin.md](admin.md) | Does not replace prompt-bench |
+| Fleet effort/model cap (SuperGrok) | [budget.json](budget.json) + [budget.md](../swarm-conductor/budget.md) | Issue `effort:*` is a request |
 | Tester APKs / names | [ci-for-humans.md](ci-for-humans.md) | root README |
 | Live bugs | [cutover.md](cutover.md) | Effort labels live on the issues |
 | Event bus | [../swarm-conductor/events.md](../swarm-conductor/events.md) | kick, ping, loops |
 | Host leases | [hosts.json](hosts.json) | `swarm-lease.py` |
 
-If two files disagree on CLI stop/start, **prompt-bench.md wins.**
+If two files disagree on CLI stop/start, **prompt-bench.md wins.** If they disagree on effective effort/model, **budget.json + swarm_budget.py win.**
 
 | File | What |
 |---|---|
 | `ci-for-humans.md` | User/admin CI: issues, pull requests, tester APKs |
 | `swarm-bench.md` | Local Grok CLI **policy** (capabilities, two install paths) |
 | `swarm-bench-kickoff.md` | Long bootstrap. Not the paste if prompt-bench exists |
-| `../swarm-conductor/prompt-bench.md` | **Paste** for Grok CLI. Effort: medium on restore |
+| `../swarm-conductor/prompt-bench.md` | **Paste** for Grok CLI |
+| `budget.json` | SuperGrok window cap (effort + model) |
 | `hosts.json` | Checked-in host leases (DHCP table + wildcard pools) |
 | `instance.json` | Repos, Android caps, Japanese-NLP rules |
 | `cutover.md` | Live bugs, fork pull requests, smoke record |

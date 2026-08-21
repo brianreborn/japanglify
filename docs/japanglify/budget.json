@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "note": "Fleet wallet. Issue effort:* is a request. Effective = min(request, cap, perRole). Owner edits this file; agents do not scrape the SuperGrok meter.",
+  "window": {
+    "kind": "supergrok-weekly",
+    "tz": "America/Los_Angeles",
+    "resets": "Friday",
+    "meter": "owner-only. Do not invent remaining %. Receipts are swarm-usage fences."
+  },
+  "cap": {
+    "effort": "medium",
+    "model": null,
+    "until": null
+  },
+  "perRole": {
+    "swarm-conductor": { "effort": "low", "model": null },
+    "swarm-conductor-pr-follow": { "effort": "low", "model": null },
+    "uat-complete": { "effort": "low", "model": null },
+    "swarm-bench": { "effort": null, "model": null },
+    "watchdog": { "effort": null, "model": null }
+  },
+  "order": ["low", "medium", "high", "xhigh"]
+}

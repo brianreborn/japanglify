@@ -11,14 +11,14 @@ The conductor dispatches; it does not implement, build, or sign.
 | Pull-request follow | [prompt-pr.md](prompt-pr.md) |
 | UAT-complete notify | [prompt-uat-complete.md](prompt-uat-complete.md) |
 | Grok **CLI** Swarm Bench | [prompt-bench.md](prompt-bench.md) |
-| Effort labels | [kickoffs.md](kickoffs.md) (ritual still prompt-bench) |
+| Effort labels + fleet cap | [kickoffs.md](kickoffs.md), [budget.md](budget.md) |
 | Event bus | [events.md](events.md) |
 | `/kick` | [kick.md](kick.md) |
 | Ping | [ping.md](ping.md) |
 | Anti-loop | [loops.md](loops.md) |
 | Japanglify overlay | `docs/japanglify/` — [who owns](../japanglify/README.md) |
 
-If two files disagree on `/quit` / `--resume` / listener, **prompt-bench.md wins.** Cloud automations never load prompt-bench. The CLI never loads prompt.md.
+If two files disagree on `/quit` / `--resume` / listener, **prompt-bench.md wins.** Cloud automations never load prompt-bench. The CLI never loads prompt.md. Effective `--effort` / `--model`: `scripts/swarm_budget.py`.
 
 ## Who runs what (do not stack these)
 
@@ -48,7 +48,7 @@ Every Japanglify Grok automation has a file in this directory. Open **Raw**, cop
 | `japanglify-uat-complete` | [prompt-uat-complete.md](prompt-uat-complete.md) | [raw](https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt-uat-complete.md) |
 | Grok CLI Swarm Bench (not an automation) | [prompt-bench.md](prompt-bench.md) | [raw](https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt-bench.md) |
 
-**Null start:** `grok (Get-Content -Raw docs/swarm-conductor/prompt-bench.md)` — no `--effort` (host default **medium**), no `--resume`/`-c`/`-p`. **Normal stop** is `/quit`. **Normal start** is `grok --resume` plus `--effort` only if the issue is not medium.
+**Null start:** `grok (Get-Content -Raw docs/swarm-conductor/prompt-bench.md)` — no `--effort` unless `swarm_budget.py --argv` says so. Never `--resume`/`-c`/`-p`. **Normal stop** is `/quit`. **Normal start** is `grok --resume` plus those argv flags.
 
 Personal automations (e.g. Weekly Twitter recap) are **not** in this repo.
 
@@ -56,7 +56,7 @@ There is **no** Actions `/accept` workflow. GitHub’s `/` dropdown cannot hold 
 
 `GITHUB_TOKEN` in Actions **often 403s** `GET .../actions/runners`. Ping may call it; on 403 it treats runner status as unknown (not green). Owner `gh` as `brianreborn` can list `SHALOM-swarm-bench`.
 
-Worker **cost** (wall, CPU, optional Grok credits) is a fence on the same state-change comment, not a heartbeat. See [usage.md](usage.md).
+Worker **cost** (wall, CPU, optional Grok credits) is a fence on the same state-change comment, not a heartbeat. See [usage.md](usage.md). Fleet cap: [budget.md](budget.md).
 
 This directory has **no product domain**. Japanese linguistics, Android
 intents, APKs, and in-flight Japanglify bugs live under `docs/japanglify/`.

@@ -6,7 +6,7 @@ Not for reporters. Public repo, but this page is the admin cheat sheet.
 
 CLI ritual is **not** this page. It is [prompt-bench.md](../swarm-conductor/prompt-bench.md) ([raw](https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt-bench.md)). This page is github.com + when to use that ritual.
 
-Grok CLI default effort on this host is **medium** (`%USERPROFILE%\.grok\config.toml`, set by `swarm-bench-runner.ps1`). Omit `--effort` unless the issue is not medium.
+Grok CLI default effort on this host is **medium** (`%USERPROFILE%\.grok\config.toml`, set by `swarm-bench-runner.ps1`). Fleet cap (SuperGrok window, per-role clamp, model): [budget.json](budget.json) / [budget.md](../swarm-conductor/budget.md). Effective flags: `python3 scripts/swarm_budget.py --role swarm-bench --issue-effort xhigh --argv`. Omit `--effort` unless that prints one.
 
 ## Shutdown and restart
 

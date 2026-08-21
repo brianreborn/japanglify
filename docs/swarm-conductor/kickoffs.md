@@ -1,10 +1,13 @@
 # Kickoffs
 
-Effort lives on the **GitHub issue**, not in chat. On the Swarm Bench host the Grok CLI default is **medium** (`%USERPROFILE%\.grok\config.toml` `default_reasoning_effort`, written by `scripts/swarm-bench-runner.ps1`). Vendor CLI default is high; we do not live with that.
+Effort lives on the **GitHub issue**, then the **fleet cap**. Matcher: [budget.md](budget.md) / `scripts/swarm_budget.py`. On the Swarm Bench host the Grok CLI default is **medium** (`%USERPROFILE%\.grok\config.toml`, written by `scripts/swarm-bench-runner.ps1`).
 
 1. Label `effort:low` | `effort:medium` | `effort:high` | `effort:xhigh`
 2. First line of the issue body: `**Effort: high** (`grok --effort high`)`
-3. If both missing: **medium** — omit `--effort` (matches the host default)
+3. If both missing: **medium** — omit `--effort`
+4. **Effective** = min(issue, `budget.json` `cap.effort`, `perRole[role]`). `--effort` / `--model` only when effective is not the host default.
+
+Do not debate remaining SuperGrok % in chat. Change the issue label and/or `docs/japanglify/budget.json`. A cap change is the **next** process start, not `/effort` mid-session.
 
 Swarm Bench **shutdown and restart** (canonical): [prompt-bench.md](prompt-bench.md). Policy copy: [swarm-bench.md](../japanglify/swarm-bench.md).
 
@@ -24,25 +27,23 @@ git pull origin main
 grok "$(< docs/swarm-conductor/prompt-bench.md)"
 ```
 
-No `--effort`, `--resume`, `-r`, `--continue`, `-c`, `-p`.
+No `--effort` unless `swarm_budget.py --argv` prints one. No `--resume`, `-r`, `--continue`, `-c`, `-p`.
 
 | Situation | Do |
 |---|---|
 | **Normal stop** | `/quit`. Stay logged on. Listener stays. |
-| **Normal start** (healthy) | `grok --resume` — same cwd. Add `--effort <issue>` only if the issue is not medium |
+| **Normal start** (healthy) | `grok --resume` plus whatever `swarm_budget.py --argv` prints |
 | **Restore** | Null start (above) |
 
-Do not `/effort` mid-session. `--resume` / `--continue` are only for **healthy** product work. A session you shut down because it failed must not be continued — the transcript would recur.
+`--resume` / `--continue` are only for **healthy** product work.
 
-Conductor cloud automations use [prompt.md](prompt.md) the same way (that file **is** their context).
+Conductor cloud automations use [prompt.md](prompt.md) the same way (that file **is** their context). They stay at `perRole` **low**.
 
 | Level | Use |
 |---|---|
-| `low` | Mechanical one-shot |
+| `low` | Mechanical one-shot; cloud automations |
 | `medium` | Default. Bootstrap; domain tests |
-| `high` | Overlay / timing / a11y on device — pass `--effort high` |
-| `xhigh` | Classification + fix generation when the owner sets the label — pass `--effort xhigh` |
+| `high` | Overlay / timing / a11y on device — only if cap allows |
+| `xhigh` | Classification + fix generation — only if cap allows (burn a SuperGrok window) |
 
-Do not debate effort in a Conductor thread. Change the label on the issue.
-
-When you post a **state change** (handoff, installed, failed), append a usage fence from `scripts/swarm-usage.py`. Cost rides that comment. Do not open a second comment for metrics. Do not invent `grokCredits`. Spec: [usage.md](usage.md).
+When you post a **state change** (handoff, installed, failed), append a usage fence from `scripts/swarm-usage.py`. Cost rides that comment. Do not invent `grokCredits`. Spec: [usage.md](usage.md).
