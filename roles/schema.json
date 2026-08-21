@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://japanglify.dev/schemas/role-host.v1.json",
+  "title": "Japanglify role host profile",
+  "type": "object",
+  "required": ["version", "id", "hostname", "role", "repository", "workspace", "enabled", "capabilities"],
+  "properties": {
+    "version": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-z0-9]+(--[a-z0-9-]+)+$" },
+    "hostname": { "type": "string", "minLength": 1 },
+    "role": { "type": "string", "enum": ["orchestrator"] },
+    "descriptor": { "type": "string", "minLength": 1 },
+    "repository": { "type": "string", "pattern": "^[^/]+/[^/]+$" },
+    "remote": { "type": "string", "format": "uri" },
+    "workspace": { "type": "string", "minLength": 1 },
+    "branch": { "type": "string", "minLength": 1 },
+    "enabled": { "type": "boolean" },
+    "capabilities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "enum": ["tester-builder", "issue-worker", "issue-investigator", "docs-auditor"] }
+    },
+    "_capabilitiesNote": { "type": "string" },
+    "profile": { "type": "string" }
+  },
+  "additionalProperties": false
+}

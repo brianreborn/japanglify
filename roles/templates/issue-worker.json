@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "id": "issue-worker",
+  "kind": "capability-template",
+  "actions": ["modify-approved-implementation-branch", "run-relevant-tests"],
+  "writeAuthority": "approved-branch-only",
+  "approvalRequired": true
+}

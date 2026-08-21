@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "id": "shalom--orchestrator--japanglify-beta2",
+  "hostname": "SHALOM",
+  "role": "orchestrator",
+  "descriptor": "japanglify-beta2",
+  "repository": "brianreborn/japanglify",
+  "remote": "https://github.com/brianreborn/japanglify.git",
+  "workspace": "C:\\Users\\brian\\Documents\\Codex\\2026-08-19\\build\\japanglify",
+  "branch": "codex/in-progress-snapshot",
+  "enabled": false,
+  "capabilities": [],
+  "_capabilitiesNote": "Capabilities intentionally disabled: limited Codex credit; this host performs orchestration only."
+}

@@ -15,6 +15,7 @@
 app/build/reports/acceptance/
 **/acceptance/beta1/
 /captures/
+/roles/self.json
 .externalNativeBuild/
 .cxx/
 *.apk

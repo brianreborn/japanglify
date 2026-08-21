@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "id": "issue-investigator",
+  "kind": "capability-template",
+  "actions": ["read-issues", "inspect-code", "prepare-investigation"],
+  "writeAuthority": "read-only",
+  "approvalRequired": false
+}

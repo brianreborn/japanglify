@@ -50,6 +50,31 @@ param(
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
+function Assert-OrchestratorHost {
+    $repoRoot = (git rev-parse --show-toplevel).Trim()
+    $rolePath = Join-Path $repoRoot 'roles/self.json'
+    if (-not (Test-Path -LiteralPath $rolePath)) {
+        throw 'CI dashboard blocked: this checkout is not an enabled orchestrator host. Run scripts/manage-role.ps1 enable on a matching host profile.'
+    }
+
+    try {
+        $role = Get-Content -LiteralPath $rolePath -Raw | ConvertFrom-Json
+    } catch {
+        throw 'CI dashboard blocked: roles/self.json is not valid JSON.'
+    }
+
+    $workspace = (Resolve-Path $repoRoot).Path.TrimEnd('\\')
+    $remote = (git remote get-url origin).Trim()
+    if ($role.role -ne 'orchestrator' -or -not $role.enabled -or
+        $role.hostname -ine $env:COMPUTERNAME -or
+        ([IO.Path]::GetFullPath($role.workspace).TrimEnd('\\') -ine $workspace) -or
+        $role.remote -ne $remote) {
+        throw 'CI dashboard blocked: roles/self.json does not authorize this host, workspace, or repository as an enabled orchestrator.'
+    }
+}
+
+Assert-OrchestratorHost
+
 function Invoke-GhJson {
     param([Parameter(Mandatory)][string[]] $Arguments)
 

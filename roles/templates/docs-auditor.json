@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "id": "docs-auditor",
+  "kind": "capability-template",
+  "actions": ["read-docs", "report-gaps"],
+  "writeAuthority": "read-only",
+  "approvalRequired": false
+}

@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "id": "orchestrator",
+  "kind": "role-template",
+  "capabilities": [],
+  "_capabilitiesNote": "Capabilities intentionally disabled: limited Codex credit; this host performs orchestration only.",
+  "enabledByDefault": false,
+  "concurrency": { "maxTasks": 1, "sharedCheckout": false },
+  "approvalRequiredFor": ["spawn", "write", "configuration-change"]
+}

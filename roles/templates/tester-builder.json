@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "id": "tester-builder",
+  "kind": "capability-template",
+  "actions": ["build", "test", "verify-apk-assets", "publish-tester-assets"],
+  "writeAuthority": "tester-artifacts-only",
+  "approvalRequired": true
+}
