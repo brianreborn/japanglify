@@ -10,8 +10,10 @@ import sys
 from datetime import datetime, timezone
 
 ACTIVE = ("win11-pixel", "github-actions", "grok-cloud")
-BENCH_WORKFLOWS = ("swarm-conductor-uat.yml", "swarm-kick.yml", "swarm-ping.yml")
+# Never include swarm-ping.yml — that job is ubuntu and would false-green the bench.
+BENCH_WORKFLOWS = ("swarm-conductor-uat.yml", "swarm-kick.yml")
 WAITING = {"queued", "waiting", "pending", "requested"}
+IDLE_DONE = {"cancelled", "skipped"}
 
 
 def now_utc() -> datetime:
@@ -72,11 +74,21 @@ def classify_win11(bench_jobs: list[dict]) -> dict:
         }
     if done:
         j = done[0]
-        ok = j.get("conclusion") == "success"
+        conclusion = j.get("conclusion") or "completed"
+        if conclusion in IDLE_DONE:
+            return {
+                "id": "win11-pixel",
+                "ok": None,
+                "state": conclusion,
+                "ageSec": age_sec(j.get("updated_at") or j.get("created_at")),
+                "note": "last bench cancelled/skipped — USB UAT paused or concurrency; not a live up",
+                "queued": 0,
+            }
+        ok = conclusion == "success"
         return {
             "id": "win11-pixel",
             "ok": ok,
-            "state": j.get("conclusion") or "completed",
+            "state": conclusion,
             "ageSec": age_sec(j.get("updated_at") or j.get("created_at")),
             "note": "last completed swarm-bench job",
             "queued": 0,
@@ -117,33 +129,22 @@ def snapshot(config_runs: list[dict], bench_jobs: list[dict]) -> dict:
     }
 
 
+def gh_api(path: str) -> dict:
+    raw = subprocess.check_output(["gh", "api", path], text=True)
+    return json.loads(raw)
+
+
 def gh_runs(repo: str, workflow: str, limit: int = 8) -> list[dict]:
-    raw = subprocess.check_output(
-        [
-            "gh",
-            "run",
-            "list",
-            "--repo",
-            repo,
-            "--workflow",
-            workflow,
-            "--limit",
-            str(limit),
-            "--json",
-            "status,conclusion,createdAt,updatedAt,url,event,displayTitle,databaseId",
-        ],
-        text=True,
-    )
-    rows = json.loads(raw)
+    data = gh_api(f"repos/{repo}/actions/workflows/{workflow}/runs?per_page={limit}")
     out = []
-    for r in rows:
+    for r in data.get("workflow_runs") or []:
         out.append(
             {
                 "status": r.get("status"),
                 "conclusion": r.get("conclusion"),
-                "created_at": r.get("createdAt"),
-                "updated_at": r.get("updatedAt"),
-                "html_url": r.get("url"),
+                "created_at": r.get("created_at"),
+                "updated_at": r.get("updated_at"),
+                "html_url": r.get("html_url"),
                 "workflow": workflow,
             }
         )
@@ -155,12 +156,12 @@ def collect(repo: str) -> dict:
     bench_jobs: list[dict] = []
     for wf in BENCH_WORKFLOWS:
         try:
-            bench_jobs.extend(gh_runs(repo, wf, limit=5))
+            bench_jobs.extend(gh_runs(repo, wf, limit=8))
         except subprocess.CalledProcessError as e:
-            print(f"gh run list {wf} failed: {e}", file=sys.stderr)
+            print(f"gh api {wf} failed: {e}", file=sys.stderr)
             continue
     bench_jobs.sort(key=lambda j: j.get("created_at") or "", reverse=True)
-    print("bench_jobs", json.dumps(bench_jobs[:6]), file=sys.stderr)
+    print("bench_jobs", json.dumps(bench_jobs[:8]), file=sys.stderr)
     return snapshot(config_runs, bench_jobs)
 
 
@@ -221,6 +222,15 @@ def self_test() -> int:
         True,
         "in_progress",
     )
+    check(
+        "bench-cancelled-is-unknown",
+        classify_win11(
+            [{"status": "completed", "conclusion": "cancelled", "created_at": "2026-08-21T15:07:00Z", "workflow": "uat"}]
+        ),
+        None,
+        "cancelled",
+    )
+    assert "swarm-ping.yml" not in BENCH_WORKFLOWS
     row = snapshot(
         [{"conclusion": "success", "updated_at": "2026-08-21T14:58:00Z", "html_url": "x"}],
         [{"status": "queued", "created_at": "2026-08-21T14:46:00Z", "workflow": "uat"}],
@@ -244,7 +254,9 @@ def main() -> int:
     if summary:
         with open(summary, "a", encoding="utf-8") as f:
             f.write(markdown(row))
-    return 0 if row.get("ok") else 1
+    # Cloud-only ping is still a pass if github-actions is up and bench is paused (cancelled).
+    down = [h for h in row["hosts"] if h.get("ok") is False]
+    return 1 if down else 0
 
 
 if __name__ == "__main__":
