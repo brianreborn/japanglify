@@ -230,11 +230,13 @@ if (-not $Quiet) {
     }
 }
 
-if (-not $Export) {
-    $Export = Join-Path $env:TEMP "swarm-path.env"
-    if (Test-Path "C:\actions-runner") {
-        $Export = "C:\actions-runner\swarm-tools.env"
-    }
+$targets = New-Object "System.Collections.Generic.List[string]"
+if ($Export) { $targets.Add($Export) }
+$tempEnv = Join-Path $env:TEMP "swarm-path.env"
+if (-not $targets.Contains($tempEnv)) { $targets.Add($tempEnv) }
+if (Test-Path "C:\actions-runner") {
+    $runnerEnv = "C:\actions-runner\swarm-tools.env"
+    if (-not $targets.Contains($runnerEnv)) { $targets.Add($runnerEnv) }
 }
 $lines = @(
     "PATH=$env:PATH",
@@ -249,7 +251,9 @@ $lines = @(
     "JAVA_HOME=$env:JAVA_HOME",
     "ANDROID_HOME=$env:ANDROID_HOME"
 )
-$dir = Split-Path $Export
-if ($dir -and -not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir | Out-Null }
-Set-Content -Path $Export -Value $lines -Encoding ascii
-if (-not $Quiet) { Write-Host "export $Export" }
+foreach ($out in $targets) {
+    $dir = Split-Path $out
+    if ($dir -and -not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir | Out-Null }
+    Set-Content -Path $out -Value $lines -Encoding ascii
+    if (-not $Quiet) { Write-Host "export $out" }
+}
