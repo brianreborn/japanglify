@@ -19,7 +19,7 @@ Owner Pixel UAT is **Swarm Bench**. GitHub `/uat` dispatches the self-hosted Win
 | Watchdog quotas / 20 min stall | `swarm-watchdog.yml` — schedule only |
 | Config JSON + lease/uat-map self-test | `conductor-config.yml` on `main` |
 | Webhook conductor | **retired** |
-| Self-hosted `swarm-bench` | one box, `win11-pixel`. Ritual: [prompt-bench.md](../swarm-conductor/prompt-bench.md). Normal stop `/quit` (listener stays). Restore: no `--resume`. Effort from the **issue**, not a chat default |
+| Self-hosted `swarm-bench` | one box, `win11-pixel`. Ritual: [prompt-bench.md](../swarm-conductor/prompt-bench.md). Idle stop: `/quit` + `swarm-bench-stop`. Restore: no `--resume`. Effort from the **issue** |
 
 ## Repos
 

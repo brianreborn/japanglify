@@ -25,9 +25,10 @@ scripts\swarm-grok.cmd
 
 | Situation | Do |
 |---|---|
-| **Normal stop** | `/quit`. Stay logged on. Listener stays. |
-| **Normal start** (healthy) | `swarm-grok --resume` |
-| **Restore** | Null start (above). No `--resume`. |
+| **Idle stop** | `/quit` then `scripts\swarm-bench-stop.cmd` (listener down) |
+| **Leave listener** | `/quit` only — unattended `/uat` |
+| **Normal start** (healthy Grok) | `swarm-grok --resume` |
+| **Restore** | Null start (above). No `--resume`. Then idle stop unless arming. |
 
 `--resume` / `--continue` are only for **healthy** product work.
 

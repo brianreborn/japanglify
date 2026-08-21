@@ -6,7 +6,7 @@ Policy: `docs/japanglify/swarm-bench.md`. Kickoff details: `docs/japanglify/swar
 
 ## Shutdown and restart (this is the procedure)
 
-`Runner.Listener` is **not** Grok. `/quit` must not kill it.
+`Runner.Listener` is **not** Grok. A leftover listener is what grabs a queued `/uat` after Grok is gone. **Idle SHALOM = Grok down and listener down.**
 
 On this host the Grok CLI default effort is **medium** (`default_reasoning_effort` in `%USERPROFILE%\.grok\config.toml`, written by `swarm-bench-runner.ps1`). Do not pass `--effort medium`. Extra `--effort` / `--model` come only from `scripts/swarm-grok.py` (see [budget.md](budget.md)).
 
@@ -26,25 +26,27 @@ scripts\swarm-grok.cmd
 python3 scripts/swarm-grok.py
 ```
 
-| Situation | What you type | What must stay up |
+| Situation | What you type | What stays up |
 |---|---|---|
-| **Normal stop** — work is done, session was healthy | `/quit` | Windows **logged on**. Hidden `swarm-run-loop.cmd`, `Runner.Listener`, `swarm-kick-watch.ps1` |
-| **Normal start** — continue that healthy work | `scripts\swarm-grok.cmd --resume` or `./scripts/swarm-grok --resume` (add `--issue-effort` if the issue is not medium **and** the cap allows) | Listener. Do **not** slurp this file. Do **not** run `swarm-bench-runner.ps1` unless GitHub shows the runner **offline** |
-| **Restore** — first start this logon, or you killed a bad session | `/quit` if a window is still open. Then **Null start** (above) | Listener starts from step “Always this logon” below |
-| **GitHub says `SHALOM-swarm-bench` offline** | Restore | Same |
-| **Log off / reboot** | Nothing in Grok. Next logon, HKCU Run starts the loop. Grok is optional. If still offline, Restore | This Windows logon (USB needs it) |
+| **Idle stop** — Grok down, no surprise UAT | `/quit` then `scripts\swarm-bench-stop.cmd` | Windows logon only. Writes `C:\actions-runner\.swarm-disarmed`. HKCU keep-alive off. |
+| **Leave listener** — unattended `/uat` while Grok is closed | `/quit` only (do **not** stop) | Hidden loop + `Runner.Listener` |
+| **Normal start** — continue healthy Grok work | `scripts\swarm-grok.cmd --resume` | Whatever you left (listener if armed) |
+| **Restore** | `/quit` if a window is open. **Null start**. Then **Idle stop** unless you are arming for UAT | — |
+| **Arm** — accept GitHub `/uat` | `pwsh -File scripts/swarm-bench-runner.ps1` | Listener. Clears `.swarm-disarmed` |
+| **GitHub says runner offline** | Arm (above), not a second Grok | Listener |
+| **Log off / reboot** | Idle stop first if you do not want auto-arm at next logon | — |
 
 `--resume` replays the transcript. If you shut Grok down because it was wrong, resume would make that recur. That is why Restore is Null start.
 
-Never `taskkill` `Runner.Listener` as a “restart.” Never paste “start the runner” on a schedule.
+Never `taskkill` `Runner.Listener` by hand — use `swarm-bench-stop`. Never paste “start the runner” on a schedule.
 
 ## Always this logon (USB optional)
 
-1. `git pull` on the clone that has `scripts/swarm-bench-runner.ps1` (`brianreborn/japanglify` `main`). The start script pulls unless `--no-pull`.
-2. `pwsh -File scripts/swarm-bench-runner.ps1` once. Hidden listener loop + HKCU Run + Grok CLI default **medium**. **You are not the supervisor after that.**
-3. Reply one line: `Listener running yes/no`. Then **normal stop** (`/quit`).
+1. `git pull` on the clone that has `scripts/swarm-bench-runner.ps1`. The start script pulls unless `--no-pull`.
+2. If this box should take `/uat`: `pwsh -File scripts/swarm-bench-runner.ps1` once (arm). If it should stay idle: `scripts\swarm-bench-stop.cmd`.
+3. Reply one line: `Listener running yes/no`. Then `/quit`. If idle, you already stopped.
 
-Do not require `adb devices` to start the listener. Unplugged USB is a pause, not a NAK.
+Do not require `adb devices` to arm. Unplugged USB is a pause — **idle stop** so a disconnected listener cannot grab the queue.
 
 ## Never
 

@@ -24,7 +24,8 @@ Canonical table: [prompt-bench.md](../swarm-conductor/prompt-bench.md) (that fil
 
 | Situation | Do |
 |---|---|
-| **Normal stop** | `/quit`. Stay logged on to Windows. Do not kill `Runner.Listener`. |
+| **Idle stop** | `/quit` then `scripts\swarm-bench-stop.cmd`. Listener **down**. |
+| **Leave listener** | `/quit` only — only if you want GitHub `/uat` with Grok closed. |
 | **Normal start** (last session was healthy) | `scripts\swarm-grok.cmd --resume` / `./scripts/swarm-grok --resume` |
 | **Restore** (first this logon, or you killed a bad session) | Null start. |
 | **Runner offline** on GitHub | Restore. |

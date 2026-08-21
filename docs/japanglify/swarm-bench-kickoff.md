@@ -10,7 +10,7 @@
 
 | Situation | Do |
 |---|---|
-| **Normal stop** | `/quit`. Stay logged on. Do not kill `Runner.Listener`. |
+| **Idle stop** | `/quit` then `scripts\swarm-bench-stop.cmd`. |
 | **Normal start** (healthy session) | `./scripts/swarm-grok --resume` / `scripts\swarm-grok.cmd --resume` |
 | **Restore** (first this logon, or you killed a bad session) | Null start. |
 | **Runner offline** | Restore. |

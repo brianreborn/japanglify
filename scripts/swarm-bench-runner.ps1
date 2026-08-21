@@ -109,7 +109,7 @@ function Ensure-SwarmLabel {
 
 function Install-KeepAlive {
     # Fixed path so logon persistence does not depend on which git clone ran this.
-    foreach ($name in @("swarm-run-loop.cmd", "swarm-kick-watch.ps1")) {
+    foreach ($name in @("swarm-run-loop.cmd", "swarm-kick-watch.ps1", "swarm-bench-stop.ps1", "swarm-bench-stop.cmd")) {
         $src = Join-Path $PSScriptRoot $name
         if (Test-Path $src) {
             Copy-Item $src (Join-Path $Root $name) -Force
@@ -213,6 +213,7 @@ if (-not (Test-Path .\.runner)) {
 
 Ensure-SwarmLabel
 Write-RunnerEnv
+Remove-Item (Join-Path $Root ".swarm-disarmed") -Force -ErrorAction SilentlyContinue
 Install-KeepAlive
 
 $task = "swarm-bench-runner"

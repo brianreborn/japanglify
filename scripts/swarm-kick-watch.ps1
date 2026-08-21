@@ -11,6 +11,10 @@ $Root = "C:\actions-runner"
 $Loop = Join-Path $Root "swarm-run-loop.cmd"
 $Run = Join-Path $Root "run.cmd"
 
+function Disarmed {
+    return Test-Path (Join-Path $Root ".swarm-disarmed")
+}
+
 function Listener-Up {
     return [bool](Get-CimInstance Win32_Process -Filter "Name='Runner.Listener.exe'" -ErrorAction SilentlyContinue)
 }
@@ -23,6 +27,10 @@ function Loop-Up {
 }
 
 function Start-Listener {
+    if (Disarmed) {
+        Write-Host "disarmed — not starting listener"
+        return
+    }
     if (Listener-Up) {
         Write-Host "Runner.Listener already running"
         return
@@ -53,6 +61,11 @@ function Pending-Kick {
     return $false
 }
 
+if (Disarmed) {
+    Write-Host "disarmed ($Root\.swarm-disarmed) — watch exits"
+    exit 0
+}
+
 if ($args -contains "-Once") {
     $pending = Pending-Kick
     if ($pending) { Write-Host "pending UAT/kick on GitHub" } else { Write-Host "no queued/in_progress kick/UAT" }
@@ -62,9 +75,13 @@ if ($args -contains "-Once") {
     exit 0
 }
 
-Write-Host "swarm-kick-watch polling $Repo (Ctrl+C to stop); always keep listener"
+Write-Host "swarm-kick-watch polling $Repo (Ctrl+C to stop); stop with swarm-bench-stop"
 while ($true) {
     try {
+        if (Disarmed) {
+            Write-Host "disarmed — watch exits"
+            exit 0
+        }
         if (-not (Listener-Up)) { Start-Listener }
         if (Pending-Kick -and -not (Listener-Up)) { Start-Listener }
     } catch {

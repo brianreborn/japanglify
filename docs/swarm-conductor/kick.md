@@ -6,7 +6,7 @@ Mailbox on GitHub. **No inbound HTTPS** on laptops. Canonical parser: `scripts/s
 
 Kick is **ubuntu-only**. It must never occupy `[self-hosted, swarm-bench]` — that runner is the thing we are trying to wake.
 
-**Grok CLI is not the supervisor.** `scripts/swarm-bench-runner.ps1` installs a hidden `swarm-run-loop.cmd` around `Runner.Listener` and persists it with HKCU Run (Smart App Control often blocks Scheduled Task). `swarm-kick-watch.ps1` restarts a dead listener even when the mailbox is empty. After that, the Grok window can `/quit`.
+**Grok CLI is not the supervisor while armed.** `scripts/swarm-bench-runner.ps1` installs a hidden `swarm-run-loop.cmd` around `Runner.Listener` and persists it with HKCU Run. **Idle stop** (`scripts\swarm-bench-stop.cmd`) writes `.swarm-disarmed` and kills the listener so a disconnected runner cannot grab `/uat`. Grok down without stop used to leave that leftover — that was the surprise.
 
 | You type | Who wakes |
 |---|---|

@@ -1,9 +1,13 @@
 @echo off
-REM Keep Runner.Listener alive for this Windows logon session.
-REM Hidden. Grok CLI is not the supervisor. USB adb still needs this logon.
+REM Keep Runner.Listener alive for this Windows logon session — unless disarmed.
+REM Hidden. USB adb still needs this logon.
 title swarm-bench-listener
 cd /d C:\actions-runner
 :loop
+if exist ".swarm-disarmed" (
+  echo %DATE% %TIME% disarmed — listener stays down
+  exit /b 0
+)
 tasklist /FI "IMAGENAME eq Runner.Listener.exe" | find /I "Runner.Listener.exe" >nul
 if %ERRORLEVEL%==0 (
   timeout /t 20 /nobreak >nul

@@ -41,7 +41,8 @@ scripts\swarm-grok.cmd
 
 | Situation | Do | Do not |
 |---|---|---|
-| **Normal stop** | `/quit` in Swarm Bench. Stay logged on | Kill `Runner.Listener` |
+| **Idle stop** | `/quit` then `scripts\swarm-bench-stop.cmd` | Leave a disconnected `Runner.Listener` |
+| **Leave listener** (unattended `/uat`) | `/quit` only | |
 | **Normal start** | `scripts\swarm-grok.cmd --resume` (add `--issue-effort` only if the issue is not medium **and** the cap allows) | Slurp a new brain if the last session was healthy |
 | **Restore** | Null start (above) | `--resume` / `--continue` a session you killed because it failed |
 | **Runner offline** | Restore | A second `/uat` |
