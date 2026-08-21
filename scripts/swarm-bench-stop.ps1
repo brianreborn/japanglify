@@ -4,6 +4,18 @@ $ErrorActionPreference = "Continue"
 $Root = "C:\actions-runner"
 $RunKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
 
+function Ensure-ToolPath {
+    $add = @(
+        "$env:SystemRoot\System32",
+        "$env:SystemRoot\System32\WindowsPowerShell\v1.0",
+        "${env:ProgramFiles}\Git\cmd",
+        "${env:ProgramFiles}\Git\bin",
+        "${env:ProgramFiles}\PowerShell\7"
+    ) | Where-Object { $_ -and (Test-Path $_) }
+    $env:PATH = ($add + @($env:PATH)) -join ";"
+}
+Ensure-ToolPath
+
 New-Item -ItemType Directory -Force -Path $Root | Out-Null
 $stamp = Get-Date -Format "yyyy-MM-ddTHH:mm:ssK"
 Set-Content -Path (Join-Path $Root ".swarm-disarmed") -Value "disarmed $stamp`nGrok down => listener down.`n" -Encoding ascii

@@ -9,6 +9,25 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+function Ensure-ToolPath {
+    $add = @(
+        "$env:SystemRoot\System32",
+        "$env:SystemRoot\System32\WindowsPowerShell\v1.0",
+        "${env:ProgramFiles}\Git\cmd",
+        "${env:ProgramFiles}\Git\bin",
+        "${env:ProgramFiles(x86)}\Git\cmd",
+        "${env:ProgramFiles}\PowerShell\7",
+        "$env:LOCALAPPDATA\Programs\Python\Launcher",
+        "$env:LOCALAPPDATA\Microsoft\WinGet\Links",
+        "$env:ProgramData\chocolatey\bin",
+        "$env:USERPROFILE\scoop\shims",
+        "$env:USERPROFILE\.local\bin"
+    ) | Where-Object { $_ -and (Test-Path $_) }
+    $env:PATH = ($add + @($env:PATH)) -join ";"
+}
+Ensure-ToolPath
+
 $OfficialRepo = "brianreborn/japanglify"
 $DevRepo = "electrobrian/japanglify"
 $OfficialBranch = "main"
