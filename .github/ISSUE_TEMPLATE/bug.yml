@@ -12,6 +12,14 @@ body:
         **Clip (optional):** after you open this, drag a short screen recording onto the issue
         (~15s, mp4 / mov / webm). Already-small files we leave alone. A fat recording is fine —
         we offer a compact WebM. GitHub only inline-plays mp4/mov.
+
+        **Your commands** (whole comment, after this issue exists — GitHub’s `/` menu will not list these):
+
+        | Comment | When |
+        |---|---|
+        | `/clip-ok` | We offered a compact clip and it still shows the bug |
+
+        English on this issue is enough for everything else. `/accept` and `/uat` are owner-only and do nothing for reporters.
   - type: textarea
     id: summary
     attributes:
