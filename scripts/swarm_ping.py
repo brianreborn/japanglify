@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 
 ACTIVE = ("win11-pixel", "github-actions", "grok-cloud")
 BENCH_WORKFLOWS = ("swarm-conductor-uat.yml", "swarm-kick.yml", "swarm-ping.yml")
+WAITING = {"queued", "waiting", "pending", "requested"}
 
 
 def now_utc() -> datetime:
@@ -46,8 +47,7 @@ def classify_github_actions(config_runs: list[dict]) -> dict:
 
 
 def classify_win11(bench_jobs: list[dict]) -> dict:
-    """bench_jobs: {status, conclusion, created_at, workflow} newest first."""
-    queued = [j for j in bench_jobs if j.get("status") == "queued"]
+    queued = [j for j in bench_jobs if (j.get("status") or "") in WAITING]
     running = [j for j in bench_jobs if j.get("status") == "in_progress"]
     done = [j for j in bench_jobs if j.get("status") == "completed"]
     if running:
@@ -156,9 +156,11 @@ def collect(repo: str) -> dict:
     for wf in BENCH_WORKFLOWS:
         try:
             bench_jobs.extend(gh_runs(repo, wf, limit=5))
-        except subprocess.CalledProcessError:
+        except subprocess.CalledProcessError as e:
+            print(f"gh run list {wf} failed: {e}", file=sys.stderr)
             continue
     bench_jobs.sort(key=lambda j: j.get("created_at") or "", reverse=True)
+    print("bench_jobs", json.dumps(bench_jobs[:6]), file=sys.stderr)
     return snapshot(config_runs, bench_jobs)
 
 
@@ -204,6 +206,14 @@ def self_test() -> int:
         "queued",
     )
     check(
+        "bench-waiting",
+        classify_win11(
+            [{"status": "waiting", "created_at": "2026-08-21T14:46:00Z", "workflow": "swarm-kick.yml"}]
+        ),
+        False,
+        "queued",
+    )
+    check(
         "bench-running",
         classify_win11(
             [{"status": "in_progress", "created_at": "2026-08-21T14:46:00Z", "workflow": "swarm-kick.yml"}]
@@ -215,7 +225,7 @@ def self_test() -> int:
         [{"conclusion": "success", "updated_at": "2026-08-21T14:58:00Z", "html_url": "x"}],
         [{"status": "queued", "created_at": "2026-08-21T14:46:00Z", "workflow": "uat"}],
     )
-    assert row["hosts"][0]["id"] == "win11-pixel"
+    assert row["hosts"][0]["ok"] is False
     assert markdown(row).startswith("## Swarm ping")
     print("swarm_ping self-test ok" if failed == 0 else f"FAIL {failed}")
     return 1 if failed else 0
