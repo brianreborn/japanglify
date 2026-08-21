@@ -1,4 +1,6 @@
-# Swarm cutover — existing work map
+# Swarm Conductor — cutover map
+
+The official CI/development coordinator is **Swarm Conductor** (Grok cloud + GitHub Actions). Agents on the fork are the swarm. The conductor dispatches; it does not implement, build, or sign.
 
 **In-flight fork work is the source of truth until UAT.**
 
@@ -6,10 +8,10 @@
 
 | Repo | Role |
 |---|---|
-| [brianreborn/japanglify](https://github.com/brianreborn/japanglify) | Official issues, `/accept`, `/latest`, real keystore |
+| [brianreborn/japanglify](https://github.com/brianreborn/japanglify) | Official issues, `/accept`, `/latest`, real keystore, Swarm Conductor |
 | [electrobrian/japanglify](https://github.com/electrobrian/japanglify) | `agent/*` branches, PRs into `BETA-2`, ephemeral tester APKs |
 
-Agents never push to `brianreborn/main`. Official never runs `gradle:assemble-tester`.
+Agents never push to `brianreborn/main`. Official never runs `gradle:assemble-tester`. Swarm Conductor never holds `git.push-*` or keystore caps.
 
 ## Live product bugs
 
@@ -41,6 +43,7 @@ That only marks the issue accepted/blocked. It does not merge, does not sign, do
 
 ```
 official issue + /accept
+  → Swarm Conductor may propose (not spawn forever)
   → work on electrobrian agent/* → PR into BETA-2
       → tester APKs (ephemeral key)
           → you UAT on Pixel

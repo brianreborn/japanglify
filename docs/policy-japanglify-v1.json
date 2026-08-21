@@ -1,11 +1,12 @@
 {
   "schemaVersion": 1,
+  "name": "Swarm Conductor",
   "trustedActor": "brianreborn",
   "devRepo": "electrobrian/japanglify",
   "officialRepo": "brianreborn/japanglify",
-  "note": "Draft. Roles are starting capability sets. Do not add caps in place. Catalog parked for later review.",
+  "note": "Draft. A role is only a starting capability set. Swarm Conductor is the coordinator starting set. Catalog parked for later review.",
   "roles": {
-    "orchestrator": [
+    "swarm-conductor": [
       "task.create",
       "assignment.propose",
       "assignment.cancel",
@@ -52,7 +53,7 @@
     ]
   },
   "never": {
-    "orchestrator": [
+    "swarm-conductor": [
       "git.push-agent-branch",
       "github.pr-create",
       "gradle.assemble-tester",
