@@ -62,7 +62,7 @@ jobs:
 ## ${HEADING}
 **${STATE}** by @${TRUSTED} via \`/${CMD}\` at ${STAMP}
 
-This only records the issue gate. It does not merge, sign, or open a PR.
+This only records the issue gate. It does not merge, sign, or open a pull request.
 "
           if [ -n "${EXISTING}" ]; then
             gh api -X PATCH "repos/${GH_REPO}/issues/comments/${EXISTING}" -f body="$BODY_OUT"
@@ -112,7 +112,7 @@ This only records the issue gate. It does not merge, sign, or open a PR.
 ## ${HEADING}
 **ACCEPTED** by @${TRUSTED} via issue-body +1 at ${STAMP}
 
-This only records the issue gate. It does not merge, sign, or open a PR.
+This only records the issue gate. It does not merge, sign, or open a pull request.
 "
             gh api -X POST "repos/${GH_REPO}/issues/${ISSUE}/comments" -f body="$BODY_OUT"
           done
