@@ -1,6 +1,11 @@
 # Register and start the GitHub Actions self-hosted runner that `/uat` waits on.
 # Interactive user session — NOT a Windows service (services usually cannot see USB adb).
 # Labels: swarm-bench. GitHub also stamps self-hosted + Windows.
+#
+# Smart App Control (Windows 11) often blocks Register-ScheduledTask for
+# C:\actions-runner\run.cmd. That is optional: USB UAT already requires this
+# logon session to stay open. Do not treat a blocked logon task as runner-down.
+# Proof is Runner.Listener.exe + "Listening for Jobs".
 
 $ErrorActionPreference = "Stop"
 $Repo = "brianreborn/japanglify"
@@ -82,10 +87,16 @@ Write-RunnerEnv
 # Do not svc.cmd — Windows services typically cannot talk to a user-session adb/USB device.
 $run = Join-Path $Root "run.cmd"
 $task = "swarm-bench-runner"
-Unregister-ScheduledTask -TaskName $task -Confirm:$false -ErrorAction SilentlyContinue
-$action = New-ScheduledTaskAction -Execute $run -WorkingDirectory $Root
-$trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
-Register-ScheduledTask -TaskName $task -Action $action -Trigger $trigger -User $env:USERNAME -RunLevel Limited | Out-Null
+try {
+    Unregister-ScheduledTask -TaskName $task -Confirm:$false -ErrorAction SilentlyContinue
+    $action = New-ScheduledTaskAction -Execute $run -WorkingDirectory $Root
+    $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+    Register-ScheduledTask -TaskName $task -Action $action -Trigger $trigger -User $env:USERNAME -RunLevel Limited | Out-Null
+    Write-Host "logon-task=$task registered"
+} catch {
+    Write-Warning "logon task skipped (Smart App Control often blocks this): $($_.Exception.Message)"
+    Write-Warning "Keep this Windows logon session. USB adb already requires that."
+}
 
 $already = Get-CimInstance Win32_Process -Filter "Name='Runner.Listener.exe'" -ErrorAction SilentlyContinue
 if ($already) {
@@ -94,4 +105,4 @@ if ($already) {
     Write-Host "starting $run in this user session (keep this login; USB needs it)"
     Start-Process -FilePath $run -WorkingDirectory $Root -WindowStyle Minimized
 }
-Write-Host "registered $Name labels=$Labels  logon-task=$task"
+Write-Host "registered $Name labels=$Labels"
