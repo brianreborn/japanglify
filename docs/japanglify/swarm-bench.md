@@ -20,13 +20,7 @@ Without that listener, `/uat` is a dead click. A queued `/uat` will pick up as s
 
 Canonical table: [prompt-bench.md](../swarm-conductor/prompt-bench.md) (that file wins). Owner cheat sheet only points here: [admin.md](admin.md).
 
-**Null start:**
-
-```text
-grok (Get-Content -Raw docs/swarm-conductor/prompt-bench.md)
-```
-
-No `--effort` (default is medium), no `--resume`, `-r`, `--continue`, `-c`.
+**Null start:** both shells in [budget.md](../swarm-conductor/budget.md) (PowerShell `grok @flags (Get-Content -Raw …)`; sh `grok $flags "$(< …)"`). `$flags` from `swarm_budget.py --argv`. No `--resume`, `-c`, `-p`.
 
 | Situation | Do |
 |---|---|

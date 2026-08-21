@@ -21,13 +21,43 @@ Owner, by editing `docs/japanglify/budget.json` on `main`. Not a Grok chat. Not 
 
 Cloud automations (intake, PR-follow, UAT-complete) stay at `perRole` **low** even when the bench is xhigh. GitHub Actions watchdog is not a Grok wallet.
 
-## CLI
+## CLI (PowerShell and sh)
 
-```text
-python3 scripts/swarm_budget.py --role swarm-bench --issue-effort xhigh --argv
-```
+From the clone that has `scripts/swarm_budget.py` and `docs/swarm-conductor/prompt-bench.md`. Set `ISSUE_EFFORT` to the issue label, or leave it empty (unlabeled → medium request).
 
 Prints `--effort …` / `--model …` only when they differ from the host default (medium / unset). Empty stdout → omit the flags.
+
+**PowerShell** (`py -3`; SHALOM):
+
+```powershell
+git pull origin main
+$issue = $env:ISSUE_EFFORT   # e.g. 'xhigh' or ''
+$b = @('scripts/swarm_budget.py', '--role', 'swarm-bench', '--argv')
+if ($issue) { $b = @('scripts/swarm_budget.py', '--role', 'swarm-bench', '--issue-effort', $issue, '--argv') }
+$flags = @(((py -3 @b | Out-String).Trim() -split '\s+' | Where-Object { $_ }))
+# Null start (Restore):
+grok @flags (Get-Content -Raw docs/swarm-conductor/prompt-bench.md)
+# Normal start (healthy session), instead of the line above:
+# grok @flags --resume
+```
+
+**sh** (bash / git-bash / zsh):
+
+```sh
+git pull origin main
+# optional: ISSUE_EFFORT=xhigh
+if [ -n "${ISSUE_EFFORT:-}" ]; then
+  flags=$(python3 scripts/swarm_budget.py --role swarm-bench --issue-effort "$ISSUE_EFFORT" --argv)
+else
+  flags=$(python3 scripts/swarm_budget.py --role swarm-bench --argv)
+fi
+# Null start (Restore). $flags is unquoted on purpose (word-split).
+grok $flags "$(< docs/swarm-conductor/prompt-bench.md)"
+# Normal start (healthy session), instead of the line above:
+# grok $flags --resume
+```
+
+Do not use `-p` / `--print` / `--single` (those exit). Do not pass `--resume` on Restore. Do not pass `--continue` / `-c`.
 
 ## Never
 

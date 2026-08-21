@@ -10,18 +10,22 @@ Grok CLI default effort on this host is **medium** (`%USERPROFILE%\.grok\config.
 
 ## Shutdown and restart
 
-**Null start** (no transcript). In the clone with `prompt-bench.md`:
+**Null start** (no transcript). In the clone with `prompt-bench.md`. Both shells: [budget.md](../swarm-conductor/budget.md).
 
 PowerShell:
 
-```text
+```powershell
 git pull origin main
-grok (Get-Content -Raw docs/swarm-conductor/prompt-bench.md)
+$issue = $env:ISSUE_EFFORT
+$b = @('scripts/swarm_budget.py', '--role', 'swarm-bench', '--argv')
+if ($issue) { $b = @('scripts/swarm_budget.py', '--role', 'swarm-bench', '--issue-effort', $issue, '--argv') }
+$flags = @(((py -3 @b | Out-String).Trim() -split '\s+' | Where-Object { $_ }))
+grok @flags (Get-Content -Raw docs/swarm-conductor/prompt-bench.md)
 ```
 
-bash: `grok "$(< docs/swarm-conductor/prompt-bench.md)"`
+sh: `grok $flags "$(< docs/swarm-conductor/prompt-bench.md)"` after the same `swarm_budget.py --argv` (see budget.md).
 
-No `--effort`, `--resume`, `-r`, `--continue`, `-c`, `-p`.
+No `--resume`, `-r`, `--continue`, `-c`, `-p`. Healthy continue: `grok @flags --resume` / `grok $flags --resume`.
 
 | Situation | Do | Do not |
 |---|---|---|

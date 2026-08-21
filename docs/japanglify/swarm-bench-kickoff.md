@@ -6,13 +6,17 @@
 
 ## Shutdown and restart
 
-**Null start:**
+**Null start:** both shells in [budget.md](../swarm-conductor/budget.md).
 
-```text
-grok (Get-Content -Raw docs/swarm-conductor/prompt-bench.md)
+```powershell
+grok @flags (Get-Content -Raw docs/swarm-conductor/prompt-bench.md)
 ```
 
-No `--effort`, `--resume`, `-r`, `--continue`, `-c`. Then this file is already the prompt.
+```sh
+grok $flags "$(< docs/swarm-conductor/prompt-bench.md)"
+```
+
+No `--resume`, `-r`, `--continue`, `-c`. `$flags` from `swarm_budget.py --argv`. Then this file is already the prompt.
 
 | Situation | Do |
 |---|---|
