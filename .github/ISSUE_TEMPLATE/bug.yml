@@ -10,8 +10,8 @@ body:
         Do not include clipboard contents, account data, API tokens, or device identifiers.
 
         **Clip (optional):** after you open this, drag a short screen recording onto the issue
-        (~15s). Already-small files are best (a few hundred KB) and we leave those alone.
-        A fat phone recording is fine too — we can offer a compact copy.
+        (~15s, mp4 / mov / webm). Already-small files we leave alone. A fat recording is fine —
+        we offer a compact WebM. GitHub only inline-plays mp4/mov.
   - type: textarea
     id: summary
     attributes:
