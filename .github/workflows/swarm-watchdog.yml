@@ -1,21 +1,22 @@
-# Quota trip + once-per-issue "ready for /uat" ping. Not intake. Does not install.
+# Quota trip + UAT-ready ping + queued-too-long stall. Not intake. Does not install.
 name: Swarm Conductor watchdog
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "*/10 * * * *"
   workflow_dispatch:
 
 permissions:
   issues: write
   contents: read
+  actions: read
 
 jobs:
   quotas:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Comment-rate trip + UAT-ready ping
+      - name: Comment-rate trip + UAT-ready ping + 20min queue stall
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
@@ -30,10 +31,13 @@ jobs:
           marker = cfg["statusMarker"]
           ready_m = "<!-- swarm-uat-ready -->"
           uat_m = "<!-- swarm-bench-uat -->"
+          stall_m = "<!-- swarm-uat-queued -->"
           max_n = int((cfg.get("quotas") or {}).get("commentsPerIssuePerHour", 10))
+          stall_min = 20
           repo = os.environ["GH_REPO"]
-          cutoff = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
-          stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          now = datetime.datetime.now(datetime.timezone.utc)
+          cutoff = (now - datetime.timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+          stamp = now.strftime("%Y-%m-%dT%H:%M:%SZ")
 
           def api(method, path, body=None):
               cmd = ["gh", "api", "-X", method, path]
@@ -58,6 +62,27 @@ jobs:
                   return None
               return json.loads(raw)
 
+          def parse_ts(s):
+              if not s:
+                  return None
+              s = s.replace("Z", "+00:00")
+              return datetime.datetime.fromisoformat(s)
+
+          # Stall: UAT/kick bench queued > 20 minutes → listener is down.
+          stalled_runs = []
+          for wf in ("swarm-conductor-uat.yml", "swarm-kick.yml"):
+              data = api(
+                  "GET",
+                  f"repos/{repo}/actions/workflows/{wf}/runs?status=queued&per_page=10",
+              )
+              for run in data.get("workflow_runs") or []:
+                  created = parse_ts(run.get("created_at"))
+                  if not created:
+                      continue
+                  age = (now - created).total_seconds() / 60.0
+                  if age >= stall_min:
+                      stalled_runs.append((run, age, wf))
+
           issues = api("GET", f"repos/{repo}/issues?state=open&per_page=50")
           for issue in issues:
               if issue.get("pull_request"):
@@ -68,15 +93,24 @@ jobs:
               sticky_id = None
               saw_ready = False
               saw_uat = False
+              saw_installed = False
+              saw_stall = False
+              dispatched_at = None
               for c in comments:
                   body = c.get("body") or ""
                   if marker in body:
                       sticky_id = c["id"]
                       continue
+                  if stall_m in body:
+                      saw_stall = True
                   if ready_m in body:
                       saw_ready = True
                   if uat_m in body:
                       saw_uat = True
+                      if "UAT installed" in body:
+                          saw_installed = True
+                      if "UAT dispatched" in body:
+                          dispatched_at = parse_ts(c.get("created_at"))
                   login = (c.get("user") or {}).get("login") or ""
                   if login in (trusted, "github-actions[bot]"):
                       continue
@@ -92,6 +126,27 @@ jobs:
                       api("PATCH", f"repos/{repo}/issues/comments/{sticky_id}", {"body": text})
                   else:
                       api("POST", f"repos/{repo}/issues/{n}/comments", {"body": text})
+                  continue
+              if (
+                  stalled_runs
+                  and saw_uat
+                  and not saw_installed
+                  and not saw_stall
+              ):
+                  run, age, wf = stalled_runs[0]
+                  url = run.get("html_url") or ""
+                  api(
+                      "POST",
+                      f"repos/{repo}/issues/{n}/comments",
+                      {
+                          "body": (
+                              f"{stall_m}\n## Swarm Bench\n**UAT still queued** (~{int(age)} min). "
+                              f"`Runner.Listener` has not taken [this run]({url}).\n\n"
+                              f"Start `scripts/swarm-kick-watch.ps1` on win11-pixel (Grok CLI types it). "
+                              f"This is not a second `/uat`."
+                          )
+                      },
+                  )
                   continue
               if saw_ready or saw_uat:
                   continue
@@ -111,5 +166,5 @@ jobs:
                       )
                   },
               )
-          print("watchdog ok")
+          print("watchdog ok", "stalled", len(stalled_runs))
           PY
