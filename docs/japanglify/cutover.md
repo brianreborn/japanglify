@@ -2,7 +2,7 @@
 
 Project-specific. Swarm Conductor reads this as the **instance work map**, not as conductor spec.
 
-**In-flight fork work is the source of truth until UAT.**
+**In-flight fork work is the source of truth until UAT.** Human-facing CI: [ci-for-humans.md](ci-for-humans.md) and the root README section.
 
 ## Repos
 
@@ -27,6 +27,10 @@ Project-specific. Swarm Conductor reads this as the **instance work map**, not a
 | [PR #10](https://github.com/electrobrian/japanglify/pull/10) | Tester APK download CI |
 | [PR #11](https://github.com/electrobrian/japanglify/pull/11) | Windows dashboard |
 
+## UAT retries (same PR)
+
+Failed UAT does **not** open a new issue or a second PR. Comment on the existing development PR; the next push publishes `pr-N-build-(M+1)`. Uninstall the previous tester first (ephemeral key ≠ `/latest`). Re-run **Build test APKs** only when you need the same commit rebuilt. Cap: `testerReleasesPerPr` in [instance.json](instance.json) (currently 5).
+
 ## Promotion
 
 ```
@@ -35,7 +39,8 @@ official issue + /accept
   → electrobrian agent/* → PR into BETA-2
       → tester APKs (ephemeral key)
           → Pixel UAT
-              → PR fork → brianreborn/main
+              → if fail: comment on that PR → new commit → new tester APKs (repeat)
+              → if pass: PR fork → brianreborn/main
                   → you merge
                       → home official-signer + real keystore
 ```
