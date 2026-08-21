@@ -32,12 +32,15 @@ SHALOM:
 
 ## Fresh machine (Grok CLI + this script)
 
-Windows (save, then `-File` — do not `irm | iex`):
+Windows — **one** PowerShell (System32). Hunts Git/gh/pwsh, then clones. No git-on-PATH, no curl:
 
-```bat
-curl -L -o %TEMP%\swarm-bootstrap.ps1 https://raw.githubusercontent.com/brianreborn/japanglify/main/scripts/swarm-bootstrap.ps1
-powershell -ExecutionPolicy Bypass -File %TEMP%\swarm-bootstrap.ps1
+```powershell
+$boot = "$env:TEMP\swarm-bootstrap.ps1"
+Invoke-WebRequest -UseBasicParsing -Uri "https://raw.githubusercontent.com/brianreborn/japanglify/main/scripts/swarm-bootstrap.ps1" -OutFile $boot
+& "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File $boot -Restore
 ```
+
+`-Restore` = hunt → clone/pull → idle stop leftover listener → arm → `swarm-grok`. Flags: `-Stop`, `-Runner`, `-Start`, `-DryRun` separately. Do not `irm | iex`.
 
 Unix:
 

@@ -1,37 +1,46 @@
-# Fresh Swarm Bench checkout. Download this first; Grok CLI is the other client.
-# powershell -ExecutionPolicy Bypass -File swarm-bootstrap.ps1
+# Download-first Swarm Bench restore. Only needs Windows PowerShell.
+# Hunt tools, then clone/pull, then optional stop/arm/grok.
+#
+# powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+#   "Invoke-WebRequest -UseBasicParsing https://raw.githubusercontent.com/brianreborn/japanglify/main/scripts/swarm-bootstrap.ps1 -OutFile $env:TEMP\swarm-bootstrap.ps1; & $env:TEMP\swarm-bootstrap.ps1 -Restore"
 param(
+    [switch]$Restore,
     [switch]$Start,
     [switch]$Runner,
+    [switch]$Stop,
     [switch]$DryRun,
     [string]$Role = "swarm-bench",
     [string]$Project = "japanglify"
 )
 
 $ErrorActionPreference = "Stop"
+$HunterUrl = "https://raw.githubusercontent.com/brianreborn/japanglify/main/scripts/swarm-path.ps1"
 
-function Ensure-ToolPath {
-    $add = @(
-        "$env:SystemRoot\System32",
-        "$env:SystemRoot\System32\WindowsPowerShell\v1.0",
-        "${env:ProgramFiles}\Git\cmd",
-        "${env:ProgramFiles}\Git\bin",
-        "${env:ProgramFiles(x86)}\Git\cmd",
-        "${env:ProgramFiles}\PowerShell\7",
-        "$env:LOCALAPPDATA\Programs\Python\Launcher",
-        "$env:LOCALAPPDATA\Microsoft\WinGet\Links",
-        "$env:ProgramData\chocolatey\bin",
-        "$env:USERPROFILE\scoop\shims",
-        "$env:USERPROFILE\.local\bin"
-    ) | Where-Object { $_ -and (Test-Path $_) }
-    $env:PATH = ($add + @($env:PATH)) -join ";"
+function Import-SwarmPath {
+    $local = $null
+    if ($PSScriptRoot) {
+        $c = Join-Path $PSScriptRoot "swarm-path.ps1"
+        if (Test-Path $c) { $local = $c }
+    }
+    if (-not $local) {
+        $local = Join-Path $env:TEMP "swarm-path.ps1"
+        Write-Host "fetch $HunterUrl"
+        Invoke-WebRequest -UseBasicParsing -Uri $HunterUrl -OutFile $local
+    }
+    . $local
+    if (-not $env:SWARM_GIT -or -not (Test-Path -LiteralPath $env:SWARM_GIT)) {
+        throw "git.exe not found after hunt. Install Git for Windows (system), then re-run."
+    }
+    Write-Host "using git=$env:SWARM_GIT"
 }
-Ensure-ToolPath
+
+Import-SwarmPath
 
 $OfficialRepo = "brianreborn/japanglify"
 $DevRepo = "electrobrian/japanglify"
 $OfficialBranch = "main"
 $DevBranch = "BETA-2"
+$Git = $env:SWARM_GIT
 
 $homeDir = $env:USERPROFILE
 if (-not $homeDir) { $homeDir = $env:HOME }
@@ -51,18 +60,9 @@ Write-Host "official=$official"
 Write-Host "dev=$dev"
 Write-Host "runner=$runnerDir"
 
-function Need-Cmd($name, [switch]$Optional) {
-    if (-not (Get-Command $name -ErrorAction SilentlyContinue)) {
-        if ($Optional) { Write-Warning "missing $name"; return $false }
-        throw "missing $name"
-    }
-    return $true
-}
-
-Need-Cmd git | Out-Null
-Need-Cmd grok -Optional | Out-Null
-if (-not (Get-Command py -ErrorAction SilentlyContinue) -and -not (Get-Command python3 -ErrorAction SilentlyContinue) -and -not (Get-Command python -ErrorAction SilentlyContinue)) {
-    Write-Warning "missing Python (needed for swarm-grok / swarm_paths)"
+function Git-Do([string[]]$gitArgs) {
+    & $Git @gitArgs
+    if ($LASTEXITCODE -ne 0) { throw "git $($gitArgs -join ' ') failed ($LASTEXITCODE)" }
 }
 
 function Ensure-Repo([string]$repo, [string]$dir, [string]$branch) {
@@ -74,13 +74,12 @@ function Ensure-Repo([string]$repo, [string]$dir, [string]$branch) {
     }
     New-Item -ItemType Directory -Force -Path (Split-Path $dir) | Out-Null
     if (Test-Path (Join-Path $dir ".git")) {
-        git -C $dir fetch origin
-        git -C $dir checkout $branch
-        git -C $dir pull --ff-only origin $branch
-        if ($LASTEXITCODE -ne 0) { git -C $dir pull --ff-only }
+        Git-Do @("-C", $dir, "fetch", "origin")
+        Git-Do @("-C", $dir, "checkout", $branch)
+        & $Git -C $dir pull --ff-only origin $branch
+        if ($LASTEXITCODE -ne 0) { Git-Do @("-C", $dir, "pull", "--ff-only") }
     } else {
-        git clone --branch $branch $url $dir
-        if ($LASTEXITCODE -ne 0) { throw "git clone failed: $url" }
+        Git-Do @("clone", "--branch", $branch, $url, $dir)
     }
 }
 
@@ -92,9 +91,26 @@ if ($DryRun) {
     return
 }
 
+if ($Restore) {
+    $Stop = $true
+    $Runner = $true
+    $Start = $true
+}
+
+if ($Stop) {
+    $stop = Join-Path $official "scripts\swarm-bench-stop.ps1"
+    if (Test-Path $stop) {
+        Write-Host "idle stop"
+        & $stop
+    } else {
+        Write-Warning "missing $stop"
+    }
+}
+
 if ($Runner) {
     $bench = Join-Path $official "scripts\swarm-bench-runner.ps1"
     if (-not (Test-Path $bench)) { throw "missing $bench" }
+    Write-Host "arm listener"
     & $bench
 }
 
@@ -102,6 +118,7 @@ $startCmd = Join-Path $official "scripts\swarm-grok.cmd"
 Write-Host "next: $startCmd"
 Write-Host "     (product work in $dev)"
 if ($Start) {
+    if (-not (Test-Path $startCmd)) { throw "missing $startCmd" }
     & $startCmd
     exit $LASTEXITCODE
 }
