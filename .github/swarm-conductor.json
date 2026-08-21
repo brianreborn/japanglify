@@ -1,0 +1,10 @@
+{
+  "heading": "Swarm Conductor",
+  "statusMarker": "<!-- swarm-conductor-status -->",
+  "trustedActor": "brianreborn",
+  "cutoverDoc": "docs/japanglify/cutover.md",
+  "instanceDoc": "docs/japanglify/instance.json",
+  "quotas": {
+    "commentsPerIssuePerHour": 10
+  }
+}
