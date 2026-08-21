@@ -51,6 +51,18 @@ Current release: **1.0.0-beta1**.
 
 Since this isn't a Play Store install, Android will warn about installing from an unknown source the first time — that's expected; allow it for this APK.
 
+## Bugs, pull requests, and tester APKs
+
+**Issue** = the bug (this repo). **Pull request** = the fix plus tester APKs (development fork, `BETA-2`).
+
+Watch the issue. Install testers from the **PR comment**, not from `/latest`. Tester builds use a different signing key — **uninstall Japanglify first**.
+
+If a fix does not UAT: comment on **that PR** (what you tried). Do not open a new issue. The next commit on the same PR publishes new APKs (`pr-N-build-M+1`). Uninstall the old tester, install the new links, try again.
+
+Owner: `/accept` or 👍 on the issue body to start work; free-form English on the PR to steer it. `/latest` is never a tester key.
+
+Full guide: [docs/japanglify/ci-for-humans.md](docs/japanglify/ci-for-humans.md).
+
 ## Features
 
 | Area | Details |
