@@ -5,6 +5,11 @@
   "cutoverDoc": "docs/japanglify/cutover.md",
   "instanceDoc": "docs/japanglify/instance.json",
   "hostsDoc": "docs/japanglify/hosts.json",
+  "gates": {
+    "accept": "grok-automation:japanglify-swarm-conductor",
+    "uat": "actions:swarm-conductor-uat.yml",
+    "watchdog": "actions:swarm-watchdog.yml"
+  },
   "quotas": {
     "commentsPerIssuePerHour": 10
   }
