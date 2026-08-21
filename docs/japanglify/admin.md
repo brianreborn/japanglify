@@ -6,12 +6,13 @@ Not for reporters. Public repo, but this page is the admin cheat sheet.
 
 | What | Path (from `scripts/swarm_paths.py --id win11-pixel`) |
 |---|---|
-| Official clone (`swarm-grok`) | `%USERPROFILE%\src\brianreborn\japanglify` |
-| Dev clone (`agent/*`) | `%USERPROFILE%\src\electrobrian\japanglify` |
-| GitHub Actions listener | `C:\actions-runner` — **not** a git clone |
+| Agent home | `%USERPROFILE%\swarm-agents\japanglify\SHALOM\swarm-bench` |
+| Official clone (`swarm-grok`) | `…\official` |
+| Dev clone (`agent/*`) | `…\dev` |
+| GitHub Actions listener | `C:\actions-runner` — **not** under swarm-agents |
 
 ```bat
-cd /d %USERPROFILE%\src\brianreborn\japanglify
+cd /d %USERPROFILE%\swarm-agents\japanglify\SHALOM\swarm-bench\official
 git pull origin main
 scripts\swarm-grok.cmd
 ```

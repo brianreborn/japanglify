@@ -7,6 +7,8 @@ OFFICIAL_REPO="brianreborn/japanglify"
 DEV_REPO="electrobrian/japanglify"
 OFFICIAL_BRANCH="main"
 DEV_BRANCH="BETA-2"
+PROJECT="japanglify"
+ROLE="swarm-bench"
 START=0
 RUNNER=0
 DRY=0
@@ -16,9 +18,11 @@ for a in "$@"; do
     --start) START=1 ;;
     --runner) RUNNER=1 ;;
     --dry-run) DRY=1 ;;
+    --role=*) ROLE="${a#--role=}" ;;
+    --project=*) PROJECT="${a#--project=}" ;;
     -h|--help)
-      echo "usage: swarm-bootstrap.sh [--dry-run] [--runner] [--start]"
-      echo "  clones {home}/src/{owner}/{repo}  (override src with SWARM_SRC)"
+      echo "usage: swarm-bootstrap.sh [--dry-run] [--runner] [--start] [--role=swarm-bench]"
+      echo "  clones {home}/swarm-agents/{project}/{hostname}/{role}/{official,dev}"
       exit 0
       ;;
   esac
@@ -29,10 +33,13 @@ if [ -z "$home" ]; then
   echo "HOME is not set" >&2
   exit 1
 fi
-src="${SWARM_SRC:-$home/src}"
-official="$src/$OFFICIAL_REPO"
-dev="$src/$DEV_REPO"
+host="${HOSTNAME:-$(hostname 2>/dev/null || echo unknown)}"
+root="${SWARM_AGENTS:-${SWARM_SRC:-$home/swarm-agents}}"
+agent="$root/$PROJECT/$host/$ROLE"
+official="$agent/official"
+dev="$agent/dev"
 
+echo "agentHome=$agent"
 echo "official=$official"
 echo "dev=$dev"
 echo "runner=$home/actions-runner"

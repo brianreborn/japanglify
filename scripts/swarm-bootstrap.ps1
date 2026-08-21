@@ -1,10 +1,11 @@
 # Fresh Swarm Bench checkout. Download this first; Grok CLI is the other client.
-# irm https://raw.githubusercontent.com/brianreborn/japanglify/main/scripts/swarm-bootstrap.ps1 | iex
-# Or: powershell -ExecutionPolicy Bypass -File swarm-bootstrap.ps1
+# powershell -ExecutionPolicy Bypass -File swarm-bootstrap.ps1
 param(
     [switch]$Start,
     [switch]$Runner,
-    [switch]$DryRun
+    [switch]$DryRun,
+    [string]$Role = "swarm-bench",
+    [string]$Project = "japanglify"
 )
 
 $ErrorActionPreference = "Stop"
@@ -16,11 +17,17 @@ $DevBranch = "BETA-2"
 $homeDir = $env:USERPROFILE
 if (-not $homeDir) { $homeDir = $env:HOME }
 if (-not $homeDir) { throw "USERPROFILE/HOME is not set" }
-$src = if ($env:SWARM_SRC) { $env:SWARM_SRC } else { Join-Path $homeDir "src" }
-$official = Join-Path $src ($OfficialRepo -replace "/", [IO.Path]::DirectorySeparatorChar)
-$dev = Join-Path $src ($DevRepo -replace "/", [IO.Path]::DirectorySeparatorChar)
+$hostName = $env:COMPUTERNAME
+if (-not $hostName) { $hostName = $env:HOSTNAME }
+if (-not $hostName) { $hostName = "unknown" }
+$root = if ($env:SWARM_AGENTS) { $env:SWARM_AGENTS } elseif ($env:SWARM_SRC) { $env:SWARM_SRC } else { Join-Path $homeDir "swarm-agents" }
+$sep = [IO.Path]::DirectorySeparatorChar
+$agent = Join-Path $root "$Project$sep$hostName$sep$Role"
+$official = Join-Path $agent "official"
+$dev = Join-Path $agent "dev"
 $runnerDir = "C:\actions-runner"
 
+Write-Host "agentHome=$agent"
 Write-Host "official=$official"
 Write-Host "dev=$dev"
 Write-Host "runner=$runnerDir"

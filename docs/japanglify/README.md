@@ -28,7 +28,7 @@ If two files disagree on CLI stop/start, **prompt-bench.md wins.** If they disag
 | `swarm-bench-kickoff.md` | Long bootstrap. Not the paste if prompt-bench exists |
 | `../swarm-conductor/prompt-bench.md` | **Paste** for Grok CLI |
 | `budget.json` | SuperGrok window cap (effort + model) |
-| `paths.md` | `{home}/src/{owner}/{repo}` — same on every host |
+| `paths.md` | `{home}/swarm-agents/{project}/{hostname}/{role}/{official,dev}` |
 | `hosts.json` | Checked-in host leases (DHCP table + wildcard pools + workdir template) |
 | `instance.json` | Repos, Android caps, Japanese-NLP rules |
 | `cutover.md` | Live bugs, fork pull requests, smoke record |

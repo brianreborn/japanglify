@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-"""Canonical workdirs for a swarm host. Same layout on every machine.
+"""Canonical workdirs for a swarm host.
 
-{home}/src/{owner}/{repo}
+{home}/swarm-agents/{project}/{hostname}/{role}/
+  official/   official git clone
+  dev/        product git clone
+
   Windows home = %USERPROFILE%
   Unix home    = $HOME
-  override     = $SWARM_SRC (replaces {home}/src)
+  override     = $SWARM_AGENTS (or $SWARM_SRC) replaces {home}/swarm-agents
 
-Listener (not a git clone):
+Listener (not under swarm-agents):
   Windows         C:\\actions-runner
   Unix            {home}/actions-runner
   github-actions  $GITHUB_WORKSPACE
@@ -18,6 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import socket
 import sys
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
@@ -55,23 +59,25 @@ def home_dir(family: str, env: dict | None = None):
     return fl(str(Path.home()))
 
 
-def src_dir(family: str, env: dict | None = None, tmpl: dict | None = None):
+def agents_root(family: str, env: dict | None = None, tmpl: dict | None = None):
     env = env if env is not None else os.environ
     fl = flavour(family)
-    if env.get("SWARM_SRC"):
-        return fl(env["SWARM_SRC"])
-    src_name = (tmpl or {}).get("srcDir") or "src"
-    return home_dir(family, env) / src_name
+    raw = env.get("SWARM_AGENTS") or env.get("SWARM_SRC")
+    if raw:
+        return fl(raw)
+    name = (tmpl or {}).get("agentsDir") or "swarm-agents"
+    return home_dir(family, env) / name
 
 
-def repo_path(src, repo: str | None):
-    if not repo:
-        return None
-    p = src
-    for part in repo.replace("\\", "/").split("/"):
-        if part:
-            p = p / part
-    return p
+def hostname_for(lease: dict, family: str, env: dict | None = None) -> str:
+    env = env if env is not None else os.environ
+    names = ((lease.get("match") or {}).get("hostname")) or []
+    pinned = [n for n in names if n and "*" not in n and "?" not in n]
+    if pinned:
+        return pinned[0]
+    if family == "windows":
+        return env.get("COMPUTERNAME") or env.get("HOSTNAME") or "unknown"
+    return env.get("HOSTNAME") or env.get("COMPUTERNAME") or socket.gethostname() or "unknown"
 
 
 def runner_path(lease: dict, family: str, home, env: dict | None = None, tmpl: dict | None = None):
@@ -105,29 +111,37 @@ def resolve(
     family = family or family_of(lease.get("os"))
     tmpl = tmpl or {}
     home = home_dir(family, env)
-    src = src_dir(family, env, tmpl)
+    root = agents_root(family, env, tmpl)
+    project = instance.get("project") or "japanglify"
+    role = lease.get("role") or "unknown"
+    host = hostname_for(lease, family, env)
+    fl = flavour(family)
+    agent_home = root / project / host / role
     official_repo = instance.get("officialRepo") or "brianreborn/japanglify"
     dev_repo = lease.get("devRepo") or instance.get("devRepo")
     local = lease.get("workdir") or {}
-    official = flavour(family)(local["official"]) if local.get("official") else repo_path(src, official_repo)
-    dev = flavour(family)(local["dev"]) if local.get("dev") else repo_path(src, dev_repo)
+    official = fl(local["official"]) if local.get("official") else agent_home / "official"
+    dev = fl(local["dev"]) if local.get("dev") else agent_home / "dev"
     runner = runner_path(lease, family, home, env, tmpl)
     if family == "cloud" or lease.get("id") == "grok-cloud":
-        official = None
-        dev = None
-        runner = None
+        agent_home = official = dev = runner = None
+        host = None
     if lease.get("id") == "github-actions":
         ws = env.get("GITHUB_WORKSPACE")
-        official = flavour(family)(ws) if ws else official
+        official = fl(ws) if ws else official
         dev = None
+        agent_home = official
     def s(p):
         return None if p is None else str(p)
     return {
         "id": lease.get("id"),
-        "role": lease.get("role"),
+        "role": role if lease.get("id") != "grok-cloud" else lease.get("role"),
+        "project": project,
+        "hostname": host,
         "family": family,
         "home": s(home),
-        "src": s(src),
+        "agents": None if lease.get("id") == "grok-cloud" else s(root),
+        "agentHome": s(agent_home),
         "officialRepo": official_repo,
         "devRepo": dev_repo,
         "official": s(official),
@@ -168,26 +182,29 @@ def self_test() -> int:
     check(
         "win11-pixel",
         win,
-        official=r"C:\Users\brian\src\brianreborn\japanglify",
-        dev=r"C:\Users\brian\src\electrobrian\japanglify",
+        hostname="SHALOM",
+        agentHome=r"C:\Users\brian\swarm-agents\japanglify\SHALOM\swarm-bench",
+        official=r"C:\Users\brian\swarm-agents\japanglify\SHALOM\swarm-bench\official",
+        dev=r"C:\Users\brian\swarm-agents\japanglify\SHALOM\swarm-bench\dev",
         runner=r"C:\actions-runner",
     )
     unix = resolve(
         lease_by_id(table, "unix-pixel"),
         inst,
         family="unix",
-        env={"HOME": "/home/u"},
+        env={"HOME": "/home/u", "HOSTNAME": "box"},
         tmpl=tmpl,
     )
     check(
         "unix-pixel",
         unix,
-        official="/home/u/src/brianreborn/japanglify",
-        dev="/home/u/src/electrobrian/japanglify",
+        hostname="box",
+        official="/home/u/swarm-agents/japanglify/box/swarm-bench/official",
+        dev="/home/u/swarm-agents/japanglify/box/swarm-bench/dev",
         runner="/home/u/actions-runner",
     )
     cloud = resolve(lease_by_id(table, "grok-cloud"), inst, family="cloud", env={}, tmpl=tmpl)
-    check("grok-cloud", cloud, official=None, dev=None, runner=None)
+    check("grok-cloud", cloud, official=None, dev=None, runner=None, agentHome=None)
     gha = resolve(
         lease_by_id(table, "github-actions"),
         inst,
@@ -206,14 +223,14 @@ def self_test() -> int:
         lease_by_id(table, "win11-pixel"),
         inst,
         family="windows",
-        env={"USERPROFILE": r"C:\Users\brian", "SWARM_SRC": r"D:\swarm"},
+        env={"USERPROFILE": r"C:\Users\brian", "SWARM_AGENTS": r"D:\swarm"},
         tmpl=tmpl,
     )
     check(
-        "SWARM_SRC",
+        "SWARM_AGENTS",
         over,
-        official=r"D:\swarm\brianreborn\japanglify",
-        src=r"D:\swarm",
+        official=r"D:\swarm\japanglify\SHALOM\swarm-bench\official",
+        agents=r"D:\swarm",
     )
     print("swarm_paths self-test ok" if failed == 0 else f"FAIL {failed}")
     return 1 if failed else 0
@@ -232,7 +249,7 @@ def main() -> int:
         json.dump(row, sys.stdout, indent=2)
         sys.stdout.write("\n")
         return 0
-    for k in ("id", "role", "home", "src", "official", "dev", "runner"):
+    for k in ("id", "role", "project", "hostname", "agentHome", "official", "dev", "runner"):
         print(f"{k}={row.get(k) or ''}")
     return 0
 
