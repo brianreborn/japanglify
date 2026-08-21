@@ -1,15 +1,20 @@
 # Issue commands
 
-Type these as the **entire** comment on an official **issue**, in the GitHub website, signed in as the right person. Extra words do not count. Grok App comments do not run Actions.
+GitHub’s `/` dropdown in a comment is **only** GitHub’s own helpers (`/table`, `/code`, `/saved-replies`, …). A repo **cannot** add `/accept` there.
 
-| Command | Who | What |
-|---|---|---|
-| `/accept` | owner (`brianreborn`) | Intake: bug is accepted |
-| `/block` | owner | Intake: stop |
-| `/uat` | owner | Swarm Bench: assemble + `adb install` on the Pixel |
+Put ours in **Saved replies** (that is the dropdown):
 
-Everyone else: file the issue (the bug). After a tester APK exists, write ordinary English on the **pull request** (what you tapped). Do not invent slash commands.
+1. [github.com/settings/replies](https://github.com/settings/replies)
+2. Add three replies, body exactly:
+   - `/accept`
+   - `/block`
+   - `/uat`
+3. On an issue, type `/saved-replies`, pick one, submit. Whole comment, github.com, as owner.
 
-Unlabeled issues get **Effort: medium**. Owner sets `effort:*` on the issue; the bench reads that.
+| Reply | What |
+|---|---|
+| `/accept` | Intake: accept the bug |
+| `/block` | Stop |
+| `/uat` | Swarm Bench: assemble + `adb install` on the Pixel |
 
-New issues get this table posted automatically.
+Do not paste a command table onto the issue. Grok App comments do not run Actions.
