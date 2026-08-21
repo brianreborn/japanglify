@@ -1,5 +1,5 @@
 # Register and start the GitHub Actions self-hosted runner that `/uat` waits on.
-# Interactive user session — NOT a Windows service (services usually cannot see USB adb).
+# Interactive user session  -  NOT a Windows service (services usually cannot see USB adb).
 # Labels: swarm-bench. GitHub also stamps self-hosted + Windows.
 #
 # Robustness: Grok CLI is NOT the supervisor. This script:
@@ -41,11 +41,11 @@ Ensure-ToolPath
 
 function Need-Gh {
     if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
-        throw "gh not on PATH. Install GitHub CLI and `gh auth login` as brianreborn."
+        throw "gh not on PATH. Install GitHub CLI and run gh auth login as brianreborn."
     }
     $login = (gh api user --jq .login).Trim()
     if ($login -ne "brianreborn") {
-        Write-Warning "gh is $login — registration token needs repo admin on $Repo"
+        Write-Warning "gh is $login  -  registration token needs repo admin on $Repo"
     }
 }
 
@@ -63,6 +63,7 @@ function Ensure-GrokEffortMedium {
         $text = [System.IO.File]::ReadAllText($cfg)
     }
     $want = 'default_reasoning_effort = "medium"'
+    $nl = [Environment]::NewLine
     if ($text -match '(?m)^\s*default_reasoning_effort\s*=\s*"medium"\s*$') {
         Write-Host "grok CLI default effort already medium ($cfg)"
         return
@@ -70,10 +71,11 @@ function Ensure-GrokEffortMedium {
     if ($text -match '(?m)^\s*default_reasoning_effort\s*=') {
         $text = [regex]::Replace($text, '(?m)^\s*default_reasoning_effort\s*=.*$', $want)
     } elseif ($text -match '(?m)^\[models\]\s*$') {
-        $text = [regex]::Replace($text, '(?m)^\[models\]\s*$', "[models]`r`n$want")
+        $text = [regex]::Replace($text, '(?m)^\[models\]\s*$', ('[models]' + $nl + $want))
     } else {
-        $nl = if ($text -and -not $text.EndsWith("`n")) { "`r`n" } else { "" }
-        $text = $text + $nl + "`r`n[models]`r`n$want`r`n"
+        $pad = ""
+        if ($text -and -not $text.EndsWith("`n")) { $pad = $nl }
+        $text = $text + $pad + $nl + '[models]' + $nl + $want + $nl
     }
     [System.IO.File]::WriteAllText($cfg, $text)
     Write-Host "set grok CLI default effort medium ($cfg)"
@@ -102,9 +104,9 @@ function Write-RunnerEnv {
     }
     if ($lines.Count -gt 0) {
         Set-Content -Path (Join-Path $Root ".env") -Value $lines -Encoding ascii
-        Write-Host "wrote $Root\.env (adb/java for the runner process)"
+        Write-Host ("wrote {0}\.env (adb/java for the runner process)" -f $Root)
     } else {
-        Write-Warning "adb/JAVA_HOME/ANDROID_HOME not in this shell — /uat jobs may fail until they are"
+        Write-Warning "adb/JAVA_HOME/ANDROID_HOME not in this shell  -  /uat jobs may fail until they are"
     }
 }
 
@@ -114,12 +116,12 @@ function Ensure-SwarmLabel {
         $jq = ".runners[] | select(.name==`"$Name`") | .labels[].name"
         $have = @(gh api "repos/$Repo/actions/runners" --jq $jq)
         if ($have.Count -eq 0) {
-            Write-Warning "runner $Name not listed on $Repo — wrong repo or offline"
+            Write-Warning "runner $Name not listed on $Repo  -  wrong repo or offline"
             return
         }
         Write-Host "github labels: $($have -join ',')"
         if ($have -notcontains "swarm-bench") {
-            Write-Warning "missing swarm-bench — config --replace (jobs require self-hosted+Windows+swarm-bench)"
+            Write-Warning "missing swarm-bench  -  config --replace (jobs require self-hosted+Windows+swarm-bench)"
             Get-Process Runner.Listener -ErrorAction SilentlyContinue | Stop-Process -Force
             Start-Sleep -Seconds 2
             $tok = (gh api --method POST "repos/$Repo/actions/runners/registration-token" --jq .token).Trim()
@@ -231,7 +233,7 @@ if (-not (Test-Path .\config.cmd)) {
 
 if (-not (Test-Path .\.runner)) {
     $tok = (gh api --method POST "repos/$Repo/actions/runners/registration-token" --jq .token).Trim()
-    if (-not $tok) { throw "could not mint registration token — need repo admin" }
+    if (-not $tok) { throw "could not mint registration token  -  need repo admin" }
     & .\config.cmd --unattended --url "https://github.com/$Repo" --token $tok --name $Name --labels $Labels --work "_work" --replace
 }
 
@@ -256,4 +258,4 @@ try {
 
 Start-ListenerLoop
 Start-KickWatch
-Write-Host "registered $Name labels=$Labels (Grok CLI can stop; listener loop stays)"
+Write-Host "registered $Name labels=$Labels (Grok CLI can stop, listener loop stays)"

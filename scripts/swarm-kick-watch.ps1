@@ -28,7 +28,7 @@ function Loop-Up {
 
 function Start-Listener {
     if (Disarmed) {
-        Write-Host "disarmed — not starting listener"
+        Write-Host "disarmed  -  not starting listener"
         return
     }
     if (Listener-Up) {
@@ -44,7 +44,7 @@ function Start-Listener {
         Start-Process -FilePath "cmd.exe" -ArgumentList @("/c", $Loop) -WorkingDirectory $Root -WindowStyle Hidden
         return
     }
-    if (-not (Test-Path $Run)) { throw "missing $Run — register the runner first" }
+    if (-not (Test-Path $Run)) { throw "missing $Run  -  register the runner first" }
     Write-Host "kick: starting $Run"
     Start-Process -FilePath $Run -WorkingDirectory $Root -WindowStyle Hidden
 }
@@ -62,7 +62,7 @@ function Pending-Kick {
 }
 
 if (Disarmed) {
-    Write-Host "disarmed ($Root\.swarm-disarmed) — watch exits"
+    Write-Host "disarmed ($Root\.swarm-disarmed)  -  watch exits"
     exit 0
 }
 
@@ -79,7 +79,7 @@ Write-Host "swarm-kick-watch polling $Repo (Ctrl+C to stop); stop with swarm-ben
 while ($true) {
     try {
         if (Disarmed) {
-            Write-Host "disarmed — watch exits"
+            Write-Host "disarmed  -  watch exits"
             exit 0
         }
         if (-not (Listener-Up)) { Start-Listener }
