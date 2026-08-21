@@ -1,5 +1,4 @@
-# Swarm Conductor accept gate. Cloud only. Does not spawn agents, merge, or sign.
-# Trigger: brianreborn whole-comment /accept|/block, or +1 on the issue body.
+# Generic Swarm Conductor accept gate. Instance: .github/swarm-conductor.json
 name: Swarm Conductor accept
 
 on:
@@ -22,6 +21,20 @@ jobs:
     if: github.event_name == 'issue_comment' && github.event.issue.pull_request == null
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/swarm-conductor.json
+          sparse-checkout-cone-mode: false
+      - name: Load instance config
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib
+          cfg = json.loads(pathlib.Path(".github/swarm-conductor.json").read_text())
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as f:
+              f.write(f"TRUSTED={cfg['trustedActor']}\n")
+              f.write(f"HEADING={cfg['heading']}\n")
+              f.write(f"MARKER={cfg['statusMarker']}\n")
+          PY
       - name: Normalize slash command
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -29,7 +42,6 @@ jobs:
           ISSUE: ${{ github.event.issue.number }}
           ACTOR: ${{ github.event.comment.user.login }}
           BODY: ${{ github.event.comment.body }}
-          TRUSTED: brianreborn
         run: |
           set -euo pipefail
           BODY_TRIM="$(printf '%s' "$BODY" | tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
@@ -42,13 +54,12 @@ jobs:
             echo "ignored actor $ACTOR"
             exit 0
           fi
-          MARKER='<!-- japanglify-swarm-status -->'
           EXISTING="$(gh api "repos/${GH_REPO}/issues/${ISSUE}/comments" --paginate \
             | jq -r --arg m "$MARKER" '.[] | select(.user.login=="github-actions[bot]" and (.body|contains($m))) | .id' \
             | head -n1 || true)"
           STAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           BODY_OUT="${MARKER}
-## Swarm Conductor
+## ${HEADING}
 **${STATE}** by @${TRUSTED} via \`/${CMD}\` at ${STAMP}
 
 This only records the issue gate. It does not merge, sign, or open a PR.
@@ -63,14 +74,26 @@ This only records the issue gate. It does not merge, sign, or open a PR.
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/swarm-conductor.json
+          sparse-checkout-cone-mode: false
+      - name: Load instance config
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib
+          cfg = json.loads(pathlib.Path(".github/swarm-conductor.json").read_text())
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as f:
+              f.write(f"TRUSTED={cfg['trustedActor']}\n")
+              f.write(f"HEADING={cfg['heading']}\n")
+              f.write(f"MARKER={cfg['statusMarker']}\n")
+          PY
       - name: "+1 on issue body → ACCEPTED"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-          TRUSTED: brianreborn
         run: |
           set -euo pipefail
-          MARKER='<!-- japanglify-swarm-status -->'
           gh api "repos/${GH_REPO}/issues?state=open&per_page=50" \
             | jq -r '.[] | select(.pull_request == null) | .number' \
             | while read -r ISSUE; do
@@ -86,7 +109,7 @@ This only records the issue gate. It does not merge, sign, or open a PR.
             [ "$HIT" = "0" ] && continue
             STAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             BODY_OUT="${MARKER}
-## Swarm Conductor
+## ${HEADING}
 **ACCEPTED** by @${TRUSTED} via issue-body +1 at ${STAMP}
 
 This only records the issue gate. It does not merge, sign, or open a PR.

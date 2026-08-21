@@ -1,5 +1,4 @@
-# Cloud watchdog beside Swarm Conductor. Cannot propose work or push code.
-# Does not close in-flight fork PRs (those are electrobrian's).
+# Generic Swarm Conductor watchdog. Instance: .github/swarm-conductor.json
 name: Swarm Conductor watchdog
 
 on:
@@ -17,15 +16,28 @@ jobs:
   quotas:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/swarm-conductor.json
+          sparse-checkout-cone-mode: false
+      - name: Load instance config
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib
+          cfg = json.loads(pathlib.Path(".github/swarm-conductor.json").read_text())
+          q = cfg.get("quotas", {})
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as f:
+              f.write(f"TRUSTED={cfg['trustedActor']}\n")
+              f.write(f"HEADING={cfg['heading']}\n")
+              f.write(f"MARKER={cfg['statusMarker']}\n")
+              f.write(f"MAX_COMMENTS_PER_HOUR={q.get('commentsPerIssuePerHour', 10)}\n")
+          PY
       - name: Comment-rate trip
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-          TRUSTED: brianreborn
-          MAX_COMMENTS_PER_HOUR: "10"
         run: |
           set -euo pipefail
-          MARKER='<!-- japanglify-swarm-status -->'
           CUTOFF="$(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%SZ)"
           gh api "repos/${GH_REPO}/issues?state=open&per_page=50" \
             | jq -r '.[] | select(.pull_request == null) | .number' \
@@ -41,7 +53,7 @@ jobs:
             fi
             STAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             BODY_OUT="${MARKER}
-## Swarm Conductor
+## ${HEADING}
 **BLOCKED** by watchdog at ${STAMP}
 
 Quota \`commentsPerIssuePerHour\` exceeded (${COUNT} non-owner comments in 1h).
