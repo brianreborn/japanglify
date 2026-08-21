@@ -4,6 +4,10 @@ Local starting set for **build + domain test + interactive `adb` + issue/pull-re
 
 The Pixel is on the USB cable. Remote GitHub-hosted assemble is slower and cannot tap the device. **Do not wait on Actions** for this loop.
 
+Paste: [swarm-bench-kickoff.md](swarm-bench-kickoff.md). **Effort: medium** (`grok --effort medium`). Do not leave the CLI default `high`.
+
+Lease: `scripts/swarm-lease.py --from github --write` against [hosts.json](hosts.json) (named reservations + wildcard pools).
+
 ## Host
 
 Pick the workstation that has:
@@ -18,7 +22,7 @@ Windows and Unix (Linux, macOS, FreeBSD Linuxulator) are both valid. The OS is n
 ```text
 cd <electrobrian-japanglify>
 adb devices
-grok
+grok --effort medium
 ```
 
 Tell it you are **Swarm Bench**. Point it at `docs/japanglify/cutover.md` if the bug already has a branch.
