@@ -51,6 +51,7 @@ jobs:
           python3 scripts/swarm-usage.py --self-test
           python3 scripts/swarm_cmd.py --self-test
           python3 scripts/swarm-launch.py --self-test
+          python3 scripts/swarm_kick.py --self-test
           python3 scripts/swarm-kick.py --self-test
       - name: Prove per-step host routing (dry-run, no spawn)
         run: |
