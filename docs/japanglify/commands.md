@@ -2,7 +2,17 @@
 
 GitHub’s `/` dropdown is only GitHub helpers (`/table`, `/code`, `/saved-replies`). A repo cannot add `/accept` there.
 
-Saved replies — [github.com/settings/replies](https://github.com/settings/replies) — whole comment, github.com.
+A command counts when it is the **start or end of a line** (token, not a prefix). Mid-line quotes do not fire:
+
+| Counts | Does not |
+|---|---|
+| `/uat` | comment `` `/uat` `` as the whole comment |
+| `please /uat` | see `/uat` in docs |
+| `/uat please` | `/uat-map` |
+
+Matcher: `scripts/swarm_cmd.py`. YAML never uses `contains('/uat')`.
+
+Saved replies — [github.com/settings/replies](https://github.com/settings/replies) — [saved-replies.md](saved-replies.md). github.com.
 
 | Reply | Who runs it | What |
 |---|---|---|
