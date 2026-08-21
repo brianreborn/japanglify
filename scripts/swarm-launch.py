@@ -13,11 +13,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import swarm_lease_api  # filled below if import fails — we load lease helpers inline
-
 HOSTS = ROOT / "docs/japanglify/hosts.json"
-ROLES = ROOT / "docs/swarm-conductor/roles.json"
 INSTANCE = ROOT / "docs/japanglify/instance.json"
 
 # step → who may run it. spawn false = already a long-running worker (do not start a second).
@@ -96,13 +92,11 @@ def plan(step: str, *, issue: str, lease_id: str | None, effort: str | None) -> 
     if not spec:
         return {"status": "nak", "reason": f"unknown step {step}", "steps": list(STEPS)}
     table = load_json(HOSTS)
-    inst = load_json(INSTANCE)
     if lease_id:
         lease = lease_by_id(table, lease_id)
         if not lease:
             return {"status": "nak", "reason": f"no lease {lease_id}"}
     else:
-        # default host for this step (first allowed id)
         lease = lease_by_id(table, spec["leaseIds"][0])
         lease_id = spec["leaseIds"][0]
     role = lease.get("role")
@@ -120,13 +114,10 @@ def plan(step: str, *, issue: str, lease_id: str | None, effort: str | None) -> 
             "reason": f"lease {lease_id} not in {spec['leaseIds']} for {step}",
             "step": step,
         }
-    eff = effort
     if spec.get("effortFromIssue"):
-        mapped = (inst.get("uat") or {}).get("issues") or {}
-        # effort is on the GitHub issue; dry-run uses flag or xhigh placeholder from owner policy
-        eff = effort or spec.get("effort") or "xhigh"
-    elif spec.get("effort"):
-        eff = spec["effort"]
+        eff = effort or "xhigh"
+    else:
+        eff = effort or spec.get("effort")
     proc = spec["process"].format(effort=eff or "medium")
     return {
         "status": "ack",
@@ -151,13 +142,29 @@ def self_test() -> int:
         for k, v in contains.items():
             if got.get(k) != v:
                 ok = False
-        print("ok" if ok else "FAIL", got.get("status"), got.get("step"), got.get("lease"), got.get("reason", got.get("process")))
+        print(
+            "ok" if ok else "FAIL",
+            got.get("status"),
+            got.get("step"),
+            got.get("lease"),
+            got.get("reason", got.get("process")),
+        )
         failed += not ok
 
-    check(plan("intake", issue="5", lease_id="grok-cloud", effort=None), "ack", role="swarm-conductor", spawn=False)
+    check(
+        plan("intake", issue="5", lease_id="grok-cloud", effort=None),
+        "ack",
+        role="swarm-conductor",
+        spawn=False,
+    )
     check(plan("intake", issue="5", lease_id="win11-pixel", effort=None), "nak")
     check(plan("intake", issue="5", lease_id="github-actions", effort=None), "nak")
-    check(plan("classify", issue="5", lease_id="win11-pixel", effort="xhigh"), "ack", role="swarm-bench", spawn=True)
+    check(
+        plan("classify", issue="5", lease_id="win11-pixel", effort="xhigh"),
+        "ack",
+        role="swarm-bench",
+        spawn=True,
+    )
     check(plan("classify", issue="5", lease_id="grok-cloud", effort="xhigh"), "nak")
     check(plan("classify", issue="5", lease_id="github-actions", effort="xhigh"), "nak")
     check(plan("fix", issue="7", lease_id="pool-bench-windows", effort="xhigh"), "ack", spawn=True)
@@ -166,8 +173,7 @@ def self_test() -> int:
     check(plan("watchdog", issue="5", lease_id="github-actions", effort=None), "ack", spawn=False)
     check(plan("watchdog", issue="5", lease_id="win11-pixel", effort=None), "nak")
     check(plan("watchdog", issue="5", lease_id="grok-cloud", effort=None), "nak")
-    bog = plan("explode", issue="5", lease_id="grok-cloud", effort=None)
-    check(bog, "nak")
+    check(plan("explode", issue="5", lease_id="grok-cloud", effort=None), "nak")
     return 1 if failed else 0
 
 
@@ -177,7 +183,6 @@ def main() -> int:
     p.add_argument("--issue", default="")
     p.add_argument("--id", help="lease id (default: canonical host for the step)")
     p.add_argument("--effort", default="")
-    p.add_argument("--dry-run", action="store_true", default=True)
     p.add_argument("--self-test", action="store_true")
     args = p.parse_args()
     if args.self_test:
