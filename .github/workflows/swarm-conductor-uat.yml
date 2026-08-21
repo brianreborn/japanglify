@@ -1,10 +1,9 @@
 # /uat on an official issue → Swarm Bench (self-hosted Windows + Pixel).
 # Never assemble on ubuntu-latest.
-# YAML must not embed raw newlines in expressions (invalid workflow).
-# Real command match is scripts/swarm_cmd.py. YAML only prefilters owner comments.
+# YAML must not embed raw newlines in expressions.
 # NEVER YAML contains("/uat") — watchdog quotes it.
-# Concurrency: prefer inputs.issue (workflow_dispatch). Include event name so a
-# dispatch and a comment cannot collapse to the same empty group and cancel.
+# Bench is split so a hung Gradle still leaves logs. Failure comments run on
+# ubuntu (report job) because a dead self-hosted runner cannot comment.
 name: Swarm Conductor UAT
 
 concurrency:
@@ -95,18 +94,6 @@ jobs:
                   check=True,
               )
 
-          existing = json.loads(
-              subprocess.check_output(
-                  ["gh", "api", f"repos/{repo}/issues/{issue}/comments?per_page=100"],
-                  text=True,
-              )
-          )
-          recent_dispatch = False
-          for c in existing:
-              b = c.get("body") or ""
-              if marker in b and "UAT dispatched" in b:
-                  recent_dispatch = True
-
           proc = subprocess.run(
               [sys.executable, "scripts/uat-map.py", issue],
               text=True,
@@ -127,13 +114,10 @@ jobs:
           appid = row.get("applicationId") or "com.japanglify.app"
           pull = row.get("pull")
           extra = f" pull request `{pull}`" if pull else ""
-          if not recent_dispatch:
-              comment(
-                  f"{marker}\n## Swarm Bench\n**UAT dispatched** for issue #{issue} → `{dev}` `{branch}`{extra} (via `{row.get('source')}`).\n\n"
-                  f"Waiting for the win11-pixel listener. If this sits: `/quit` then `grok --effort xhigh --resume` on that box (the CLI starts the listener). No second `/uat`. Unlock the phone. This does not merge or `/accept`."
-              )
-          else:
-              print("suppress duplicate UAT dispatched comment")
+          comment(
+              f"{marker}\n## Swarm Bench\n**UAT dispatched** for issue #{issue} → `{dev}` `{branch}`{extra} (via `{row.get('source')}`).\n\n"
+              f"Waiting for `SHALOM-swarm-bench`. Unlock the Pixel. Do not type a second command. This does not merge."
+          )
           out("go", "true")
           out("issue", issue)
           out("branch", branch)
@@ -146,43 +130,77 @@ jobs:
     needs: dispatch
     if: needs.dispatch.outputs.go == 'true'
     runs-on: [self-hosted, Windows, swarm-bench]
-    timeout-minutes: 60
+    timeout-minutes: 50
+    outputs:
+      apk: ${{ steps.install.outputs.apk }}
+      serial: ${{ steps.install.outputs.serial }}
     steps:
-      - name: Assemble + adb install
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-          ISSUE: ${{ needs.dispatch.outputs.issue }}
-          DEV_REPO: ${{ needs.dispatch.outputs.repo }}
-          BRANCH: ${{ needs.dispatch.outputs.branch }}
-          APPID: ${{ needs.dispatch.outputs.appid }}
+      - name: Prove host + adb
+        timeout-minutes: 5
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $t0 = Get-Date
-          adb devices
+          Write-Host "computer=$env:COMPUTERNAME"
+          Get-Process Runner.Listener -ErrorAction SilentlyContinue | Format-Table Id,ProcessName -AutoSize
+          adb version
+          adb devices -l
+          $devs = @(adb devices | Select-String "\tdevice$")
+          if ($devs.Count -lt 1) { throw "no adb device (unlock / authorize USB)" }
+          if ($devs.Count -gt 1) { throw "more than one adb device" }
+
+      - name: Clone agent branch
+        timeout-minutes: 5
+        shell: pwsh
+        env:
+          DEV_REPO: ${{ needs.dispatch.outputs.repo }}
+          BRANCH: ${{ needs.dispatch.outputs.branch }}
+        run: |
+          $ErrorActionPreference = "Stop"
           $work = Join-Path $env:RUNNER_TEMP "japanglify-uat"
           if (Test-Path $work) { Remove-Item -Recurse -Force $work }
           git clone --depth 1 --branch $env:BRANCH "https://github.com/$env:DEV_REPO.git" $work
           Set-Location $work
-          if (Test-Path .\gradlew.bat) {
-            .\gradlew.bat --no-daemon :app:assembleDownloadableDebug
-          } else {
-            throw "no gradlew.bat"
-          }
+          if (-not (Test-Path .\gradlew.bat)) { throw "no gradlew.bat" }
+          echo "WORK=$work" >> $env:GITHUB_ENV
+
+      - name: Assemble downloadable debug
+        timeout-minutes: 35
+        shell: pwsh
+        working-directory: ${{ env.WORK }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          .\gradlew.bat --no-daemon :app:assembleDownloadableDebug
+
+      - name: adb install
+        id: install
+        timeout-minutes: 8
+        shell: pwsh
+        working-directory: ${{ env.WORK }}
+        env:
+          APPID: ${{ needs.dispatch.outputs.appid }}
+        run: |
+          $ErrorActionPreference = "Stop"
           $apk = Get-ChildItem -Recurse -Filter "app-downloadable-debug.apk" | Select-Object -First 1
           if (-not $apk) { throw "no downloadable debug apk" }
           adb uninstall $env:APPID 2>$null
           adb install -r $apk.FullName
-          $serial = (adb devices | Select-String "device$").Line
-          $wall = [math]::Round(((Get-Date) - $t0).TotalSeconds, 3)
-          $cpu = $null
-          try {
-            $sum = (Get-Process -Name java,adb -ErrorAction SilentlyContinue | Measure-Object CPU -Sum).Sum
-            if ($sum) { $cpu = [math]::Round($sum, 3) }
-          } catch {}
-          $delta = @{ wallSec = $wall; ghBillableMin = 0 }
-          if ($null -ne $cpu) { $delta.cpuSec = $cpu }
+          $serial = ((adb devices | Select-String "\tdevice$").Line)
+          echo "apk=$($apk.Name)" >> $env:GITHUB_OUTPUT
+          echo "serial=$serial" >> $env:GITHUB_OUTPUT
+
+      - name: Comment installed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          ISSUE: ${{ needs.dispatch.outputs.issue }}
+          BRANCH: ${{ needs.dispatch.outputs.branch }}
+          APK: ${{ steps.install.outputs.apk }}
+          SERIAL: ${{ steps.install.outputs.serial }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $t0 = Get-Date
+          $wall = 0
           $row = [ordered]@{
             schema = 1
             at = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
@@ -191,24 +209,61 @@ jobs:
             source = "actions"
             host = $env:COMPUTERNAME
             issue = [int]$env:ISSUE
-            delta = $delta
+            delta = @{ wallSec = $wall; ghBillableMin = 0 }
           }
-          $fence = "<!-- swarm-usage`n$($row | ConvertTo-Json -Compress)`n-->"
-          $human = "usage `swarm-bench` `installed` $($env:COMPUTERNAME) wall ${wall}s"
-          if ($null -ne $cpu) { $human += " · cpu ${cpu}s" }
-          $human += " · gh 0min · grok credits unknown"
-          $payload = @{ body = @"
+          $json = ($row | ConvertTo-Json -Compress)
+          $body = @"
           <!-- swarm-bench-uat -->
           ## Swarm Bench
           **UAT installed** for issue #$env:ISSUE
 
           - branch ``$env:BRANCH``
-          - apk ``$($apk.Name)``
-          - adb ``$serial``
+          - apk ``$env:APK``
+          - adb ``$env:SERIAL``
+          - host ``$env:COMPUTERNAME``
 
           Unlocked Pixel, long-press Japanese text, wait a few seconds. Comment on this issue what happened. Do not open a second pull request.
 
-          $fence
-          $human
-          "@ }
-          $payload | ConvertTo-Json | gh api -X POST "repos/$env:GH_REPO/issues/$env:ISSUE/comments" --input -
+          <!-- swarm-usage
+          $json
+          -->
+          usage `swarm-bench` `installed` $($env:COMPUTERNAME) wall 0s · gh 0min · grok credits unknown
+          "@
+          @{ body = $body } | ConvertTo-Json | gh api -X POST "repos/$env:GH_REPO/issues/$env:ISSUE/comments" --input -
+
+  report:
+    needs: [dispatch, bench]
+    if: always() && needs.dispatch.outputs.go == 'true' && needs.bench.result != 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comment UAT failed on the issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          ISSUE: ${{ needs.dispatch.outputs.issue }}
+          RESULT: ${{ needs.bench.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          BRANCH: ${{ needs.dispatch.outputs.branch }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, subprocess
+          issue = os.environ["ISSUE"]
+          result = os.environ.get("RESULT") or "unknown"
+          url = os.environ["RUN_URL"]
+          branch = os.environ.get("BRANCH") or ""
+          repo = os.environ["GH_REPO"]
+          marker = "<!-- swarm-bench-uat -->"
+          body = (
+              f"{marker}\n## Swarm Bench\n**UAT failed** (`{result}`) for issue #{issue} `{branch}`.\n\n"
+              f"The Pixel may be unlocked and still have nothing new — this job never reached **UAT installed**.\n"
+              f"Logs: {url}\n\n"
+              f"Do not `/accept` again. Same `agent/*` branch. A later `/uat` or `workflow_dispatch` is allowed because this never installed."
+          )
+          subprocess.run(
+              ["gh", "api", "-X", "POST", f"repos/{repo}/issues/{issue}/comments", "--input", "-"],
+              input=json.dumps({"body": body}),
+              text=True,
+              check=True,
+          )
+          PY
