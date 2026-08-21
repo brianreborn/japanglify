@@ -7,12 +7,6 @@ body:
     attributes:
       value: |
         This is an **issue** (bug report), not a pull request.
-
-        **Owner commands** (whole comment, github.com, as brianreborn):
-        `/accept` · `/block` · `/uat` (Pixel install)
-
-        Everyone else: describe the bug here. After a fix, comment on the **pull request**.
-
         Do not include clipboard contents, account data, API tokens, or device identifiers.
   - type: textarea
     id: summary
