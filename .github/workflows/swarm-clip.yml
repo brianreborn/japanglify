@@ -1,5 +1,5 @@
 # Auto-transcode fat issue videos. /clip-ok splices into the original slot.
-# Loop guards: ignore github-actions[bot] (our splice/edit must not re-enter).
+# Loop guards: ignore github-actions[bot]. Commands via swarm_cmd (line start/end).
 name: Swarm clip
 
 concurrency:
@@ -38,7 +38,17 @@ jobs:
           !contains(github.event.comment.body, 'swarm-clip-compact') &&
           (
             startsWith(github.event.comment.body, '/clip-ok') ||
+            endsWith(github.event.comment.body, '/clip-ok') ||
+            contains(github.event.comment.body, '
+/clip-ok') ||
+            contains(github.event.comment.body, '/clip-ok
+') ||
             startsWith(github.event.comment.body, '/clip-shrink') ||
+            endsWith(github.event.comment.body, '/clip-shrink') ||
+            contains(github.event.comment.body, '
+/clip-shrink') ||
+            contains(github.event.comment.body, '/clip-shrink
+') ||
             contains(github.event.comment.body, 'user-attachments') ||
             contains(github.event.comment.body, 'githubusercontent.com')
           )
@@ -48,7 +58,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: ffmpeg
-        if: ${{ !startsWith(github.event.comment.body, '/clip-ok') }}
+        if: ${{ !startsWith(github.event.comment.body, '/clip-ok') && !endsWith(github.event.comment.body, '/clip-ok') }}
         run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
       - name: Run
         env:
