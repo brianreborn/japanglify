@@ -15,6 +15,9 @@ import sys
 from pathlib import Path
 from urllib.request import Request, urlopen
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import swarm_cmd  # noqa: E402
+
 MARKER = "<!-- swarm-clip-compact -->"
 SMALL_KB = 512
 VIDEO_RE = re.compile(
@@ -106,7 +109,7 @@ def patch_comment(cid: int, body: str) -> None:
         f"repos/{repo()}/issues/comments/{cid}",
         "--input",
         "-",
-        input_text=json.dumps({"body": body}),
+        input_text=json.dumps({"body": text}),
     )
 
 
@@ -239,14 +242,15 @@ def main() -> int:
     n = os.environ.get("ISSUE") or (sys.argv[2] if len(sys.argv) > 2 else "")
     op = (sys.argv[1] if len(sys.argv) > 1 else "") or os.environ.get("OP") or ""
     actor = os.environ.get("ACTOR") or ""
-    body = (os.environ.get("BODY") or "").replace("\r", "").strip()
+    raw = os.environ.get("BODY") or ""
     if not n:
         print("usage: swarm-clip.py shrink|ok <issue>", file=sys.stderr)
         return 2
-    if op == "ok" or body == "/clip-ok":
+    if op == "ok" or swarm_cmd.has_command(raw, "/clip-ok"):
         return cmd_ok(n, actor)
-    auto = body != "/clip-shrink"
-    return cmd_shrink(n, auto=auto)
+    if swarm_cmd.has_command(raw, "/clip-shrink"):
+        return cmd_shrink(n, auto=False)
+    return cmd_shrink(n, auto=True)
 
 
 if __name__ == "__main__":
