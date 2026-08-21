@@ -5,7 +5,7 @@ Effort lives on the **GitHub issue**, then the **fleet cap**. Matcher: [budget.m
 1. Label `effort:low` | `effort:medium` | `effort:high` | `effort:xhigh`
 2. First line of the issue body: `**Effort: high**`
 3. If both missing: **medium** — omit `--effort`
-4. **Effective** = min(issue, `budget.json` `cap.effort`, `perRole[role]`). `swarm-grok` passes flags only when they are not the host default.
+4. **Effective** = min(issue, fleet cap, per-role), then `SWARM_EFFORT_MIN`/`SWARM_EFFORT_MAX` on this host. `swarm-grok` passes flags only when they are not the host default.
 
 Do not debate remaining SuperGrok % in chat. Change the issue label and/or `docs/japanglify/budget.json`. A cap change is the **next** process start, not `/effort` mid-session.
 
