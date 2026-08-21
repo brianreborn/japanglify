@@ -1,0 +1,80 @@
+# Quota trip only. Not intake. Not UAT.
+# New filename so GitHub gets a fresh workflow id (old swarm-conductor-watchdog.yml
+# ran on every push with 0 jobs and failed).
+name: Swarm Conductor watchdog
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  quotas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Comment-rate trip
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess, datetime
+
+          cfg = json.loads(pathlib.Path(".github/swarm-conductor.json").read_text())
+          trusted = cfg["trustedActor"]
+          heading = cfg["heading"]
+          marker = cfg["statusMarker"]
+          max_n = int((cfg.get("quotas") or {}).get("commentsPerIssuePerHour", 10))
+          repo = os.environ["GH_REPO"]
+          cutoff = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+          stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+          def api(method, path, body=None):
+              cmd = ["gh", "api", "-X", method, path]
+              if body is None:
+                  return json.loads(subprocess.check_output(cmd, text=True))
+              return json.loads(
+                  subprocess.check_output(
+                      cmd + ["--input", "-"],
+                      input=json.dumps(body),
+                      text=True,
+                  )
+              )
+
+          issues = api("GET", f"repos/{repo}/issues?state=open&per_page=50")
+          for issue in issues:
+              if issue.get("pull_request"):
+                  continue
+              n = issue["number"]
+              comments = api("GET", f"repos/{repo}/issues/{n}/comments?per_page=100")
+              noise = 0
+              sticky_id = None
+              for c in comments:
+                  body = c.get("body") or ""
+                  if marker in body:
+                      sticky_id = c["id"]
+                      continue
+                  login = (c.get("user") or {}).get("login") or ""
+                  if login in (trusted, "github-actions[bot]"):
+                      continue
+                  if (c.get("created_at") or "") >= cutoff:
+                      noise += 1
+              if noise <= max_n:
+                  continue
+              text = (
+                  f"{marker}\n## {heading}\n**BLOCKED** by watchdog at {stamp}\n\n"
+                  f"Quota commentsPerIssuePerHour exceeded ({noise} non-owner comments in 1h).\n"
+                  f"No new agent assignment until @{trusted} posts /accept as the whole comment."
+              )
+              if sticky_id:
+                  api("PATCH", f"repos/{repo}/issues/comments/{sticky_id}", {"body": text})
+              else:
+                  api("POST", f"repos/{repo}/issues/{n}/comments", {"body": text})
+          print("watchdog ok")
+          PY

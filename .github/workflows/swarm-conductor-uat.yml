@@ -1,7 +1,11 @@
 # /uat on an official issue → Swarm Bench (self-hosted Windows + Pixel).
 # Never assemble on ubuntu-latest.
-# GITHUB_TOKEN cannot list runners (admin); do not call that API.
+# Do not list runners (GITHUB_TOKEN is not admin — 403).
 name: Swarm Conductor UAT
+
+concurrency:
+  group: uat-${{ github.event.issue.number || github.event.inputs.issue }}
+  cancel-in-progress: true
 
 on:
   issue_comment:
@@ -76,11 +80,7 @@ jobs:
 
           def comment(text):
               subprocess.run(
-                  [
-                      "gh", "api", "-X", "POST",
-                      f"repos/{repo}/issues/{issue}/comments",
-                      "--input", "-",
-                  ],
+                  ["gh", "api", "-X", "POST", f"repos/{repo}/issues/{issue}/comments", "--input", "-"],
                   input=json.dumps({"body": text}),
                   text=True,
                   check=True,
