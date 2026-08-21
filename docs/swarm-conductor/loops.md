@@ -5,18 +5,18 @@ Components talk only through GitHub comments. A comment must not be a command fo
 | Writer | Must not trigger |
 |---|---|
 | UAT dispatch / installed / failed (`swarm-bench-uat`) | another `/uat` |
+| Kick sent / bench woke (`swarm-kick`) | another `/kick` |
 | Watchdog ready (`swarm-uat-ready`, text mentions `/uat`) | `/uat` — **never** `contains('/uat')` in YAML |
 | Clip offer / splice (`swarm-clip-compact`, bot) | another shrink |
-| Conductor sticky (`swarm-conductor-status`) | `/accept` `/uat` |
-| Conductor Grok automation | `/uat` `/clip-*` — **silent ignore, no “ignoring” comment** |
+| Conductor sticky (`swarm-conductor-status`) | `/accept` `/uat` `/kick` |
+| Conductor Grok automation | `/uat` `/kick` `/clip-*` — **silent ignore, no “ignoring” comment** |
 | Grok CLI on the bench | `/uat`, `/accept`, a second `agent/*` |
 
 Rules in force:
 
-- Commands match **start or end of a line** (`scripts/swarm_cmd.py`). `` `/uat` `` mid-line is documentation, not a command. Trailing newline is ok. YAML never uses `contains('/uat')`.
-- Bots (`github-actions[bot]`) never run `/uat` or clip.
-- A failed bench job is reported from **ubuntu** (`report` job). The self-hosted runner cannot comment if it lost communication.
-- Watchdog ready-pings **once** per issue until a UAT marker exists. It does not install.
+- Commands match **start or end of a line** (`scripts/swarm_cmd.py`). Mid-line quotes are documentation, not a command. YAML never uses `contains('/uat')` or `contains('/kick')`.
+- Bots (`github-actions[bot]`) never run `/uat`, `/kick`, or clip.
+- A failed bench job is reported from **ubuntu** (`report` job).
+- `/kick` does not `/uat` or `/accept`. Spec: [kick.md](kick.md).
 - `/accept` does not spawn a worker.
-- Conductor never replies “plain issue, not a PR” or “Automation is PR-only.” Prompt: [prompt.md](prompt.md).
-- Grok CLI init starts the Actions **listener**, then **`/quit`**. Product work is `grok --effort <issue> --resume`.
+- Conductor never replies “plain issue, not a PR”. Prompt: [prompt.md](prompt.md).
