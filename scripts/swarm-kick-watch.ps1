@@ -1,18 +1,25 @@
-# Outbound kick watcher for win11-pixel.
-# Poll GitHub for UAT/kick runs that still need the listener.
+# Supervisor for win11-pixel. Grok CLI is not in this path after first start.
 #
-# CRITICAL: after ubuntu `dispatch` succeeds, the WORKFLOW RUN is
-# `in_progress` while the swarm-bench JOB is still queued. Looking
-# only at `--status queued` misses the stuck listener case.
-# No inbound HTTPS. Grok CLI may start this; the owner never types pwsh.
+# Always keep Runner.Listener up for this logon session (empty mailbox too).
+# Also poll GitHub: after ubuntu dispatch the WORKFLOW RUN is in_progress
+# while the swarm-bench JOB is still queued.
+# No inbound HTTPS. Owner never types pwsh.
 
 $ErrorActionPreference = "Stop"
 $Repo = "brianreborn/japanglify"
 $Root = "C:\actions-runner"
+$Loop = Join-Path $Root "swarm-run-loop.cmd"
 $Run = Join-Path $Root "run.cmd"
 
 function Listener-Up {
     return [bool](Get-CimInstance Win32_Process -Filter "Name='Runner.Listener.exe'" -ErrorAction SilentlyContinue)
+}
+
+function Loop-Up {
+    $hit = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+        $_.Name -match '^(cmd|pwsh|powershell)\.exe$' -and $_.CommandLine -and ($_.CommandLine -match 'swarm-run-loop')
+    })
+    return ($hit.Count -gt 0)
 }
 
 function Start-Listener {
@@ -20,9 +27,18 @@ function Start-Listener {
         Write-Host "Runner.Listener already running"
         return
     }
+    if (Loop-Up) {
+        Write-Host "swarm-run-loop already running (listener will come back)"
+        return
+    }
+    if (Test-Path $Loop) {
+        Write-Host "kick: starting $Loop (hidden)"
+        Start-Process -FilePath "cmd.exe" -ArgumentList @("/c", $Loop) -WorkingDirectory $Root -WindowStyle Hidden
+        return
+    }
     if (-not (Test-Path $Run)) { throw "missing $Run — register the runner first" }
     Write-Host "kick: starting $Run"
-    Start-Process -FilePath $Run -WorkingDirectory $Root -WindowStyle Minimized
+    Start-Process -FilePath $Run -WorkingDirectory $Root -WindowStyle Hidden
 }
 
 function Pending-Kick {
@@ -38,15 +54,19 @@ function Pending-Kick {
 }
 
 if ($args -contains "-Once") {
-    if (Pending-Kick) { Start-Listener } else { Write-Host "no queued/in_progress kick/UAT" }
+    $pending = Pending-Kick
+    if ($pending) { Write-Host "pending UAT/kick on GitHub" } else { Write-Host "no queued/in_progress kick/UAT" }
+    Start-Listener
+    Start-Sleep -Seconds 2
     if (Listener-Up) { Write-Host "listener up" } else { Write-Warning "listener still down" }
     exit 0
 }
 
-Write-Host "swarm-kick-watch polling $Repo (Ctrl+C to stop)"
+Write-Host "swarm-kick-watch polling $Repo (Ctrl+C to stop); always keep listener"
 while ($true) {
     try {
-        if (Pending-Kick) { Start-Listener }
+        if (-not (Listener-Up)) { Start-Listener }
+        if (Pending-Kick -and -not (Listener-Up)) { Start-Listener }
     } catch {
         Write-Warning $_
     }

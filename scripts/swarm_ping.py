@@ -4,6 +4,9 @@
 An in_progress *workflow run* is NOT a live listener. Ubuntu dispatch makes the
 UAT run in_progress while the swarm-bench *job* is still queued. Only a job
 labeled swarm-bench with status in_progress means the listener took it.
+
+Runner API status is the idle ping: cancelled USB UAT must not hide an offline
+SHALOM-swarm-bench.
 """
 
 from __future__ import annotations
@@ -64,10 +67,34 @@ def classify_github_actions(config_runs: list[dict]) -> dict:
     }
 
 
-def classify_win11(bench_jobs: list[dict]) -> dict:
+def swarm_runner_status(runners: list[dict] | None) -> tuple[str, list[str]]:
+    """'online' | 'offline' | 'missing' | 'unknown', names."""
+    if runners is None:
+        return "unknown", []
+    hits = []
+    for r in runners:
+        labels = []
+        for x in r.get("labels") or []:
+            if isinstance(x, dict):
+                labels.append(x.get("name") or "")
+            else:
+                labels.append(str(x))
+        if "swarm-bench" in labels:
+            hits.append(r)
+    if not hits:
+        return "missing", []
+    names = [str(r.get("name") or "?") for r in hits]
+    if any((r.get("status") or "").lower() == "online" for r in hits):
+        return "online", names
+    return "offline", names
+
+
+def classify_win11(bench_jobs: list[dict], runners: list[dict] | None = None) -> dict:
     queued = [j for j in bench_jobs if (j.get("status") or "") in WAITING]
     running = [j for j in bench_jobs if j.get("status") == "in_progress"]
     done = [j for j in bench_jobs if j.get("status") == "completed"]
+    rs, names = swarm_runner_status(runners)
+    named = (", ".join(names) if names else "swarm-bench")
     if running:
         j = running[0]
         return {
@@ -77,6 +104,16 @@ def classify_win11(bench_jobs: list[dict]) -> dict:
             "ageSec": age_sec(j.get("created_at")),
             "note": f"listener took {j.get('workflow')}",
             "queued": len(queued),
+            "runner": rs,
+        }
+    if rs == "online":
+        return {
+            "id": "win11-pixel",
+            "ok": True,
+            "state": "online",
+            "note": f"{named} idle online" + (f" ({len(queued)} job assigning)" if queued else ""),
+            "queued": len(queued),
+            "runner": rs,
         }
     if queued:
         oldest = max(age_sec(j.get("created_at")) or 0 for j in queued)
@@ -85,8 +122,18 @@ def classify_win11(bench_jobs: list[dict]) -> dict:
             "ok": False,
             "state": "queued",
             "ageSec": oldest,
-            "note": "listener not taking swarm-bench (do not enqueue another ping job)",
+            "note": f"listener not taking swarm-bench ({rs})",
             "queued": len(queued),
+            "runner": rs,
+        }
+    if rs in {"offline", "missing"}:
+        return {
+            "id": "win11-pixel",
+            "ok": False,
+            "state": rs,
+            "note": f"{named} is {rs} — start scripts/swarm-bench-runner.ps1 (Grok is not the supervisor)",
+            "queued": 0,
+            "runner": rs,
         }
     if done:
         j = done[0]
@@ -97,8 +144,9 @@ def classify_win11(bench_jobs: list[dict]) -> dict:
                 "ok": None,
                 "state": conclusion,
                 "ageSec": age_sec(j.get("updated_at") or j.get("created_at")),
-                "note": "last bench cancelled/skipped — USB UAT paused or concurrency; not a live up",
+                "note": "last bench cancelled/skipped — USB UAT paused; runner status unknown",
                 "queued": 0,
+                "runner": rs,
             }
         ok = conclusion == "success"
         return {
@@ -108,13 +156,15 @@ def classify_win11(bench_jobs: list[dict]) -> dict:
             "ageSec": age_sec(j.get("updated_at") or j.get("created_at")),
             "note": "last completed swarm-bench job",
             "queued": 0,
+            "runner": rs,
         }
     return {
         "id": "win11-pixel",
         "ok": None,
         "state": "unknown",
-        "note": "no recent swarm-bench jobs",
+        "note": "no recent swarm-bench jobs; no runner status",
         "queued": 0,
+        "runner": rs,
     }
 
 
@@ -127,9 +177,9 @@ def classify_grok_cloud() -> dict:
     }
 
 
-def snapshot(config_runs: list[dict], bench_jobs: list[dict]) -> dict:
+def snapshot(config_runs: list[dict], bench_jobs: list[dict], runners: list[dict] | None = None) -> dict:
     hosts = [
-        classify_win11(bench_jobs),
+        classify_win11(bench_jobs, runners),
         classify_github_actions(config_runs),
         classify_grok_cloud(),
     ]
@@ -189,6 +239,15 @@ def jobs_labeled_bench(jobs: list[dict], workflow: str, run_url: str) -> list[di
     return out
 
 
+def collect_runners(repo: str) -> list[dict] | None:
+    try:
+        data = gh_api(f"repos/{repo}/actions/runners")
+        return data.get("runners") or []
+    except subprocess.CalledProcessError as e:
+        print(f"gh api runners failed: {e}", file=sys.stderr)
+        return None
+
+
 def collect(repo: str) -> dict:
     config_runs = gh_runs(repo, "conductor-config.yml")
     bench_jobs: list[dict] = []
@@ -210,7 +269,9 @@ def collect(repo: str) -> dict:
             bench_jobs.extend(jobs_labeled_bench(data.get("jobs") or [], wf, r.get("html_url") or ""))
     bench_jobs.sort(key=lambda j: j.get("created_at") or "", reverse=True)
     print("bench_jobs", json.dumps(bench_jobs[:8]), file=sys.stderr)
-    return snapshot(config_runs, bench_jobs)
+    runners = collect_runners(repo)
+    print("runners", json.dumps([{"name": r.get("name"), "status": r.get("status")} for r in (runners or [])]), file=sys.stderr)
+    return snapshot(config_runs, bench_jobs, runners)
 
 
 def markdown(row: dict) -> str:
@@ -278,6 +339,26 @@ def self_test() -> int:
         None,
         "cancelled",
     )
+    offline = [{"name": "SHALOM-swarm-bench", "status": "offline", "labels": [{"name": "swarm-bench"}]}]
+    online = [{"name": "SHALOM-swarm-bench", "status": "online", "labels": [{"name": "swarm-bench"}]}]
+    check(
+        "offline-hides-not-behind-usb-cancel",
+        classify_win11(
+            [{"status": "completed", "conclusion": "cancelled", "created_at": "2026-08-21T15:07:00Z", "workflow": "uat"}],
+            offline,
+        ),
+        False,
+        "offline",
+    )
+    check(
+        "online-idle-after-usb-cancel",
+        classify_win11(
+            [{"status": "completed", "conclusion": "cancelled", "created_at": "2026-08-21T15:07:00Z", "workflow": "uat"}],
+            online,
+        ),
+        True,
+        "online",
+    )
     check(
         "actions-in-progress-is-up",
         classify_github_actions(
@@ -308,6 +389,13 @@ def self_test() -> int:
     assert paused["hosts"][0]["ok"] is None
     assert paused["hosts"][1]["ok"] is True
     assert paused["ok"] is True, paused
+    paused_offline = snapshot(
+        [{"conclusion": "success", "updated_at": "2026-08-21T14:58:00Z", "html_url": "x"}],
+        [{"status": "completed", "conclusion": "cancelled", "created_at": "2026-08-21T15:07:00Z", "workflow": "uat"}],
+        offline,
+    )
+    assert paused_offline["hosts"][0]["ok"] is False
+    assert paused_offline["ok"] is False, paused_offline
     row = snapshot(
         [{"conclusion": "success", "updated_at": "2026-08-21T14:58:00Z", "html_url": "x"}],
         [{"status": "queued", "created_at": "2026-08-21T14:46:00Z", "workflow": "uat"}],
@@ -332,6 +420,7 @@ def main() -> int:
         with open(summary, "a", encoding="utf-8") as f:
             f.write(markdown(row))
     # Cloud-only ping is still a pass if github-actions is up and bench is paused (cancelled).
+    # Offline runner is a fail — USB pause is not a live host.
     down = [h for h in row["hosts"] if h.get("ok") is False]
     return 1 if down else 0
 

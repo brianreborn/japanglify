@@ -11,7 +11,7 @@ Components talk only through GitHub comments. A comment must not be a command fo
 | Clip offer / splice (`swarm-clip-compact`, bot) | another shrink |
 | Conductor sticky (`swarm-conductor-status`) | `/accept` `/uat` `/kick` |
 | Conductor Grok automation | `/uat` `/kick` `/clip-*` — **silent ignore, no “ignoring” comment** |
-| Grok CLI on the bench | `/uat`, `/accept`, a second `agent/*` |
+| Grok CLI on the bench | `/uat`, `/accept`, a second `agent/*`, restarting the listener as a chat loop |
 
 Rules in force:
 
@@ -19,7 +19,8 @@ Rules in force:
 - Bots (`github-actions[bot]`) never run `/uat`, `/kick`, or clip.
 - A failed bench job is reported from **ubuntu** (`report` job).
 - `/kick` is ubuntu-only. It does not occupy swarm-bench, `/uat`, or `/accept`. Spec: [kick.md](kick.md).
-- An `in_progress` UAT **run** is not a live listener; ping/watch look at the swarm-bench **job**.
+- An `in_progress` UAT **run** is not a live listener; ping/watch look at the swarm-bench **job** and the runner API.
+- The listener keep-alive is `swarm-run-loop.cmd` / HKCU Run / watch.ps1 — **not** a Grok session. Do not paste “start the runner” into Grok on a schedule.
 - Queued > 20 min is [events.md](events.md), not a Grok poll.
 - `/accept` does not spawn a worker.
 - Conductor never replies “plain issue, not a PR”. Prompt: [prompt.md](prompt.md).

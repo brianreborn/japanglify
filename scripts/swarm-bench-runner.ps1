@@ -2,14 +2,11 @@
 # Interactive user session — NOT a Windows service (services usually cannot see USB adb).
 # Labels: swarm-bench. GitHub also stamps self-hosted + Windows.
 #
-# Smart App Control (Windows 11) often blocks Register-ScheduledTask for
-# C:\actions-runner\run.cmd. That is optional: USB UAT already requires this
-# logon session to stay open. Do not treat a blocked logon task as runner-down.
-# Proof is Runner.Listener.exe + "Listening for Jobs".
-#
-# Also starts scripts/swarm-kick-watch.ps1 as a companion. After ubuntu
-# dispatch, the UAT *run* is in_progress while the bench *job* is still
-# queued — watch.ps1 must see that and restart a dead listener.
+# Robustness: Grok CLI is NOT the supervisor. This script:
+#   1. copies swarm-run-loop.cmd + swarm-kick-watch.ps1 to C:\actions-runner
+#   2. starts a hidden restart loop around Runner.Listener
+#   3. persists via HKCU Run (Smart App Control often blocks Scheduled Task)
+# Proof the host is up: GitHub runner status online, or Runner.Listener.exe.
 
 $ErrorActionPreference = "Stop"
 $Repo = "brianreborn/japanglify"
@@ -79,12 +76,66 @@ function Ensure-SwarmLabel {
     }
 }
 
-function Start-KickWatch {
-    $watch = Join-Path $PSScriptRoot "swarm-kick-watch.ps1"
-    if (-not (Test-Path $watch)) {
-        Write-Warning "no $watch — listener will not self-restart after lost communication"
+function Install-KeepAlive {
+    # Fixed path so logon persistence does not depend on which git clone ran this.
+    foreach ($name in @("swarm-run-loop.cmd", "swarm-kick-watch.ps1")) {
+        $src = Join-Path $PSScriptRoot $name
+        if (Test-Path $src) {
+            Copy-Item $src (Join-Path $Root $name) -Force
+            Write-Host "installed $Root\$name"
+        } else {
+            Write-Warning "missing $src"
+        }
+    }
+    $loop = Join-Path $Root "swarm-run-loop.cmd"
+    $watch = Join-Path $Root "swarm-kick-watch.ps1"
+    $runKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
+    if (-not (Test-Path $runKey)) {
+        New-Item -Path $runKey -Force | Out-Null
+    }
+    if (Test-Path $loop) {
+        $loopCmd = "cmd.exe /c start `"swarm-bench`" /min `"$loop`""
+        Set-ItemProperty -Path $runKey -Name "swarm-bench-loop" -Value $loopCmd
+        Write-Host "HKCU Run swarm-bench-loop (logon keep-alive; SAC-safe vs Scheduled Task)"
+    }
+    $pwsh = Get-Command pwsh -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
+    if (-not $pwsh) { $pwsh = "powershell.exe" }
+    if (Test-Path $watch) {
+        Set-ItemProperty -Path $runKey -Name "swarm-kick-watch" -Value "`"$pwsh`" -NoProfile -WindowStyle Hidden -File `"$watch`""
+        Write-Host "HKCU Run swarm-kick-watch"
+    }
+}
+
+function Start-ListenerLoop {
+    $loop = Join-Path $Root "swarm-run-loop.cmd"
+    $run = Join-Path $Root "run.cmd"
+    $listener = Get-CimInstance Win32_Process -Filter "Name='Runner.Listener.exe'" -ErrorAction SilentlyContinue
+    if ($listener) {
+        Write-Host "Runner.Listener already running"
         return
     }
+    $loopHit = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+        $_.CommandLine -and ($_.CommandLine -match 'swarm-run-loop')
+    })
+    if ($loopHit.Count -gt 0) {
+        Write-Host "swarm-run-loop already running pid=$($loopHit[0].ProcessId)"
+        return
+    }
+    if (Test-Path $loop) {
+        Write-Host "starting hidden $loop (keep this login; USB needs it)"
+        Start-Process -FilePath "cmd.exe" -ArgumentList @("/c", $loop) -WorkingDirectory $Root -WindowStyle Hidden
+        return
+    }
+    Write-Host "starting $run in this user session (keep this login; USB needs it)"
+    Start-Process -FilePath $run -WorkingDirectory $Root -WindowStyle Hidden
+}
+
+function Start-KickWatch {
+    $watch = Join-Path $Root "swarm-kick-watch.ps1"
+    if (-not (Test-Path $watch)) {
+        $watch = Join-Path $PSScriptRoot "swarm-kick-watch.ps1"
+    }
+    if (-not (Test-Path $watch)) { return }
     $hit = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
         $_.Name -match '^(pwsh|powershell)\.exe$' -and $_.CommandLine -and ($_.CommandLine -match 'swarm-kick-watch')
     })
@@ -95,7 +146,7 @@ function Start-KickWatch {
     $pwsh = Get-Command pwsh -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
     if (-not $pwsh) { $pwsh = "powershell.exe" }
     Write-Host "starting kick-watch $watch"
-    Start-Process -FilePath $pwsh -ArgumentList @("-NoProfile", "-File", $watch) -WindowStyle Minimized
+    Start-Process -FilePath $pwsh -ArgumentList @("-NoProfile", "-WindowStyle", "Hidden", "-File", $watch) -WindowStyle Hidden
 }
 
 Need-Gh
@@ -130,26 +181,22 @@ if (-not (Test-Path .\.runner)) {
 
 Ensure-SwarmLabel
 Write-RunnerEnv
+Install-KeepAlive
 
-$run = Join-Path $Root "run.cmd"
 $task = "swarm-bench-runner"
+$loop = Join-Path $Root "swarm-run-loop.cmd"
+$taskExe = if (Test-Path $loop) { $loop } else { Join-Path $Root "run.cmd" }
 try {
     Unregister-ScheduledTask -TaskName $task -Confirm:$false -ErrorAction SilentlyContinue
-    $action = New-ScheduledTaskAction -Execute $run -WorkingDirectory $Root
+    $action = New-ScheduledTaskAction -Execute $taskExe -WorkingDirectory $Root
     $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
     Register-ScheduledTask -TaskName $task -Action $action -Trigger $trigger -User $env:USERNAME -RunLevel Limited | Out-Null
     Write-Host "logon-task=$task registered"
 } catch {
     Write-Warning "logon task skipped (Smart App Control often blocks this): $($_.Exception.Message)"
-    Write-Warning "Keep this Windows logon session. USB adb already requires that."
+    Write-Warning "HKCU Run is the keep-alive. Keep this Windows logon session (USB adb needs it)."
 }
 
-$already = Get-CimInstance Win32_Process -Filter "Name='Runner.Listener.exe'" -ErrorAction SilentlyContinue
-if ($already) {
-    Write-Host "Runner.Listener already running"
-} else {
-    Write-Host "starting $run in this user session (keep this login; USB needs it)"
-    Start-Process -FilePath $run -WorkingDirectory $Root -WindowStyle Minimized
-}
+Start-ListenerLoop
 Start-KickWatch
-Write-Host "registered $Name labels=$Labels"
+Write-Host "registered $Name labels=$Labels (Grok CLI can stop; listener loop stays)"
