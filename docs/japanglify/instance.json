@@ -12,6 +12,22 @@
     "swarm-bench": ["windows-workstation", "unix-workstation"],
     "swarm-benchRule": "Run on the machine with the Pixel (adb). Windows and Unix are both valid. Do not assemble on GitHub-hosted runners for this role."
   },
+  "uat": {
+    "command": "/uat",
+    "applicationId": "com.japanglify.app",
+    "issues": {
+      "5": {
+        "devRepo": "electrobrian/japanglify",
+        "branch": "agent/5-chip-persistence",
+        "pull": 8
+      },
+      "7": {
+        "devRepo": "electrobrian/japanglify",
+        "branch": "agent/electrobrian-9-proper-names",
+        "pull": 12
+      }
+    }
+  },
   "capabilityOverlay": {
     "swarm-bench": [
       "gradle.assemble-tester",
