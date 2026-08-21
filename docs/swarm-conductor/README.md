@@ -10,12 +10,13 @@ The conductor dispatches; it does not implement, build, or sign.
 | `/accept` `/block` | Grok automation `japanglify-swarm-conductor` | posts as the trusted actor |
 | owner free-form on a **pull request** | Grok automation `japanglify-swarm-conductor-pr-follow` | same; **zero comments** on plain issues |
 | `/uat` | Actions `swarm-conductor-uat.yml` | `github-actions[bot]` → self-hosted `swarm-bench` |
-| `/kick` | Actions `swarm-kick.yml` | cloud list + optional bench ping |
+| `/kick` | Actions `swarm-kick.yml` | wake a member |
+| ping (host reliability) | Actions `swarm-ping.yml` every 15 min | observes GitHub; does not enqueue if bench is queued |
 | UAT finished | Grok automation `japanglify-uat-complete` | `workflow_run_completed`, APP_ONLY |
 | quota / 20min queue stall | Actions `swarm-watchdog.yml` (every 10 min) | `github-actions[bot]` |
 | JSON + lease/usage self-test | Actions `conductor-config.yml` | `ubuntu-latest` |
 
-GitHub is the event bus. Spec: [events.md](events.md). Kick: [kick.md](kick.md).
+GitHub is the event bus. Spec: [events.md](events.md). Kick: [kick.md](kick.md). Ping: [ping.md](ping.md).
 
 ## Canonical Grok Automation prompts
 
