@@ -6,6 +6,8 @@ Project-specific. Swarm Conductor reads this as the **instance work map**, not a
 
 **Names:** GitHub **issue** = bug report. GitHub **pull request** = proposed merge. Do not write “PR” in user-facing text; it is not a “problem report.”
 
+Owner Pixel UAT is **Grok CLI + adb**, not the issue tracker. GitHub is handoff (start / share tester APKs / done).
+
 ## Repos
 
 | Repo | Role |

@@ -31,6 +31,26 @@ An **issue** is the bug or request (“the chip vanishes”). A **pull request**
 
 The official issue stays the **scoreboard** (open until the fix ships). The pull request is where commits, checks, and APK links appear. One bug → one live pull request. A failed test does **not** open a second pull request.
 
+## Owner local UAT — Grok CLI, not the issue tracker
+
+The Pixel is on your desk. Cloud Swarm Conductor cannot `adb` it. For **your** UAT loop, use **Grok CLI** on the workstation that has the phone (and Gradle). Talk in ordinary English: “chip still gone in 1s, try again.”
+
+Do **not** file issues, `/accept`, or GitHub comments for each retry. That is handoff, not the inner loop.
+
+| Loop | Tool | GitHub |
+|---|---|---|
+| You + Pixel, iterating | Grok CLI + `adb` | Silent until you hand off |
+| Other testers / public scoreboard | — | Issue (why) + pull request (bits + tester APKs) |
+| Incoming bug from someone else | — | They file an **issue**; you `/accept` once |
+
+Handoff (the only times the issue system should see you):
+
+1. **Start:** `/accept` on the official issue (or you already did).
+2. **During:** when you want someone else to try, **push** the same `agent/*` branch so CI publishes a new tester APK. One sentence on the pull request is enough.
+3. **Done:** UAT passed or you stopped — comment on the **issue** (scoreboard) and the **pull request**. You still merge official; CLI does not.
+
+Stay on `electrobrian` `agent/*`. CLI-as-owner still does not push `main` or use the real keystore unless you are actually shipping `/latest`.
+
 ## Which APK to install
 
 | Build | Where | Signature | Use it for |
@@ -73,5 +93,6 @@ owner merges official     →  later /latest (real key)
 - **Pull requests:** free-form English is the instruction channel. Keep product work on `electrobrian` `agent/*` → `BETA-2`. Swarm Conductor docs may use `chore/*` pull requests on this repo.
 - **Retries:** same pull request, new commit, new `pr-<number>-build-<n>` tag. Do not open a second pull request for a failed UAT.
 - **Ship:** you merge to `main`; official signed `/latest` is a separate home-machine step. Tester keys never become `/latest`.
+- **Local UAT:** Grok CLI + `adb` on the Pixel workstation. GitHub is handoff only.
 
 More detail: [cutover.md](cutover.md). Swarm Conductor itself (generic, no Japanese/Android): [../swarm-conductor/README.md](../swarm-conductor/README.md).
