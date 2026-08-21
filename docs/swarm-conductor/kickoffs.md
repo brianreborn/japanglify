@@ -22,3 +22,5 @@ Bootstrap (clone, `adb`, lease) is always **medium**. Switch to the issue’s le
 | `xhigh` | grok-4.6 only; rare |
 
 Do not debate effort in a Conductor thread. Change the label on the issue.
+
+When you post a **state change** (handoff, installed, failed), append a usage fence from `scripts/swarm-usage.py`. Cost rides that comment. Do not open a second comment for metrics. Do not invent `grokCredits`. Spec: [usage.md](usage.md).
