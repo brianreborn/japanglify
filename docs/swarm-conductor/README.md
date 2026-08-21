@@ -10,8 +10,12 @@ The conductor dispatches; it does not implement, build, or sign.
 | `/accept` `/block` | Grok automation `japanglify-swarm-conductor` | posts as the trusted actor |
 | owner free-form on a **pull request** | Grok automation `japanglify-swarm-conductor-pr-follow` | same; **zero comments** on plain issues |
 | `/uat` | Actions `swarm-conductor-uat.yml` | `github-actions[bot]` → self-hosted `swarm-bench` |
-| quota trip | Actions `swarm-watchdog.yml` (schedule) | `github-actions[bot]` |
+| `/kick` | Actions `swarm-kick.yml` | cloud list + optional bench ping |
+| UAT finished | Grok automation `japanglify-uat-complete` | `workflow_run_completed`, APP_ONLY |
+| quota / 20min queue stall | Actions `swarm-watchdog.yml` (every 10 min) | `github-actions[bot]` |
 | JSON + lease/usage self-test | Actions `conductor-config.yml` | `ubuntu-latest` |
+
+GitHub is the event bus. Spec: [events.md](events.md). Kick: [kick.md](kick.md).
 
 ## Canonical Grok Automation prompts
 
@@ -22,6 +26,7 @@ Every Japanglify Grok automation has a file in this directory. Open **Raw**, cop
 | `japanglify-swarm-conductor` | [prompt.md](prompt.md) | [raw](https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt.md) |
 | `japanglify-swarm-conductor-pr-follow` | [prompt-pr.md](prompt-pr.md) | [raw](https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt-pr.md) |
 | `japanglify-swarm-conductor-webhook` (retired) | [prompt-webhook.md](prompt-webhook.md) | [raw](https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt-webhook.md) |
+| `japanglify-uat-complete` | [prompt-uat-complete.md](prompt-uat-complete.md) | [raw](https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt-uat-complete.md) |
 
 Personal automations (e.g. Weekly Twitter recap) are **not** in this repo.
 
