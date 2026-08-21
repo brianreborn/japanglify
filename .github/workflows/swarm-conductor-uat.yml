@@ -3,8 +3,9 @@
 # Do not list runners (GITHUB_TOKEN is not admin — 403).
 # New bugs: scripts/uat-map.py finds electrobrian agent/<issue>-* (JSON is override).
 #
-# Loop guards: ignore bots and our own markers. /uat only at start or end of a
-# line (scripts/swarm_cmd.py). NEVER YAML contains("/uat") — watchdog quotes it.
+# Loop guards: ignore bots and our own markers. Do not scan /uat unless the
+# actor is the trusted owner. Line-edge match (scripts/swarm_cmd.py).
+# NEVER YAML contains("/uat") — watchdog quotes it.
 name: Swarm Conductor UAT
 
 concurrency:
@@ -31,7 +32,7 @@ jobs:
       (
         github.event_name == 'issue_comment' &&
         github.event.issue.pull_request == null &&
-        github.event.comment.user.login != 'github-actions[bot]' &&
+        github.event.comment.user.login == 'brianreborn' &&
         !contains(github.event.comment.body, 'swarm-bench-uat') &&
         !contains(github.event.comment.body, 'swarm-uat-ready') &&
         !contains(github.event.comment.body, 'swarm-conductor-status') &&
@@ -79,14 +80,12 @@ jobs:
               with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
                   f.write(f"{k}={v}\n")
 
-          if actor != trusted:
-              print("ignored actor", actor)
-              out("go", "false")
-              raise SystemExit(0)
-          if event == "issue_comment" and not swarm_cmd.has_command(body, "/uat"):
-              print("no /uat at start or end of a line", repr(body[:80]))
-              out("go", "false")
-              raise SystemExit(0)
+          if event == "issue_comment":
+              cmd = swarm_cmd.authorized_command(body, actor=actor, trusted=trusted)
+              if cmd != "/uat":
+                  print("no authorized /uat", actor, repr(body[:80]))
+                  out("go", "false")
+                  raise SystemExit(0)
 
           issue = os.environ.get("ISSUE_DISPATCH") or os.environ.get("ISSUE_COMMENT") or "0"
           issue = str(int(issue))
