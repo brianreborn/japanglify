@@ -14,6 +14,8 @@ Do not abbreviate pull request as “PR” in user-facing text.
 local starting set (build + device + handoff) — instance overlay, not generic
 conductor. Bench must not assemble on GitHub-hosted runners.
 
+Kickoffs always state Grok CLI **effort**. See [kickoffs.md](kickoffs.md).
+
 ## What is generic
 
 - `/accept` `/block` (whole comment) and issue-body `+1` from a configured trusted actor
@@ -21,6 +23,7 @@ conductor. Bench must not assemble on GitHub-hosted runners.
 - Watchdog that can **cancel**, never `assignment.propose`
 - Role/cap algebra (`roles.json`)
 - Instance file `.github/swarm-conductor.json` (who is trusted, quotas, where the project map is)
+- Kickoff **effort** required (`kickoffs.md`)
 
 ## What is not
 
@@ -30,5 +33,6 @@ conductor. Bench must not assemble on GitHub-hosted runners.
 | Proper-name UAT, chip bugs, Pixel | `docs/japanglify/cutover.md` |
 | Fork vs official, keystore, tester APKs | `docs/japanglify/instance.json` |
 | Gradle / adb / `secret.gh-*` | Japanglify capability overlay, not core roles |
+| Swarm Bench Grok CLI paste | `docs/japanglify/swarm-bench-kickoff.md` |
 
 To reuse Swarm Conductor on another repo: copy `docs/swarm-conductor/`, the two workflows, and write a new `.github/swarm-conductor.json` plus a project cutover. Do not copy `docs/japanglify/` or `docs/GLOSSARY.md`.

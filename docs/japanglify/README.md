@@ -8,9 +8,10 @@ GitHub **issue** = bug report. GitHub **pull request** = proposed merge. Not a â
 |---|---|
 | `ci-for-humans.md` | User/admin CI: issues, pull requests, tester APKs |
 | `swarm-bench.md` | Local Grok CLI role: build, adb, handoff |
-| `hosts.json` | Checked-in host leases (DHCP table) |
+| `swarm-bench-kickoff.md` | Paste for Grok CLI. **Effort: medium** |
+| `hosts.json` | Checked-in host leases (DHCP table + wildcard pools) |
 | `instance.json` | Repos, Android caps, Japanese-NLP rules |
-| `cutover.md` | Live bugs and fork pull requests |
+| `cutover.md` | Live bugs, fork pull requests, smoke record |
 | `../GLOSSARY.md` | Furigana / romaji / mora / Kuromoji (product linguistics) |
 
-Swarm Conductor itself: `docs/swarm-conductor/`.
+Swarm Conductor itself: `docs/swarm-conductor/` (effort convention: `docs/swarm-conductor/kickoffs.md`).

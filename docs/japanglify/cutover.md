@@ -6,7 +6,17 @@ Project-specific. Swarm Conductor reads this as the **instance work map**, not a
 
 **Names:** GitHub **issue** = bug report. GitHub **pull request** = proposed merge. Do not write “PR” in user-facing text; it is not a “problem report.”
 
-Owner Pixel UAT is **Swarm Bench** (Grok CLI + local Gradle + `adb` on Windows or Unix). Not the issue tracker, not GitHub-hosted assemble. GitHub is handoff (start / share tester APKs / done). See [swarm-bench.md](swarm-bench.md).
+Owner Pixel UAT is **Swarm Bench** (Grok CLI + local Gradle + `adb` on Windows or Unix). Not the issue tracker, not GitHub-hosted assemble. GitHub is handoff (start / share tester APKs / done). See [swarm-bench.md](swarm-bench.md). Kickoff paste: [swarm-bench-kickoff.md](swarm-bench-kickoff.md) (**Effort: medium**).
+
+## Live (2026-08-21)
+
+| Piece | State |
+|---|---|
+| Swarm Conductor on official `main` | **running** |
+| `/accept` smoke [issue #9](https://github.com/brianreborn/japanglify/issues/9) | **passed** — Grok automation `japanglify-swarm-conductor` posted **ACCEPTED** (sticky as trusted actor). GitHub Actions `issue_comment` did not run; live gate is the automation |
+| Config JSON + `swarm-lease.py --self-test` | green on `main` |
+| Host leases | `docs/japanglify/hosts.json` (named + wildcard pools) |
+| Grok CLI bench kickoff | **Effort: medium** (do not leave default `high`) |
 
 ## Repos
 
