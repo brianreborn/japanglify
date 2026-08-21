@@ -10,27 +10,30 @@ Policy: `docs/japanglify/swarm-bench.md`. Kickoff details: `docs/japanglify/swar
 
 ### Null start (no transcript)
 
-`grok [OPTIONS] [PROMPT]` — the optional `PROMPT` is the first TUI message. Do not use `-p` / `--print` / `--single` (those exit). Do not pass `--resume`, `-r`, `--continue`, or `-c`.
+`grok [OPTIONS] [PROMPT]` — `PROMPT` is the first TUI message. Slurp **this file** so you do not paste. Do not use `-p` / `--print` / `--single` (those exit). Do not pass `--resume`, `-r`, `--continue`, or `-c`.
 
-From the clone that has `scripts/swarm-bench-runner.ps1` (`brianreborn/japanglify` `main`), PowerShell:
+From the clone that has this file (`brianreborn/japanglify` `main`):
+
+PowerShell:
 
 ```text
 git pull origin main
-grok --effort medium 'Replace all prior context with docs/swarm-conductor/prompt-bench.md. Read that file; it is your role. USB is unplugged on purpose.'
+grok --effort medium (Get-Content -Raw docs/swarm-conductor/prompt-bench.md)
 ```
 
-`--effort medium` overrides the CLI default `high`. Bare `grok` is a new session. `--continue` would reattach the last session for this directory.
-
-If this clone does not have that file, same argv with the raw URL instead of the path:
+bash / git-bash / zsh:
 
 ```text
-grok --effort medium 'Replace all prior context with https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt-bench.md Read that file; it is your role. USB is unplugged on purpose.'
+git pull origin main
+grok --effort medium "$(< docs/swarm-conductor/prompt-bench.md)"
 ```
+
+`--effort medium` overrides the CLI default `high`. `low` is not this restore. Bare `grok` is a new session. `--continue` would reattach the last session for this directory.
 
 | Situation | What you type | What must stay up |
 |---|---|---|
 | **Normal stop** — work is done, session was healthy | `/quit` | Windows **logged on**. Hidden `swarm-run-loop.cmd`, `Runner.Listener`, `swarm-kick-watch.ps1` |
-| **Normal start** — continue that healthy work | same cwd: `grok --effort <issue label, else medium> --resume` | Listener. Do **not** paste this file. Do **not** run `swarm-bench-runner.ps1` unless GitHub shows the runner **offline** |
+| **Normal start** — continue that healthy work | same cwd: `grok --effort <issue label, else medium> --resume` | Listener. Do **not** slurp this file. Do **not** run `swarm-bench-runner.ps1` unless GitHub shows the runner **offline** |
 | **Restore** — first start this logon, or you killed a bad session | `/quit` if a window is still open. Then **Null start** (above) | Listener starts from step “Always this logon” below |
 | **GitHub says `SHALOM-swarm-bench` offline** | Restore | Same |
 | **Log off / reboot** | Nothing in Grok. Next logon, HKCU Run starts the loop. Grok is optional. If still offline, Restore | This Windows logon (USB needs it) |

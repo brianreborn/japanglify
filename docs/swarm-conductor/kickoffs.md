@@ -8,14 +8,23 @@ Effort lives on the **GitHub issue**, not in chat.
 
 Swarm Bench **shutdown and restart** (canonical): [prompt-bench.md](prompt-bench.md). Policy copy: [swarm-bench.md](../japanglify/swarm-bench.md).
 
-**Null start** (no transcript — Restore / first this logon). PowerShell, in the clone that has `scripts/swarm-bench-runner.ps1`:
+**Null start** (no transcript — Restore / first this logon). In the clone that has `prompt-bench.md`:
+
+PowerShell:
 
 ```text
 git pull origin main
-grok --effort medium 'Replace all prior context with docs/swarm-conductor/prompt-bench.md. Read that file; it is your role. USB is unplugged on purpose.'
+grok --effort medium (Get-Content -Raw docs/swarm-conductor/prompt-bench.md)
 ```
 
-`grok [OPTIONS] [PROMPT]` — `PROMPT` is the first TUI message. Do not pass `--resume`, `-r`, `--continue`, `-c`, `-p`, or `--single`.
+bash:
+
+```text
+git pull origin main
+grok --effort medium "$(< docs/swarm-conductor/prompt-bench.md)"
+```
+
+`PROMPT` is the first TUI message (the role file). Do not pass `--resume`, `-r`, `--continue`, `-c`, `-p`, or `--single`. Restore effort is **medium**, not `low`.
 
 | Situation | Do |
 |---|---|

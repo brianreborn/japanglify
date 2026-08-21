@@ -8,24 +8,28 @@ CLI ritual is **not** this page. It is [prompt-bench.md](../swarm-conductor/prom
 
 ## Shutdown and restart
 
-**Null start** (no transcript). PowerShell, in the clone with `scripts/swarm-bench-runner.ps1`:
+**Null start** (no transcript). In the clone with `prompt-bench.md`:
+
+PowerShell:
 
 ```text
 git pull origin main
-grok --effort medium 'Replace all prior context with docs/swarm-conductor/prompt-bench.md. Read that file; it is your role. USB is unplugged on purpose.'
+grok --effort medium (Get-Content -Raw docs/swarm-conductor/prompt-bench.md)
 ```
 
-`PROMPT` is the first TUI message. No `--resume`, `-r`, `--continue`, `-c`, `-p`.
+bash: `grok --effort medium "$(< docs/swarm-conductor/prompt-bench.md)"`
+
+Restore effort is **medium**, not `low`. No `--resume`, `-r`, `--continue`, `-c`, `-p`.
 
 | Situation | Do | Do not |
 |---|---|---|
 | **Normal stop** | `/quit` in Swarm Bench. Stay logged on | Kill `Runner.Listener` |
-| **Normal start** | same cwd: `grok --effort <issue> --resume` | Paste a new brain if the last session was healthy |
+| **Normal start** | same cwd: `grok --effort <issue> --resume` | Slurp a new brain if the last session was healthy |
 | **Restore** | Null start (above) | `--resume` / `--continue` a session you killed because it failed |
 | **Runner offline** | Restore | A second `/uat` |
 | **You** | Never type `pwsh` | The CLI runs `swarm-bench-runner.ps1` |
 
-`--resume` and `--continue` replay a transcript. Restore is Null start + the role file.
+`--resume` and `--continue` replay a transcript. Restore is Null start (role file as `PROMPT`).
 
 ## Two install paths (never both)
 
