@@ -52,6 +52,29 @@ function Write-RunnerEnv {
     }
 }
 
+function Ensure-SwarmLabel {
+    # Old installs skipped config.cmd when .runner existed, so GitHub never got swarm-bench.
+    try {
+        $jq = ".runners[] | select(.name==\"$Name\") | .labels[].name"
+        $have = @(gh api "repos/$Repo/actions/runners" --jq $jq)
+        if ($have.Count -eq 0) {
+            Write-Warning "runner $Name not listed on $Repo — wrong repo or offline"
+            return
+        }
+        Write-Host "github labels: $($have -join ',')"
+        if ($have -notcontains "swarm-bench") {
+            Write-Warning "missing swarm-bench — config --replace (jobs require self-hosted+Windows+swarm-bench)"
+            Get-Process Runner.Listener -ErrorAction SilentlyContinue | Stop-Process -Force
+            Start-Sleep -Seconds 2
+            $tok = (gh api --method POST "repos/$Repo/actions/runners/registration-token" --jq .token).Trim()
+            if (-not $tok) { throw "could not mint registration token" }
+            & .\config.cmd --unattended --url "https://github.com/$Repo" --token $tok --name $Name --labels $Labels --work "_work" --replace
+        }
+    } catch {
+        Write-Warning "could not verify runner labels: $($_.Exception.Message)"
+    }
+}
+
 Need-Gh
 
 if (-not (Get-Command adb -ErrorAction SilentlyContinue)) {
@@ -82,9 +105,9 @@ if (-not (Test-Path .\.runner)) {
     & .\config.cmd --unattended --url "https://github.com/$Repo" --token $tok --name $Name --labels $Labels --work "_work" --replace
 }
 
+Ensure-SwarmLabel
 Write-RunnerEnv
 
-# Do not svc.cmd — Windows services typically cannot talk to a user-session adb/USB device.
 $run = Join-Path $Root "run.cmd"
 $task = "swarm-bench-runner"
 try {
