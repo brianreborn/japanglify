@@ -6,17 +6,18 @@ Project-specific. Swarm Conductor reads this as the **instance work map**, not a
 
 **Names:** GitHub **issue** = bug report. GitHub **pull request** = proposed merge. Do not write “PR” in user-facing text; it is not a “problem report.”
 
-Owner Pixel UAT is **Swarm Bench** (Grok CLI + local Gradle + `adb` on Windows or Unix). Not the issue tracker, not GitHub-hosted assemble. GitHub is handoff (start / share tester APKs / done). See [swarm-bench.md](swarm-bench.md). Kickoff paste: [swarm-bench-kickoff.md](swarm-bench-kickoff.md) (**Effort: medium**).
+Owner Pixel UAT is **Swarm Bench**. GitHub `/uat` dispatches the self-hosted Windows runner; Grok CLI on that box is the inner loop. See [swarm-bench.md](swarm-bench.md). Commands: [commands.md](commands.md).
 
 ## Live (2026-08-21)
 
 | Piece | State |
 |---|---|
-| Swarm Conductor on official `main` | **running** |
-| `/accept` smoke [issue #9](https://github.com/brianreborn/japanglify/issues/9) | **passed** — Grok automation `japanglify-swarm-conductor` posted **ACCEPTED** (sticky as trusted actor). GitHub Actions `issue_comment` did not run; live gate is the automation |
-| Config JSON + `swarm-lease.py --self-test` | green on `main` |
-| Host leases | `docs/japanglify/hosts.json` (named + wildcard pools) |
-| Grok CLI bench kickoff | **Effort: medium** (do not leave default `high`) |
+| `/accept` `/block` | Grok automation `japanglify-swarm-conductor` (only intake). Actions accept.yml **removed** |
+| `/uat` | Actions `swarm-conductor-uat.yml` — does not list runners; waits for label `swarm-bench` |
+| Watchdog | Actions `swarm-watchdog.yml` — schedule only; sticky by marker, any author |
+| Config JSON + `swarm-lease.py --self-test` | `conductor-config.yml` on `main` |
+| Webhook conductor | **retired** (prompt is stop) |
+| Self-hosted `swarm-bench` runner | **not installed yet** — `/uat` will dispatch then queue |
 
 ## Repos
 
@@ -29,9 +30,9 @@ Owner Pixel UAT is **Swarm Bench** (Grok CLI + local Gradle + `adb` on Windows o
 
 | Official issue | Fork work | Action |
 |---|---|---|
-| [#5 chip problems](https://github.com/brianreborn/japanglify/issues/5) | [pull request #8](https://github.com/electrobrian/japanglify/pull/8) `agent/5-chip-persistence` | Keep that pull request. Scoreboard = official issue #5 |
-| [#6 live adjustment](https://github.com/brianreborn/japanglify/issues/6) | none yet | Stay here. New branch only after accept |
-| [#7 proper names](https://github.com/brianreborn/japanglify/issues/7) | [issue #9](https://github.com/electrobrian/japanglify/issues/9) + [pull request #12](https://github.com/electrobrian/japanglify/pull/12) | Do not restart pull request #12. Domain: Kuromoji `名詞,固有名詞`, no extra names dictionary |
+| [#5 chip problems](https://github.com/brianreborn/japanglify/issues/5) | [pull request #8](https://github.com/electrobrian/japanglify/pull/8) `agent/5-chip-persistence` | Keep that pull request. Scoreboard = official issue #5. Effort: high |
+| [#6 live adjustment](https://github.com/brianreborn/japanglify/issues/6) | none yet | Stay here. New branch only after accept. Effort: medium |
+| [#7 proper names](https://github.com/brianreborn/japanglify/issues/7) | [issue #9](https://github.com/electrobrian/japanglify/issues/9) + [pull request #12](https://github.com/electrobrian/japanglify/pull/12) | Do not restart pull request #12. Effort: medium |
 
 ## Fork-only (do not move)
 
@@ -52,7 +53,7 @@ official issue + /accept
   → Swarm Conductor may propose
   → electrobrian agent/* → pull request into BETA-2
       → tester APKs (ephemeral key)
-          → Pixel UAT (Swarm Bench, local)
+          → Pixel UAT (`/uat` or Swarm Bench CLI)
               → if fail: patch on the bench → adb again; push when handing off
               → if pass: pull request from fork → brianreborn/main
                   → you merge
