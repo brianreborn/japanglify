@@ -1,6 +1,6 @@
-# Cloud watchdog on official issues. Cannot propose work or push code.
+# Cloud watchdog beside Swarm Conductor. Cannot propose work or push code.
 # Does not close in-flight fork PRs (those are electrobrian's).
-name: Watchdog
+name: Swarm Conductor watchdog
 
 on:
   issue_comment:
@@ -41,7 +41,7 @@ jobs:
             fi
             STAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             BODY_OUT="${MARKER}
-## Swarm
+## Swarm Conductor
 **BLOCKED** by watchdog at ${STAMP}
 
 Quota \`commentsPerIssuePerHour\` exceeded (${COUNT} non-owner comments in 1h).
