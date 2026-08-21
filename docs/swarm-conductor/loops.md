@@ -6,6 +6,7 @@ Components talk only through GitHub comments. A comment must not be a command fo
 |---|---|
 | UAT dispatch / installed / failed (`swarm-bench-uat`) | another `/uat` |
 | Kick sent / bench woke (`swarm-kick`) | another `/kick` |
+| Queue stall (`swarm-uat-queued`) | `/uat` or `/kick` |
 | Watchdog ready (`swarm-uat-ready`, text mentions `/uat`) | `/uat` — **never** `contains('/uat')` in YAML |
 | Clip offer / splice (`swarm-clip-compact`, bot) | another shrink |
 | Conductor sticky (`swarm-conductor-status`) | `/accept` `/uat` `/kick` |
@@ -18,5 +19,6 @@ Rules in force:
 - Bots (`github-actions[bot]`) never run `/uat`, `/kick`, or clip.
 - A failed bench job is reported from **ubuntu** (`report` job).
 - `/kick` does not `/uat` or `/accept`. Spec: [kick.md](kick.md).
+- Queued > 20 min is [events.md](events.md), not a Grok poll.
 - `/accept` does not spawn a worker.
 - Conductor never replies “plain issue, not a PR”. Prompt: [prompt.md](prompt.md).
