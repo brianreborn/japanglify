@@ -214,6 +214,16 @@ jobs:
         working-directory: ${{ env.WORK }}
         run: |
           $ErrorActionPreference = "Stop"
+          $ksDir = Join-Path (Get-Location) "app\build"
+          New-Item -ItemType Directory -Force -Path $ksDir | Out-Null
+          $ks = Join-Path $ksDir "local-debug.keystore"
+          if (-not (Test-Path $ks)) {
+            $keytool = $null
+            if ($env:JAVA_HOME) { $keytool = Join-Path $env:JAVA_HOME "bin\keytool.exe" }
+            if (-not $keytool -or -not (Test-Path $keytool)) { $keytool = "keytool" }
+            & $keytool -genkeypair -keystore $ks -alias androiddebugkey -storepass android -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US" -noprompt
+            if ($LASTEXITCODE -ne 0) { throw "keytool failed ($LASTEXITCODE)" }
+          }
           .\gradlew.bat --no-daemon :app:assembleDownloadableDebug
 
       - name: adb install
