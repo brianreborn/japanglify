@@ -6,7 +6,7 @@ Project-specific. Swarm Conductor reads this as the **instance work map**, not a
 
 **Names:** GitHub **issue** = bug report. GitHub **pull request** = proposed merge. Do not write “PR” in user-facing text; it is not a “problem report.”
 
-Owner Pixel UAT is **Grok CLI + adb**, not the issue tracker. GitHub is handoff (start / share tester APKs / done).
+Owner Pixel UAT is **Swarm Bench** (Grok CLI + local Gradle + `adb` on Windows or Unix). Not the issue tracker, not GitHub-hosted assemble. GitHub is handoff (start / share tester APKs / done). See [swarm-bench.md](swarm-bench.md).
 
 ## Repos
 
@@ -42,8 +42,8 @@ official issue + /accept
   → Swarm Conductor may propose
   → electrobrian agent/* → pull request into BETA-2
       → tester APKs (ephemeral key)
-          → Pixel UAT
-              → if fail: comment on that pull request → new commit → new tester APKs (repeat)
+          → Pixel UAT (Swarm Bench, local)
+              → if fail: patch on the bench → adb again; push when handing off
               → if pass: pull request from fork → brianreborn/main
                   → you merge
                       → home official-signer + real keystore
