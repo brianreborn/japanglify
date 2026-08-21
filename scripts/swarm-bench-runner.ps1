@@ -39,14 +39,39 @@ function Ensure-ToolPath {
 }
 Ensure-ToolPath
 
-function Need-Gh {
+function Git-GitHubPassword {
+    $git = $env:SWARM_GIT
+    if (-not $git) { $git = "git" }
+    $fill = "protocol=https`nhost=github.com`n`n"
+    $out = $fill | & $git credential fill 2>$null
+    if ($LASTEXITCODE -ne 0) { return $null }
+    foreach ($line in @($out)) {
+        if ($line -match '^password=(.+)$') { return $Matches[1].Trim() }
+    }
+    return $null
+}
+
+function Ensure-GhAuth {
     if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
-        throw "gh not on PATH. Install GitHub CLI and run gh auth login as brianreborn."
+        throw "gh.exe not found (GitHub CLI). swarm-path.ps1 should have located C:\\Program Files\\GitHub CLI\\gh.exe"
     }
-    $login = (gh api user --jq .login).Trim()
-    if ($login -ne "brianreborn") {
-        Write-Warning "gh is $login  -  registration token needs repo admin on $Repo"
+    gh auth status --hostname github.com 2>$null | Out-Null
+    if ($LASTEXITCODE -eq 0) { return }
+    if ($env:GH_TOKEN -or $env:GITHUB_TOKEN) { return }
+    $pw = Git-GitHubPassword
+    if ($pw) {
+        Write-Host "gh auth: using Git Credential Manager (same as git pull)"
+        $pw | gh auth login --hostname github.com --with-token
+        gh auth status --hostname github.com 2>$null | Out-Null
+        if ($LASTEXITCODE -eq 0) { return }
     }
+    throw "gh is not logged in. One-time: gh auth login --hostname github.com --git-protocol https --web"
+}
+
+function Gh-LoginName {
+    $raw = gh api user --jq .login 2>$null
+    if (-not $raw) { return $null }
+    return ([string]$raw).Trim()
 }
 
 function Ensure-GrokEffortMedium {
@@ -206,7 +231,6 @@ function Start-KickWatch {
     Start-Process -FilePath $pwsh -ArgumentList @("-NoProfile", "-WindowStyle", "Hidden", "-File", $watch) -WindowStyle Hidden
 }
 
-Need-Gh
 Ensure-GrokEffortMedium
 
 if (-not (Get-Command adb -ErrorAction SilentlyContinue)) {
@@ -220,24 +244,41 @@ if (-not (Test-Path $Root)) {
 }
 Set-Location $Root
 
-if (-not (Test-Path .\config.cmd)) {
-    $tag = (gh api repos/actions/runner/releases/latest --jq .tag_name).Trim()
-    $ver = $tag.TrimStart("v")
-    $zip = "actions-runner-win-x64-$ver.zip"
-    $url = "https://github.com/actions/runner/releases/download/$tag/$zip"
-    Write-Host "download $url"
-    Invoke-WebRequest -Uri $url -OutFile $zip
-    Expand-Archive -Path $zip -DestinationPath . -Force
-    Remove-Item $zip
-}
-
-if (-not (Test-Path .\.runner)) {
+$already = Test-Path .\.runner
+if ($already) {
+    Write-Host "runner already registered (.runner present); gh is optional"
+    try {
+        Ensure-GhAuth
+        $who = Gh-LoginName
+        if ($who -and $who -ne "brianreborn") {
+            Write-Warning "gh is $who - registration token needs repo admin on $Repo"
+        }
+        Ensure-SwarmLabel
+    } catch {
+        Write-Warning "gh skipped (already registered): $($_.Exception.Message)"
+    }
+} else {
+    Ensure-GhAuth
+    $who = Gh-LoginName
+    if ($who -and $who -ne "brianreborn") {
+        Write-Warning "gh is $who - registration token needs repo admin on $Repo"
+    }
+    if (-not (Test-Path .\config.cmd)) {
+        $tag = (gh api repos/actions/runner/releases/latest --jq .tag_name).Trim()
+        $ver = $tag.TrimStart("v")
+        $zip = "actions-runner-win-x64-$ver.zip"
+        $url = "https://github.com/actions/runner/releases/download/$tag/$zip"
+        Write-Host "download $url"
+        Invoke-WebRequest -Uri $url -OutFile $zip
+        Expand-Archive -Path $zip -DestinationPath . -Force
+        Remove-Item $zip
+    }
     $tok = (gh api --method POST "repos/$Repo/actions/runners/registration-token" --jq .token).Trim()
-    if (-not $tok) { throw "could not mint registration token  -  need repo admin" }
+    if (-not $tok) { throw "could not mint registration token - need repo admin" }
     & .\config.cmd --unattended --url "https://github.com/$Repo" --token $tok --name $Name --labels $Labels --work "_work" --replace
+    Ensure-SwarmLabel
 }
 
-Ensure-SwarmLabel
 Write-RunnerEnv
 Remove-Item (Join-Path $Root ".swarm-disarmed") -Force -ErrorAction SilentlyContinue
 Install-KeepAlive
