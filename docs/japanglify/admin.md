@@ -2,7 +2,7 @@
 
 Not for reporters. Public repo, but this page is the admin cheat sheet.
 
-**One live bench:** `win11-pixel` (SHALOM). Grok CLI and the Actions listener share the Windows logon. The Pixel is on USB when you want phone UAT; unplugged USB does not excuse a dead listener.
+**USB rubric:** plugged + one `adb` device = Pixel UAT is possible. Unplugged = no `/uat`. Listener arm does not need USB; idle stop while unplugged so a leftover listener cannot grab the queue.
 
 | What | Path (from `scripts/swarm_paths.py --id win11-pixel`) |
 |---|---|

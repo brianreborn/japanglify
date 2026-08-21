@@ -40,13 +40,18 @@ python3 scripts/swarm-grok.py
 
 Never `taskkill` `Runner.Listener` by hand — use `swarm-bench-stop`. Never paste “start the runner” on a schedule.
 
-## Always this logon (USB optional)
+## USB rubric (UAT possible or not)
+
+USB plugged into this logon + `adb devices` shows one `device` = UAT can happen on a phone you have.
+USB unplugged (or unauthorized / missing) = UAT cannot happen. Do not `/uat`, do not `adb install`, do not pretend a tester APK landed.
+
+Arming the listener does **not** require USB. Unplugged USB is a pause: **idle stop** so a disconnected listener cannot grab the queue. Plug USB back in, then arm, then `/uat` on github.com.
+
+## Always this logon
 
 1. `git pull` on the clone that has `scripts/swarm-bench-runner.ps1`. The start script pulls unless `--no-pull`.
-2. If this box should take `/uat`: `pwsh -File scripts/swarm-bench-runner.ps1` once (arm). If it should stay idle: `scripts\swarm-bench-stop.cmd`.
+2. If this box should take `/uat` **and USB is plugged**: `pwsh -File scripts/swarm-bench-runner.ps1` once (arm). If it should stay idle (USB out): `scripts\swarm-bench-stop.cmd`.
 3. Reply one line: `Listener running yes/no`. Then `/quit`. If idle, you already stopped.
-
-Do not require `adb devices` to arm. Unplugged USB is a pause — **idle stop** so a disconnected listener cannot grab the queue.
 
 ## Never
 
