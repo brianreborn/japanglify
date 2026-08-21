@@ -22,6 +22,7 @@ on:
 permissions:
   issues: write
   contents: read
+  actions: read
 
 jobs:
   dispatch:
@@ -116,10 +117,34 @@ jobs:
           extra = f" pull request `{pull}`" if pull else ""
           run_id = os.environ.get("GITHUB_RUN_ID") or ""
           url = f"https://github.com/{repo}/actions/runs/{run_id}" if run_id else ""
+          def runner_line():
+              try:
+                  data = json.loads(
+                      subprocess.check_output(["gh", "api", f"repos/{repo}/actions/runners"], text=True)
+                  )
+              except Exception as e:
+                  return f"Runner status unknown ({e})."
+              hits = []
+              for rnr in data.get("runners") or []:
+                  labels = []
+                  for x in rnr.get("labels") or []:
+                      labels.append((x.get("name") if isinstance(x, dict) else x) or "")
+                  if "swarm-bench" in labels:
+                      hits.append(f"`{rnr.get('name')}` is **{rnr.get('status')}**")
+              if not hits:
+                  return "No runner labeled `swarm-bench` is registered."
+              extra_off = ""
+              if any("offline" in h for h in hits):
+                  extra_off = (
+                      " Bench sits until `scripts/swarm-bench-runner.ps1` starts Runner.Listener "
+                      "in that Windows logon. This is not a second command."
+                  )
+              return "Runner: " + "; ".join(hits) + "." + extra_off
+
           extra_run = f"\n\nRun: {url}" if url else ""
           comment(
               f"{marker}\n## Swarm Bench\n**UAT dispatched** for issue #{issue} → `{dev}` `{branch}`{extra} (via `{row.get('source')}`).{extra_run}\n\n"
-              f"Waiting for `SHALOM-swarm-bench`. Unlock the Pixel. Do not type a second command. This does not merge."
+              f"{runner_line()}\n\nUnlock the Pixel. Do not type a second command. This does not merge."
           )
           out("go", "true")
           out("issue", issue)
