@@ -4,7 +4,7 @@
 #
 # Robustness: Grok CLI is NOT the supervisor. This script:
 #   1. copies swarm-run-loop.cmd + swarm-kick-watch.ps1 to C:\actions-runner
-#   2. starts a hidden restart loop around Runner.Listener
+#   2. starts a visible restart loop around Runner.Listener (debug: watch the cmd window)
 #   3. persists via HKCU Run (Smart App Control often blocks Scheduled Task)
 #   4. sets Grok CLI default_reasoning_effort = medium in %USERPROFILE%\.grok\config.toml
 # Proof the host is up: GitHub runner status online, or Runner.Listener.exe.
@@ -187,14 +187,14 @@ function Install-KeepAlive {
         New-Item -Path $runKey -Force | Out-Null
     }
     if (Test-Path $loop) {
-        $loopCmd = "cmd.exe /c start `"swarm-bench`" /min `"$loop`""
+        $loopCmd = "cmd.exe /c start `"swarm-bench-listener`" `"$loop`""
         Set-ItemProperty -Path $runKey -Name "swarm-bench-loop" -Value $loopCmd
-        Write-Host "HKCU Run swarm-bench-loop (logon keep-alive; SAC-safe vs Scheduled Task)"
+        Write-Host "HKCU Run swarm-bench-loop (visible cmd; SAC-safe vs Scheduled Task)"
     }
     $pwsh = Get-Command pwsh -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
     if (-not $pwsh) { $pwsh = "powershell.exe" }
     if (Test-Path $watch) {
-        Set-ItemProperty -Path $runKey -Name "swarm-kick-watch" -Value "`"$pwsh`" -NoProfile -WindowStyle Hidden -File `"$watch`""
+        Set-ItemProperty -Path $runKey -Name "swarm-kick-watch" -Value "`"$pwsh`" -NoProfile -File `"$watch`""
         Write-Host "HKCU Run swarm-kick-watch"
     }
 }
@@ -215,12 +215,12 @@ function Start-ListenerLoop {
         return
     }
     if (Test-Path $loop) {
-        Write-Host "starting hidden $loop (keep this login; USB needs it)"
-        Start-Process -FilePath "cmd.exe" -ArgumentList @("/c", $loop) -WorkingDirectory $Root -WindowStyle Hidden
+        Write-Host "starting visible $loop (title swarm-bench-listener; USB needs this logon)"
+        Start-Process -FilePath "cmd.exe" -ArgumentList @("/c", "start", "swarm-bench-listener", $loop) -WorkingDirectory $Root -WindowStyle Normal
         return
     }
-    Write-Host "starting $run in this user session (keep this login; USB needs it)"
-    Start-Process -FilePath $run -WorkingDirectory $Root -WindowStyle Hidden
+    Write-Host "starting $run in this user session (visible; USB needs this logon)"
+    Start-Process -FilePath $run -WorkingDirectory $Root -WindowStyle Normal
 }
 
 function Start-KickWatch {
@@ -238,8 +238,8 @@ function Start-KickWatch {
     }
     $pwsh = Get-Command pwsh -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
     if (-not $pwsh) { $pwsh = "powershell.exe" }
-    Write-Host "starting kick-watch $watch"
-    Start-Process -FilePath $pwsh -ArgumentList @("-NoProfile", "-WindowStyle", "Hidden", "-File", $watch) -WindowStyle Hidden
+    Write-Host "starting kick-watch $watch (visible)"
+    Start-Process -FilePath $pwsh -ArgumentList @("-NoProfile", "-File", $watch) -WindowStyle Normal
 }
 
 Ensure-GrokEffortMedium

@@ -40,13 +40,13 @@ function Start-Listener {
         return
     }
     if (Test-Path $Loop) {
-        Write-Host "kick: starting $Loop (hidden)"
-        Start-Process -FilePath "cmd.exe" -ArgumentList @("/c", $Loop) -WorkingDirectory $Root -WindowStyle Hidden
+        Write-Host "kick: starting $Loop (visible swarm-bench-listener)"
+        Start-Process -FilePath "cmd.exe" -ArgumentList @("/c", "start", "swarm-bench-listener", $Loop) -WorkingDirectory $Root -WindowStyle Normal
         return
     }
     if (-not (Test-Path $Run)) { throw "missing $Run  -  register the runner first" }
-    Write-Host "kick: starting $Run"
-    Start-Process -FilePath $Run -WorkingDirectory $Root -WindowStyle Hidden
+    Write-Host "kick: starting $Run (visible)"
+    Start-Process -FilePath $Run -WorkingDirectory $Root -WindowStyle Normal
 }
 
 function Pending-Kick {

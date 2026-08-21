@@ -1,6 +1,6 @@
 @echo off
 REM Keep Runner.Listener alive for this Windows logon session — unless disarmed.
-REM Hidden. USB adb still needs this logon.
+REM Visible window (title swarm-bench-listener). USB adb still needs this logon.
 title swarm-bench-listener
 cd /d C:\actions-runner
 :loop

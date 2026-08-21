@@ -45,7 +45,7 @@ Never `taskkill` `Runner.Listener` by hand — use `swarm-bench-stop`. Never pas
 USB plugged into this logon + `adb devices` shows one `device` = UAT can happen on a phone you have.
 USB unplugged (or unauthorized / missing) = **that issue's UAT holds**. It is not a host-down. Leave the listener up. Other issues can still `/uat`.
 
-Do not idle-stop just because USB is out. Idle stop is only when the owner wants SHALOM idle (Grok down). Plug USB, unlock, `/uat` again on **that** issue.
+The listener is a **visible** cmd window titled `swarm-bench-listener`. Do not start a second `run.cmd` to "unhide" it — GitHub will Conflict. Close extras; leave one.
 
 Arming the listener does **not** require USB.
 
