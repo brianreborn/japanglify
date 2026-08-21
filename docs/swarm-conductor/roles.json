@@ -19,6 +19,15 @@
       "ledger.append",
       "alert.human"
     ],
+    "swarm-bench": [
+      "git.push-agent-branch",
+      "github.pr-create",
+      "github.issue-comment",
+      "test.domain",
+      "ledger.append",
+      "patch.propose",
+      "hypothesis.propose"
+    ],
     "reproducer": [
       "git.push-agent-branch",
       "test.domain",
@@ -55,6 +64,11 @@
       "assignment.propose",
       "git.push-agent-branch",
       "github.pr-create"
+    ],
+    "swarm-bench": [
+      "assignment.propose",
+      "secret.keystore-release",
+      "ci.remote-assemble"
     ]
   },
   "accept": {

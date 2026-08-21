@@ -10,6 +10,10 @@ intents, APKs, and in-flight Japanglify bugs live under `docs/japanglify/`.
 a **pull request** is a proposed merge. There is no “problem report” object.
 Do not abbreviate pull request as “PR” in user-facing text.
 
+**Swarm Conductor** (this directory) is cloud dispatch. **Swarm Bench** is the
+local starting set (build + device + handoff) — instance overlay, not generic
+conductor. Bench must not assemble on GitHub-hosted runners.
+
 ## What is generic
 
 - `/accept` `/block` (whole comment) and issue-body `+1` from a configured trusted actor
