@@ -246,10 +246,20 @@ def main() -> int:
     if not n:
         print("usage: swarm-clip.py shrink|ok <issue>", file=sys.stderr)
         return 2
-    if op == "ok" or swarm_cmd.has_command(raw, "/clip-ok"):
+    issue = load_issue(n)
+    trusted = cfg()["trustedActor"]
+    reporter = (issue.get("user") or {}).get("login") or ""
+    auth = swarm_cmd.authorized_command(
+        raw, actor=actor, trusted=trusted, reporter=reporter
+    )
+    if op == "ok" or auth == "/clip-ok":
         return cmd_ok(n, actor)
-    if swarm_cmd.has_command(raw, "/clip-shrink"):
+    if auth == "/clip-shrink":
         return cmd_shrink(n, auto=False)
+    hit = swarm_cmd.first_command(raw)
+    if hit in ("/clip-ok", "/clip-shrink"):
+        print("unauthorized command, skip", hit, actor)
+        return 0
     return cmd_shrink(n, auto=True)
 
 
