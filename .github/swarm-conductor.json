@@ -8,7 +8,9 @@
   "gates": {
     "accept": "grok-automation:japanglify-swarm-conductor",
     "uat": "actions:swarm-conductor-uat.yml",
-    "watchdog": "actions:swarm-watchdog.yml"
+    "watchdog": "actions:swarm-watchdog.yml",
+    "kick": "actions:swarm-kick.yml",
+    "ping": "actions:swarm-ping.yml"
   },
   "quotas": {
     "commentsPerIssuePerHour": 10
