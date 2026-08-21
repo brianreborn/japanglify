@@ -1,0 +1,171 @@
+# Owner /kick → mailbox. Members check pending events.
+# No inbound HTTPS on laptops. Bench kick runs ON the self-hosted listener.
+# NEVER YAML contains("/kick") as a substring of our own comments.
+name: Swarm kick
+
+concurrency:
+  group: kick-${{ github.event.inputs.host || github.event.issue.number || github.run_id }}
+  cancel-in-progress: false
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      host:
+        description: all | win11-pixel | grok-cloud | github-actions
+        required: false
+        default: all
+      issue:
+        description: Optional issue to comment on
+        required: false
+
+permissions:
+  issues: write
+  contents: read
+  actions: read
+
+jobs:
+  parse:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request == null &&
+        github.event.comment.user.login == 'brianreborn' &&
+        !contains(github.event.comment.body, 'swarm-kick') &&
+        (
+          startsWith(github.event.comment.body, '/kick') ||
+          endsWith(github.event.comment.body, '/kick')
+        )
+      )
+    runs-on: ubuntu-latest
+    outputs:
+      go: ${{ steps.p.outputs.go }}
+      target: ${{ steps.p.outputs.target }}
+      bench: ${{ steps.p.outputs.bench }}
+      cloud: ${{ steps.p.outputs.cloud }}
+      issue: ${{ steps.p.outputs.issue }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: p
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          ACTOR: ${{ github.event.comment.user.login || github.actor }}
+          BODY: ${{ github.event.comment.body || '' }}
+          ISSUE_COMMENT: ${{ github.event.issue.number || 0 }}
+          ISSUE_DISPATCH: ${{ github.event.inputs.issue || '' }}
+          HOST_DISPATCH: ${{ github.event.inputs.host || 'all' }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, subprocess, sys
+          sys.path.insert(0, "scripts")
+          import swarm_cmd, swarm_kick
+
+          cfg = json.loads(open(".github/swarm-conductor.json", encoding="utf-8").read())
+          trusted = cfg["trustedActor"]
+          actor = os.environ.get("ACTOR") or ""
+          event = os.environ["EVENT"]
+          body = os.environ.get("BODY") or ""
+
+          def out(k, v):
+              with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
+                  f.write(f"{k}={v}\n")
+
+          if event == "issue_comment":
+              cmd = swarm_cmd.authorized_command(body, actor=actor, trusted=trusted)
+              if cmd != "/kick":
+                  print("no authorized /kick")
+                  out("go", "false")
+                  raise SystemExit(0)
+              target = swarm_kick.parse_target(body)
+              issue = str(int(os.environ.get("ISSUE_COMMENT") or "0"))
+          else:
+              target = (os.environ.get("HOST_DISPATCH") or "all").strip() or "all"
+              raw = os.environ.get("ISSUE_DISPATCH") or ""
+              issue = str(int(raw)) if raw.strip().isdigit() else ""
+
+          row = swarm_kick.plan(target)
+          if not row["ok"]:
+              print("bad target", target)
+              out("go", "false")
+              raise SystemExit(0)
+
+          marker = "<!-- swarm-kick -->"
+          repo = os.environ["GH_REPO"]
+          run = os.environ.get("GITHUB_RUN_ID") or ""
+          url = f"https://github.com/{repo}/actions/runs/{run}" if run else ""
+          text = (
+              f"{marker}\n## Swarm kick\n**Kick sent** `{target}` — mailbox only, no inbound HTTPS.\n\n"
+              f"- bench ping: `{row['bench']}`\n"
+              f"- cloud pending list: `{row['cloud']}`\n"
+              f"- run {url}\n\n"
+              f"If the Windows listener is down, `scripts/swarm-kick-watch.ps1` on that box starts it. "
+              f"This does not `/uat` or `/accept`."
+          )
+          if issue and issue != "0":
+              subprocess.run(
+                  ["gh", "api", "-X", "POST", f"repos/{repo}/issues/{issue}/comments", "--input", "-"],
+                  input=json.dumps({"body": text}),
+                  text=True,
+                  check=True,
+              )
+          out("go", "true")
+          out("target", target)
+          out("bench", "true" if row["bench"] else "false")
+          out("cloud", "true" if row["cloud"] else "false")
+          out("issue", issue)
+          print("kick", row)
+          PY
+
+  cloud:
+    needs: parse
+    if: needs.parse.outputs.go == 'true' && needs.parse.outputs.cloud == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: List pending UAT / kick runs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh run list --repo "$GH_REPO" --workflow swarm-conductor-uat.yml --limit 8
+          gh run list --repo "$GH_REPO" --workflow swarm-kick.yml --limit 5
+          echo "cloud member checked pending events"
+
+  bench:
+    needs: parse
+    if: needs.parse.outputs.go == 'true' && needs.parse.outputs.bench == 'true'
+    runs-on: [self-hosted, Windows, swarm-bench]
+    timeout-minutes: 8
+    steps:
+      - name: Check pending + prove host
+        timeout-minutes: 5
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          ISSUE: ${{ needs.parse.outputs.issue }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          Write-Host "computer=$env:COMPUTERNAME kick"
+          Get-Process Runner.Listener -ErrorAction SilentlyContinue | Format-Table Id,ProcessName -AutoSize
+          adb devices -l
+          gh run list --repo $env:GH_REPO --workflow swarm-conductor-uat.yml --limit 5
+          $devs = @(adb devices | Select-String "\tdevice$")
+          if ($devs.Count -ne 1) { Write-Warning "adb device count=$($devs.Count)" }
+          if ($env:ISSUE -and $env:ISSUE -ne "0") {
+            $body = @"
+          <!-- swarm-kick -->
+          ## Swarm kick
+          **Bench woke** `$env:COMPUTERNAME`
+
+          - adb `$($devs.Count)` device(s)
+          - listener proved (this job ran on swarm-bench)
+
+          Checked pending UAT runs. This is not an install.
+          "@
+            @{ body = $body } | ConvertTo-Json | gh api -X POST "repos/$env:GH_REPO/issues/$env:ISSUE/comments" --input -
+          }
