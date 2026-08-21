@@ -7,7 +7,46 @@ Two knobs, GitHub as the mailbox. Agents do **not** scrape the SuperGrok meter.
 | **Request** | What the work wants | Issue label `effort:*` (and later a model if we pin one) |
 | **Cap** | What this SuperGrok window will pay for | [budget.json](../japanglify/budget.json) |
 
-**Effective** = the lowest of: issue request, fleet `cap.effort`, `perRole[role].effort`. Same for model if set.
+**Effective** = issue request, then min(fleet cap, per-role), then the host env band:
+
+| Env | Meaning |
+|---|---|
+| `SWARM_EFFORT_MIN` | Floor for **every** agent on this machine (`low`/`medium`/`high`/`xhigh`) |
+| `SWARM_EFFORT_MAX` | Ceiling for **every** agent on this machine |
+| `SWARM_MODEL` | Optional model id (same as a fleet model cap) |
+
+If min > max, **max wins** (wallet). Unset = no band. Cloud automations do not read these unless you set them there.
+
+Windows cmd (this logon):
+
+```bat
+set SWARM_EFFORT_MIN=medium
+set SWARM_EFFORT_MAX=high
+```
+
+Windows, persist for the user (next logon):
+
+```bat
+setx SWARM_EFFORT_MIN medium
+setx SWARM_EFFORT_MAX high
+```
+
+Unix:
+
+```sh
+export SWARM_EFFORT_MIN=medium
+export SWARM_EFFORT_MAX=high
+```
+
+PowerShell:
+
+```powershell
+$env:SWARM_EFFORT_MIN = "medium"
+$env:SWARM_EFFORT_MAX = "high"
+```
+
+`swarm-grok` / `swarm_budget.py` read them at **process start**. Changing the env does not `/effort` a running session.
+
 
 `scripts/swarm_budget.py` is the matcher. `scripts/swarm-grok.py` is the **one** start command (Windows cmd and Unix sh). `--effort` / model flags must be on **process start**. A cap change does not `/effort` a running session.
 
