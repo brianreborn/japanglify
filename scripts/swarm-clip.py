@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-"""Offer to shrink a still-heavy issue video unless it already looks compact.
+"""Auto-offer a compact clip when a fat video lands on an issue.
 
-/clip-shrink: transcode if over SMALL_KB, else leave it.
-/clip-ok: splice compact URL into the original comment. CDN blob may remain.
+Already-small (≤ SMALL_KB) is left alone (quiet on auto). /clip-ok splices.
 """
 
 from __future__ import annotations
@@ -117,10 +116,22 @@ def first_video(n: str) -> tuple[str, str, int | None] | None:
     return None
 
 
-def cmd_shrink(n: str) -> int:
+def already_offered(n: str) -> bool:
+    for c in comments(n):
+        body = c.get("body") or ""
+        if MARKER in body and "Compact clip offered" in body:
+            return True
+    return False
+
+
+def cmd_shrink(n: str, *, auto: bool) -> int:
     found = first_video(n)
     if not found:
-        post(n, f"{MARKER}\nNo original video URL found on this issue.")
+        if not auto:
+            post(n, f"{MARKER}\nNo original video URL found on this issue.")
+        return 0
+    if auto and already_offered(n):
+        print("already offered")
         return 0
 
     src = Path("clip-raw.bin")
@@ -129,11 +140,14 @@ def cmd_shrink(n: str) -> int:
     download(url, src)
     raw_kb = src.stat().st_size / 1024
     if raw_kb <= SMALL_KB:
-        post(
-            n,
-            f"{MARKER}\nAlready looks compact ({raw_kb:.0f} KB ≤ {SMALL_KB} KB) at `{where}`. "
-            f"Not transcoding. Leave it.",
-        )
+        if not auto:
+            post(
+                n,
+                f"{MARKER}\nAlready looks compact ({raw_kb:.0f} KB ≤ {SMALL_KB} KB) at `{where}`. "
+                f"Not transcoding. Leave it.",
+            )
+        else:
+            print(f"already small {raw_kb:.0f} KB")
         return 0
     subprocess.check_call(
         [sys.executable, "scripts/uat-clip.py", "--from", str(src), "-o", str(small)]
@@ -204,16 +218,17 @@ def cmd_ok(n: str, actor: str) -> int:
 
 
 def main() -> int:
-    if len(sys.argv) < 3:
+    n = os.environ.get("ISSUE") or (sys.argv[2] if len(sys.argv) > 2 else "")
+    op = (sys.argv[1] if len(sys.argv) > 1 else "") or os.environ.get("OP") or ""
+    actor = os.environ.get("ACTOR") or ""
+    body = (os.environ.get("BODY") or "").replace("\r", "").strip()
+    if not n:
         print("usage: swarm-clip.py shrink|ok <issue>", file=sys.stderr)
         return 2
-    op, n = sys.argv[1], sys.argv[2]
-    actor = os.environ.get("ACTOR") or ""
-    if op == "shrink":
-        return cmd_shrink(n)
-    if op == "ok":
+    if op == "ok" or body == "/clip-ok":
         return cmd_ok(n, actor)
-    raise SystemExit(f"unknown {op}")
+    auto = body != "/clip-shrink"
+    return cmd_shrink(n, auto=auto)
 
 
 if __name__ == "__main__":
