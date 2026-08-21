@@ -17,6 +17,7 @@ COMMANDS = {
     "/accept": ("trusted",),
     "/block": ("trusted",),
     "/uat": ("trusted",),
+    "/kick": ("trusted",),
     "/clip-shrink": ("trusted",),
     "/clip-ok": ("trusted", "reporter"),
 }
@@ -120,6 +121,9 @@ def self_test() -> int:
         ("/uat-map", "/uat", False),
         ("see /uat in docs", "/uat", False),
         ("please /uat now", "/uat", False),
+        ("/kick", "/kick", True),
+        ("/kick win11-pixel", "/kick", True),
+        ("do not `/kick`", "/kick", False),
         ("/clip-ok", "/clip-ok", True),
         ("If this still shows the bug, comment `/clip-ok` (owner or reporter).", "/clip-ok", False),
         ("/accept", "/accept", True),
@@ -136,6 +140,16 @@ def self_test() -> int:
         failed += 1
     else:
         print("ok unauthorized /uat skipped")
+    if authorized_command("/kick", actor="eve", trusted="brianreborn"):
+        print("FAIL unauthorized /kick")
+        failed += 1
+    else:
+        print("ok unauthorized /kick skipped")
+    if authorized_command("/kick win11-pixel", actor="brianreborn", trusted="brianreborn") != "/kick":
+        print("FAIL owner /kick")
+        failed += 1
+    else:
+        print("ok owner /kick")
     if authorized_command("/clip-ok", actor="eve", trusted="brianreborn", reporter="eve") != "/clip-ok":
         print("FAIL reporter /clip-ok")
         failed += 1
