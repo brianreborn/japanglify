@@ -51,8 +51,12 @@ function Ensure-GhOAuth {
     $env:SWARM_GH = $gh
     $env:PATH = ("{0};{1}" -f (Split-Path $gh), $env:PATH)
     Write-Host "using gh=$gh"
-    & $gh auth status --hostname github.com 2>$null | Out-Null
-    if ($LASTEXITCODE -eq 0) {
+    $prevEa = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    & $gh auth status --hostname github.com 2>&1 | Out-Null
+    $st = $LASTEXITCODE
+    $ErrorActionPreference = $prevEa
+    if ($st -eq 0) {
         Write-Host "gh already logged in"
         return
     }

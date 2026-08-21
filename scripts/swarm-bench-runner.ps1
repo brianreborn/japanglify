@@ -55,13 +55,20 @@ function Ensure-GhAuth {
         throw "gh.exe not found (GitHub CLI). Expected C:\\Program Files\\GitHub CLI\\gh.exe"
     }
     $env:PATH = ("{0};{1}" -f (Split-Path $ghExe), $env:PATH)
-    & $ghExe auth status --hostname github.com 2>$null | Out-Null
-    if ($LASTEXITCODE -eq 0) { return }
+    $prevEa = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    & $ghExe auth status --hostname github.com 2>&1 | Out-Null
+    $st = $LASTEXITCODE
+    $ErrorActionPreference = $prevEa
+    if ($st -eq 0) { return }
     if ($env:GH_TOKEN -or $env:GITHUB_TOKEN) { return }
     Write-Host "starting gh auth login --web (finish in the browser, then this script continues)"
     & $ghExe auth login --hostname github.com --git-protocol https --web
-    & $ghExe auth status --hostname github.com 2>$null | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "gh auth login did not finish" }
+    $ErrorActionPreference = "Continue"
+    & $ghExe auth status --hostname github.com 2>&1 | Out-Null
+    $st = $LASTEXITCODE
+    $ErrorActionPreference = $prevEa
+    if ($st -ne 0) { throw "gh auth login did not finish" }
 }
 
 function Gh-LoginName {
