@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 1,
-  "note": "Checked-in leases. No secrets. A machine asks GitHub (or this file in a clone) who it is — like DHCP with static reservations. Unknown machines get an --offer stub; they do not auto-register.",
+  "schemaVersion": 2,
+  "note": "Static reservations + wildcard pools. Most specific match wins. Empty match is id-only (not a catch-all). No secrets. Unknown does not auto-register.",
   "source": "brianreborn/japanglify/docs/japanglify/hosts.json",
   "unknown": {
     "role": null,
@@ -14,8 +14,8 @@
       "device": "adb",
       "devRepo": "electrobrian/japanglify",
       "branch": "BETA-2",
-      "notes": "Owner Windows 11 + Pixel USB. Bind hostname via matchHostnames after first --offer.",
-      "matchHostnames": [],
+      "notes": "Named reservation. Bind with match.hostname or --id. Beats the windows pool.",
+      "match": { "hostname": [] },
       "never": ["gradle.assemble-release", "secret.keystore-release", "ci.remote-assemble"]
     },
     {
@@ -25,8 +25,30 @@
       "device": "adb",
       "devRepo": "electrobrian/japanglify",
       "branch": "BETA-2",
-      "notes": "Linux/macOS/FreeBSD Linuxulator + Pixel.",
-      "matchHostnames": [],
+      "notes": "Named reservation for a specific Unix bench.",
+      "match": { "hostname": [] },
+      "never": ["gradle.assemble-release", "secret.keystore-release", "ci.remote-assemble"]
+    },
+    {
+      "id": "pool-bench-windows",
+      "role": "swarm-bench",
+      "os": "windows",
+      "device": "adb",
+      "devRepo": "electrobrian/japanglify",
+      "branch": "BETA-2",
+      "notes": "DHCP pool: any Windows box with a Pixel on adb.",
+      "match": { "osFamily": "windows", "adbAttached": true },
+      "never": ["gradle.assemble-release", "secret.keystore-release", "ci.remote-assemble"]
+    },
+    {
+      "id": "pool-bench-unix",
+      "role": "swarm-bench",
+      "os": "unix",
+      "device": "adb",
+      "devRepo": "electrobrian/japanglify",
+      "branch": "BETA-2",
+      "notes": "DHCP pool: any Unix box with a Pixel on adb.",
+      "match": { "osFamily": "unix", "adbAttached": true },
       "never": ["gradle.assemble-release", "secret.keystore-release", "ci.remote-assemble"]
     },
     {
@@ -34,8 +56,8 @@
       "role": "watchdog",
       "os": "linux",
       "device": null,
-      "notes": "GitHub-hosted. Conductor/watchdog/config only.",
-      "matchHostnames": [],
+      "notes": "GitHub-hosted. Not a laptop pool.",
+      "match": { "os": "linux", "hostname": ["fv-az*", "runner-*"] },
       "never": ["gradle.*", "adb.*", "secret.keystore-release", "secret.gh-electrobrian"]
     },
     {
@@ -43,8 +65,8 @@
       "role": "swarm-conductor",
       "os": "cloud",
       "device": null,
-      "notes": "Grok Automations. Dispatch only.",
-      "matchHostnames": [],
+      "notes": "Pin only (--id grok-cloud). Do not wildcard onto workstations.",
+      "match": {},
       "never": ["gradle.*", "adb.*", "secret.*", "git.push-agent-branch"]
     }
   ]
