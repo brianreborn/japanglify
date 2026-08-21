@@ -2,7 +2,7 @@
 
 Project-specific. Swarm Conductor reads this as the **instance work map**, not as conductor spec.
 
-**In-flight fork work is the source of truth until UAT.** Human-facing CI: [ci-for-humans.md](ci-for-humans.md) and the root README section.
+**In-flight fork work is the source of truth until UAT.** Human-facing CI: [ci-for-humans.md](ci-for-humans.md) and the root README section. Owner cheat sheet: [admin.md](admin.md).
 
 **Names:** GitHub **issue** = bug report. GitHub **pull request** = proposed merge. Do not write “PR” in user-facing text; it is not a “problem report.”
 
@@ -18,7 +18,7 @@ Owner Pixel UAT is **Swarm Bench**. GitHub `/uat` dispatches the self-hosted Win
 | Watchdog quotas | `swarm-watchdog.yml` — schedule only |
 | Config JSON + lease/uat-map self-test | `conductor-config.yml` on `main` |
 | Webhook conductor | **retired** |
-| Self-hosted `swarm-bench` runner | `pwsh -File scripts/swarm-bench-runner.ps1` on the logged-in Windows session (not a Windows service — USB) |
+| Self-hosted `swarm-bench` | one box, `win11-pixel`. Owner relaunch: `/quit` then `grok --effort xhigh --resume`. CLI starts the listener |
 
 ## Repos
 
@@ -31,9 +31,9 @@ Owner Pixel UAT is **Swarm Bench**. GitHub `/uat` dispatches the self-hosted Win
 
 | Official issue | Fork work | Action |
 |---|---|---|
-| [#5 chip problems](https://github.com/brianreborn/japanglify/issues/5) | [pull request #8](https://github.com/electrobrian/japanglify/pull/8) `agent/5-chip-persistence` | Keep that pull request. Scoreboard = official issue #5. Effort: high |
-| [#6 live adjustment](https://github.com/brianreborn/japanglify/issues/6) | none yet | Stay here. New branch only after accept. Effort: medium |
-| [#7 proper names](https://github.com/brianreborn/japanglify/issues/7) | [issue #9](https://github.com/electrobrian/japanglify/issues/9) + [pull request #12](https://github.com/electrobrian/japanglify/pull/12) | Do not restart pull request #12. Effort: medium |
+| [#5 chip problems](https://github.com/brianreborn/japanglify/issues/5) | [pull request #8](https://github.com/electrobrian/japanglify/pull/8) `agent/5-chip-persistence` | Keep that pull request. Scoreboard = official issue #5. Effort: xhigh |
+| [#6 live adjustment](https://github.com/brianreborn/japanglify/issues/6) | none yet | Stay here. New branch only after accept. Effort: xhigh |
+| [#7 proper names](https://github.com/brianreborn/japanglify/issues/7) | [issue #9](https://github.com/electrobrian/japanglify/issues/9) + [pull request #12](https://github.com/electrobrian/japanglify/pull/12) | Do not restart pull request #12. Effort: xhigh |
 
 ## Fork-only (do not move)
 
