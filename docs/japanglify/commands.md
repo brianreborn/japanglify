@@ -14,6 +14,8 @@ Matcher: `scripts/swarm_cmd.py`. YAML never uses `contains('/uat')`.
 
 Handlers **do not scan** a comment for `/commands` unless that user is allowed to run them. A stranger’s `/uat` never starts Swarm Bench. Those hits only go to the Actions warning log (`swarm-cmd-warn.yml`) — no issue comment.
 
+**Owner:** [admin.md](admin.md) — one runner, `/quit` then `--resume`, when to `/uat`. Not the bug form.
+
 Saved replies — [github.com/settings/replies](https://github.com/settings/replies) — [saved-replies.md](saved-replies.md). github.com.
 
 | Reply | Who may run it | What |
