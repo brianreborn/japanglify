@@ -1,6 +1,6 @@
 # Register and start the GitHub Actions self-hosted runner that `/uat` waits on.
+# Interactive user session — NOT a Windows service (services usually cannot see USB adb).
 # Labels: swarm-bench. GitHub also stamps self-hosted + Windows.
-# Run on the Windows 11 box with the Pixel. Repo admin `gh` auth required once.
 
 $ErrorActionPreference = "Stop"
 $Repo = "brianreborn/japanglify"
@@ -18,7 +18,42 @@ function Need-Gh {
     }
 }
 
+function Write-RunnerEnv {
+    $adb = (Get-Command adb -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source)
+    $java = $env:JAVA_HOME
+    $android = $env:ANDROID_HOME
+    if (-not $android -and $env:ANDROID_SDK_ROOT) { $android = $env:ANDROID_SDK_ROOT }
+    $lines = @()
+    if ($java) { $lines += "JAVA_HOME=$java" }
+    if ($android) {
+        $lines += "ANDROID_HOME=$android"
+        $lines += "ANDROID_SDK_ROOT=$android"
+    }
+    $extra = @()
+    if ($adb) { $extra += (Split-Path $adb -Parent) }
+    if ($java) { $extra += (Join-Path $java "bin") }
+    if ($android) {
+        $extra += (Join-Path $android "platform-tools")
+        $extra += (Join-Path $android "emulator")
+    }
+    if ($extra.Count -gt 0) {
+        $lines += ("PATH=" + ($extra -join ";") + ";" + $env:PATH)
+    }
+    if ($lines.Count -gt 0) {
+        Set-Content -Path (Join-Path $Root ".env") -Value $lines -Encoding ascii
+        Write-Host "wrote $Root\.env (adb/java for the runner process)"
+    } else {
+        Write-Warning "adb/JAVA_HOME/ANDROID_HOME not in this shell — /uat jobs may fail until they are"
+    }
+}
+
 Need-Gh
+
+if (-not (Get-Command adb -ErrorAction SilentlyContinue)) {
+    Write-Warning "adb not on PATH in this session. USB UAT will fail until it is."
+} else {
+    adb devices
+}
 
 if (-not (Test-Path $Root)) {
     New-Item -ItemType Directory -Path $Root | Out-Null
@@ -36,24 +71,27 @@ if (-not (Test-Path .\config.cmd)) {
     Remove-Item $zip
 }
 
-$svc = Get-Service -Name "actions.runner.*" -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "*$Repo*" -or $_.Name -like "*swarm-bench*" }
-if ($svc -and $svc.Status -eq "Running") {
-    Write-Host "already running: $($svc.Name)"
-    gh api "repos/$Repo/actions/runners" --jq ".runners[] | {name,status,labels:[.labels[].name]}" 2>$null
-    exit 0
-}
-
 if (-not (Test-Path .\.runner)) {
     $tok = (gh api --method POST "repos/$Repo/actions/runners/registration-token" --jq .token).Trim()
     if (-not $tok) { throw "could not mint registration token — need repo admin" }
     & .\config.cmd --unattended --url "https://github.com/$Repo" --token $tok --name $Name --labels $Labels --work "_work" --replace
 }
 
-if (Test-Path .\svc.cmd) {
-    & .\svc.cmd install
-    & .\svc.cmd start
-    Write-Host "service started as $Name labels=$Labels"
+Write-RunnerEnv
+
+# Do not svc.cmd — Windows services typically cannot talk to a user-session adb/USB device.
+$run = Join-Path $Root "run.cmd"
+$task = "swarm-bench-runner"
+Unregister-ScheduledTask -TaskName $task -Confirm:$false -ErrorAction SilentlyContinue
+$action = New-ScheduledTaskAction -Execute $run -WorkingDirectory $Root
+$trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+Register-ScheduledTask -TaskName $task -Action $action -Trigger $trigger -User $env:USERNAME -RunLevel Limited | Out-Null
+
+$already = Get-CimInstance Win32_Process -Filter "Name='Runner.Listener.exe'" -ErrorAction SilentlyContinue
+if ($already) {
+    Write-Host "Runner.Listener already running"
 } else {
-    Write-Host "no svc.cmd; starting foreground run.cmd (keep this window open)"
-    & .\run.cmd
+    Write-Host "starting $run in this user session (keep this login; USB needs it)"
+    Start-Process -FilePath $run -WorkingDirectory $Root -WindowStyle Minimized
 }
+Write-Host "registered $Name labels=$Labels  logon-task=$task"
