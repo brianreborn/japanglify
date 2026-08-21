@@ -7,10 +7,10 @@
   "devIntegrationBranch": "BETA-2",
   "profiles": ["android-app", "japanese-nlp"],
   "hosts": {
-    "swarm-conductor": ["github-actions", "grok-cloud"],
+    "swarm-conductor": ["grok-cloud"],
     "watchdog": ["github-actions"],
-    "swarm-bench": ["windows-workstation", "unix-workstation"],
-    "swarm-benchRule": "Run on the machine with the Pixel (adb). Windows and Unix are both valid. Do not assemble on GitHub-hosted runners for this role."
+    "swarm-bench": ["win11-pixel"],
+    "swarm-benchRule": "One live runner to start: win11-pixel (Grok CLI + Actions listener, same logon session, Pixel on USB). Classify, fix, and /uat all run there. Do not assemble on GitHub-hosted runners. Pools in hosts.json are dormant until a second machine exists."
   },
   "commands": [
     {"cmd": "/accept", "who": "owner", "does": "Accept the bug (intake)"},
