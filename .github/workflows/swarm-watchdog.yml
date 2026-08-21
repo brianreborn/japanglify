@@ -24,9 +24,6 @@ jobs:
           python3 - <<'PY'
           import json, os, pathlib, subprocess, datetime, sys
 
-          sys.path.insert(0, "scripts")
-          import uat_map
-
           cfg = json.loads(pathlib.Path(".github/swarm-conductor.json").read_text())
           trusted = cfg["trustedActor"]
           heading = cfg["heading"]
@@ -49,6 +46,17 @@ jobs:
                       text=True,
                   )
               )
+
+          def mapped(n):
+              proc = subprocess.run(
+                  [sys.executable, "scripts/uat-map.py", str(n)],
+                  text=True,
+                  capture_output=True,
+              )
+              raw = (proc.stdout or "").strip()
+              if not raw or raw == "{}":
+                  return None
+              return json.loads(raw)
 
           issues = api("GET", f"repos/{repo}/issues?state=open&per_page=50")
           for issue in issues:
@@ -87,17 +95,17 @@ jobs:
                   continue
               if saw_ready or saw_uat:
                   continue
-              mapped = uat_map.resolve(str(n), fetch=True)
-              if not mapped:
+              row = mapped(n)
+              if not row:
                   continue
-              pull = f" pull request `{mapped['pull']}`" if mapped.get("pull") else ""
+              pull = f" pull request `{row['pull']}`" if row.get("pull") else ""
               api(
                   "POST",
                   f"repos/{repo}/issues/{n}/comments",
                   {
                       "body": (
                           f"{ready_m}\n## Ready for Pixel UAT\n\n"
-                          f"`{mapped['devRepo']}` `{mapped['branch']}`{pull} is on the fork.\n\n"
+                          f"`{row['devRepo']}` `{row['branch']}`{pull} is on the fork.\n\n"
                           f"@{trusted}: to install it on the bench Pixel, comment `/uat` as the **whole comment** on github.com "
                           f"(not the Grok App). That is approval. Nothing installs until you do."
                       )
