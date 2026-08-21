@@ -109,7 +109,7 @@ def patch_comment(cid: int, body: str) -> None:
         f"repos/{repo()}/issues/comments/{cid}",
         "--input",
         "-",
-        input_text=json.dumps({"body": text}),
+        input_text=json.dumps({"body": body}),
     )
 
 
