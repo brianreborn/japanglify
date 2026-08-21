@@ -6,20 +6,22 @@ Effort lives on the **GitHub issue**, not in chat.
 2. First line of the issue body: `**Effort: high** (`grok --effort high`)`
 3. If both missing: **medium** (do not use the CLI default `high`)
 
+Bootstrap (clone, `adb`, lease, runner) is always **medium**.
+When product work starts, **do not** `/effort` mid-session. Canonical relaunch:
+
 ```text
-grok --effort <from the issue>
+/quit
+grok --effort <from the issue> --resume
 ```
 
-In a running session: `/effort <from the issue>` after reading the issue.
-
-Bootstrap (clone, `adb`, lease) is always **medium**. Switch to the issue’s level when product work starts.
+`--resume` keeps the same clone/lease/runner context. `--effort` must be on that process start. Same cwd.
 
 | Level | Use |
 |---|---|
 | `low` | Mechanical one-shot |
-| `medium` | Default; domain tests; design hash-out |
+| `medium` | Bootstrap; domain tests |
 | `high` | Overlay / timing / a11y on device |
-| `xhigh` | grok-4.6 only; rare |
+| `xhigh` | Classification + fix generation when the owner sets the label |
 
 Do not debate effort in a Conductor thread. Change the label on the issue.
 
