@@ -2,13 +2,14 @@
 """Map an official issue number to the electrobrian agent branch / pull request.
 
 instance.json uat.issues is an override. Else: open pull request whose head is
-agent/<issue>-*, else a matching ref. New bugs do not need a JSON edit.
+agent/<issue>-*, else body/title mentions brianreborn/japanglify#<issue>, else a matching ref.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -20,6 +21,17 @@ def instance() -> dict:
 
 def gh_json(path: str):
     return json.loads(subprocess.check_output(["gh", "api", path], text=True))
+
+
+def _row(issue: str, inst: dict, uat: dict, *, branch: str, pull, source: str) -> dict:
+    return {
+        "issue": str(issue),
+        "devRepo": inst["devRepo"],
+        "branch": branch,
+        "pull": pull,
+        "applicationId": uat.get("applicationId") or "com.japanglify.app",
+        "source": source,
+    }
 
 
 def resolve(issue: str, *, fetch: bool = True) -> dict | None:
@@ -38,27 +50,30 @@ def resolve(issue: str, *, fetch: bool = True) -> dict | None:
     if not fetch:
         return None
     dev = inst["devRepo"]
+    official = inst.get("officialRepo") or "brianreborn/japanglify"
     prefix = f"agent/{issue}"
+    link_re = re.compile(rf"(?:{re.escape(official)}#{issue}\b)")
     pulls = gh_json(f"repos/{dev}/pulls?state=open&per_page=50")
     hits = []
+    linked = []
     for p in pulls:
         if p.get("draft"):
             continue
         head = ((p.get("head") or {}).get("ref")) or ""
+        item = _row(issue, inst, uat, branch=head, pull=p["number"], source="pull")
         if head == prefix or head.startswith(prefix + "-"):
-            hits.append(
-                {
-                    "issue": str(issue),
-                    "devRepo": dev,
-                    "branch": head,
-                    "pull": p["number"],
-                    "applicationId": uat.get("applicationId") or "com.japanglify.app",
-                    "source": "pull",
-                }
-            )
+            hits.append(item)
+            continue
+        blob = f"{p.get('title') or ''} {p.get('body') or ''}"
+        if link_re.search(blob):
+            linked.append(item)
     if hits:
         hits.sort(key=lambda r: -int(r["pull"]))
         return hits[0]
+    if linked:
+        linked.sort(key=lambda r: -int(r["pull"]))
+        linked[0]["source"] = "pull-body"
+        return linked[0]
     try:
         refs = gh_json(f"repos/{dev}/git/matching-refs/heads/{prefix}")
     except subprocess.CalledProcessError:
@@ -71,14 +86,7 @@ def resolve(issue: str, *, fetch: bool = True) -> dict | None:
     if not branches:
         return None
     branches.sort()
-    return {
-        "issue": str(issue),
-        "devRepo": dev,
-        "branch": branches[0],
-        "pull": None,
-        "applicationId": uat.get("applicationId") or "com.japanglify.app",
-        "source": "ref",
-    }
+    return _row(issue, inst, uat, branch=branches[0], pull=None, source="ref")
 
 
 def self_test() -> int:
