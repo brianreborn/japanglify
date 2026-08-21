@@ -40,15 +40,27 @@ function Ensure-ToolPath {
 Ensure-ToolPath
 
 function Ensure-GhAuth {
-    if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
-        throw "gh.exe not found (GitHub CLI). swarm-path.ps1 should have located C:\\Program Files\\GitHub CLI\\gh.exe"
+    $ghExe = $env:SWARM_GH
+    if (-not $ghExe -or -not (Test-Path $ghExe)) {
+        foreach ($c in @(
+            "C:\Program Files\GitHub CLI\gh.exe",
+            "C:\Program Files (x86)\GitHub CLI\gh.exe"
+        )) { if (Test-Path $c) { $ghExe = $c; break } }
     }
-    gh auth status --hostname github.com 2>$null | Out-Null
+    if (-not $ghExe) {
+        $cmd = Get-Command gh -ErrorAction SilentlyContinue
+        if ($cmd) { $ghExe = $cmd.Source }
+    }
+    if (-not $ghExe) {
+        throw "gh.exe not found (GitHub CLI). Expected C:\\Program Files\\GitHub CLI\\gh.exe"
+    }
+    $env:PATH = ("{0};{1}" -f (Split-Path $ghExe), $env:PATH)
+    & $ghExe auth status --hostname github.com 2>$null | Out-Null
     if ($LASTEXITCODE -eq 0) { return }
     if ($env:GH_TOKEN -or $env:GITHUB_TOKEN) { return }
     Write-Host "starting gh auth login --web (finish in the browser, then this script continues)"
-    gh auth login --hostname github.com --git-protocol https --web
-    gh auth status --hostname github.com 2>$null | Out-Null
+    & $ghExe auth login --hostname github.com --git-protocol https --web
+    & $ghExe auth status --hostname github.com 2>$null | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "gh auth login did not finish" }
 }
 
@@ -230,23 +242,14 @@ Set-Location $Root
 
 $already = Test-Path .\.runner
 if ($already) {
-    Write-Host "runner already registered (.runner present); gh is optional"
-    try {
-        Ensure-GhAuth
-        $who = Gh-LoginName
-        if ($who -and $who -ne "brianreborn") {
-            Write-Warning "gh is $who - registration token needs repo admin on $Repo"
-        }
-        Ensure-SwarmLabel
-    } catch {
-        Write-Warning "gh skipped (already registered): $($_.Exception.Message)"
-    }
-} else {
-    Ensure-GhAuth
-    $who = Gh-LoginName
-    if ($who -and $who -ne "brianreborn") {
-        Write-Warning "gh is $who - registration token needs repo admin on $Repo"
-    }
+    Write-Host "runner already registered (.runner present)"
+}
+Ensure-GhAuth
+$who = Gh-LoginName
+if ($who -and $who -ne "brianreborn") {
+    Write-Warning "gh is $who - registration token needs repo admin on $Repo"
+}
+if (-not $already) {
     if (-not (Test-Path .\config.cmd)) {
         $tag = (gh api repos/actions/runner/releases/latest --jq .tag_name).Trim()
         $ver = $tag.TrimStart("v")
@@ -260,8 +263,8 @@ if ($already) {
     $tok = (gh api --method POST "repos/$Repo/actions/runners/registration-token" --jq .token).Trim()
     if (-not $tok) { throw "could not mint registration token - need repo admin" }
     & .\config.cmd --unattended --url "https://github.com/$Repo" --token $tok --name $Name --labels $Labels --work "_work" --replace
-    Ensure-SwarmLabel
 }
+Ensure-SwarmLabel
 
 Write-RunnerEnv
 Remove-Item (Join-Path $Root ".swarm-disarmed") -Force -ErrorAction SilentlyContinue

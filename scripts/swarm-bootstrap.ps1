@@ -36,6 +36,33 @@ function Import-SwarmPath {
 
 Import-SwarmPath
 
+function Ensure-GhOAuth {
+    $gh = $env:SWARM_GH
+    foreach ($c in @(
+        $gh,
+        "C:\Program Files\GitHub CLI\gh.exe",
+        "C:\Program Files (x86)\GitHub CLI\gh.exe"
+    )) {
+        if ($c -and (Test-Path -LiteralPath $c)) { $gh = $c; break }
+    }
+    if (-not $gh -or -not (Test-Path -LiteralPath $gh)) {
+        throw "gh.exe not found (GitHub CLI system install)"
+    }
+    $env:SWARM_GH = $gh
+    $env:PATH = ("{0};{1}" -f (Split-Path $gh), $env:PATH)
+    Write-Host "using gh=$gh"
+    & $gh auth status --hostname github.com 2>$null | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "gh already logged in"
+        return
+    }
+    Write-Host "starting GitHub OAuth (browser) - finish as brianreborn, then this continues"
+    & $gh auth login --hostname github.com --git-protocol https --web
+    if ($LASTEXITCODE -ne 0) { throw "gh auth login did not finish" }
+}
+
+if (-not $DryRun) { Ensure-GhOAuth }
+
 $OfficialRepo = "brianreborn/japanglify"
 $DevRepo = "electrobrian/japanglify"
 $OfficialBranch = "main"
