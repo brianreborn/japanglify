@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Shrink a still-heavy issue video, then remove the original from the thread after /clip-ok.
+"""Shrink a still-heavy issue video, then put the compact file in the original spot.
 
-GitHub does not let us delete the CDN blob. /clip-ok only unlinks it from the issue
-(delete or edit the comment / issue body). The compact copy is a prerelease tag clip-<n>.
+/clip-ok splices the compact URL into the reporter's comment (or issue body) where
+the big video was, then drops the extra bot preview. GitHub does not let us
+delete the CDN blob; the old URL may still resolve.
 """
 
 from __future__ import annotations
@@ -49,6 +50,14 @@ def videos_in(text: str) -> list[str]:
     return VIDEO_RE.findall(text or "")
 
 
+def compact_url(n: str) -> str:
+    return f"https://github.com/{repo()}/releases/download/clip-{n}/clip-{n}.mp4"
+
+
+def splice(text: str, compact: str) -> str:
+    return VIDEO_RE.sub(compact, text or "")
+
+
 def download(url: str, dest: Path) -> None:
     token = os.environ["GH_TOKEN"]
     req = Request(
@@ -68,6 +77,28 @@ def post(n: str, body: str) -> None:
         "-X",
         "POST",
         f"repos/{repo()}/issues/{n}/comments",
+        "--input",
+        "-",
+        input_text=json.dumps({"body": body}),
+    )
+
+
+def patch_issue(n: str, body: str) -> None:
+    gh(
+        "-X",
+        "PATCH",
+        f"repos/{repo()}/issues/{n}",
+        "--input",
+        "-",
+        input_text=json.dumps({"body": body}),
+    )
+
+
+def patch_comment(cid: int, body: str) -> None:
+    gh(
+        "-X",
+        "PATCH",
+        f"repos/{repo()}/issues/comments/{cid}",
         "--input",
         "-",
         input_text=json.dumps({"body": body}),
@@ -118,19 +149,16 @@ def cmd_shrink(n: str) -> int:
             "Still-heavy bug video after mpdecimate. Not an app release. Not /latest.",
         ]
     )
-    asset = f"https://github.com/{repo()}/releases/download/{tag}/{small.name}"
+    asset = compact_url(n)
     post(
         n,
         f"{MARKER}\n## Compact clip\n\n"
         f"Source: `{where}` ({raw_kb:.0f} KB) → [{small.name}]({asset}) ({small_kb:.0f} KB).\n\n"
         f"If this still shows the bug, comment `/clip-ok` (owner or reporter). "
-        f"That **unlinks** the original from this thread. GitHub may keep the old CDN URL until they purge it.",
+        f"That puts this file **in the original comment** and unlinks the big one from the thread. "
+        f"GitHub may keep the old CDN URL until they purge it.",
     )
     return 0
-
-
-def strip_urls(text: str) -> str:
-    return VIDEO_RE.sub("(original video removed after /clip-ok)", text or "")
 
 
 def cmd_ok(n: str, actor: str) -> int:
@@ -141,27 +169,26 @@ def cmd_ok(n: str, actor: str) -> int:
     if actor not in allowed:
         print("ignored actor", actor)
         return 0
+    compact = compact_url(n)
+    swapped = 0
     if issue.get("body") and videos_in(issue["body"]):
-        new_body = strip_urls(issue["body"])
-        gh(
-            "-X",
-            "PATCH",
-            f"repos/{repo()}/issues/{n}",
-            "--input",
-            "-",
-            input_text=json.dumps({"body": new_body}),
-        )
+        patch_issue(n, splice(issue["body"], compact))
+        swapped += 1
     for row in comments(n):
         body = row.get("body") or ""
         if MARKER in body:
             continue
         if not videos_in(body):
             continue
-        gh("-X", "DELETE", f"repos/{repo()}/issues/comments/{row['id']}")
+        patch_comment(row["id"], splice(body, compact))
+        swapped += 1
+    for row in comments(n):
+        if MARKER in (row.get("body") or ""):
+            gh("-X", "DELETE", f"repos/{repo()}/issues/comments/{row['id']}")
     post(
         n,
-        f"{MARKER}\n**Original unlinked** by @{actor} via /clip-ok. Compact clip is the `clip-{n}` prerelease. "
-        f"The old URL may still resolve on GitHub's CDN.",
+        f"{MARKER}\n**Spliced** by @{actor} via /clip-ok ({swapped} original slot(s) → compact). "
+        f"Reporter text stayed. Old CDN URL may still resolve.",
     )
     return 0
 
