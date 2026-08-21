@@ -1,0 +1,63 @@
+name: Swarm Conductor watchdog
+
+on:
+  workflow_dispatch:
+  issue_comment:
+    types: [created]
+  schedule:
+    - cron: "*/15 * * * *"
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  quotas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Comment-rate trip
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, pathlib
+          cfg = json.loads(pathlib.Path(".github/swarm-conductor.json").read_text())
+          q = cfg.get("quotas", {})
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as f:
+              f.write("TRUSTED=%s\n" % cfg["trustedActor"])
+              f.write("HEADING=%s\n" % cfg["heading"])
+              f.write("MARKER=%s\n" % cfg["statusMarker"])
+              f.write("MAX_COMMENTS_PER_HOUR=%s\n" % q.get("commentsPerIssuePerHour", 10))
+          PY
+          CUTOFF="$(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%SZ)"
+          gh api "repos/${GH_REPO}/issues?state=open&per_page=50" \
+            | jq -r '.[] | select(.pull_request == null) | .number' \
+            | while read -r ISSUE; do
+            [ -z "$ISSUE" ] && continue
+            COUNT="$(gh api "repos/${GH_REPO}/issues/${ISSUE}/comments" --paginate \
+              | jq --arg c "$CUTOFF" --arg t "$TRUSTED" '
+                [.[] | select(.created_at >= $c)
+                     | select(.user.login != $t)
+                     | select(.user.login != "github-actions[bot]")] | length')"
+            if [ "${COUNT:-0}" -le "$MAX_COMMENTS_PER_HOUR" ]; then
+              continue
+            fi
+            STAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            BODY_OUT="${MARKER}
+## ${HEADING}
+**BLOCKED** by watchdog at ${STAMP}
+
+Quota commentsPerIssuePerHour exceeded (${COUNT} non-owner comments in 1h).
+No new agent assignment until @${TRUSTED} posts /accept as the whole comment."
+            EXISTING="$(gh api "repos/${GH_REPO}/issues/${ISSUE}/comments" --paginate \
+              | jq -r --arg m "$MARKER" '.[] | select(.user.login=="github-actions[bot]" and (.body|contains($m))) | .id' \
+              | head -n1 || true)"
+            if [ -n "${EXISTING}" ]; then
+              gh api -X PATCH "repos/${GH_REPO}/issues/comments/${EXISTING}" -f body="$BODY_OUT"
+            else
+              gh api -X POST "repos/${GH_REPO}/issues/${ISSUE}/comments" -f body="$BODY_OUT"
+            fi
+          done

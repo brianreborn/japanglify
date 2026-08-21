@@ -1,0 +1,101 @@
+name: Swarm Conductor accept
+
+on:
+  workflow_dispatch:
+  issue_comment:
+    types: [created]
+  schedule:
+    - cron: "*/15 * * * *"
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  from-comment:
+    if: ${{ github.event_name == 'issue_comment' && github.event.issue.pull_request == null }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Gate /accept /block
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          ISSUE: ${{ github.event.issue.number }}
+          ACTOR: ${{ github.event.comment.user.login }}
+          BODY: ${{ github.event.comment.body }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, pathlib
+          cfg = json.loads(pathlib.Path(".github/swarm-conductor.json").read_text())
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as f:
+              f.write("TRUSTED=%s\n" % cfg["trustedActor"])
+              f.write("HEADING=%s\n" % cfg["heading"])
+              f.write("MARKER=%s\n" % cfg["statusMarker"])
+          PY
+          BODY_TRIM="$(printf '%s' "$BODY" | tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+          case "$BODY_TRIM" in
+            /accept) STATE=ACCEPTED; CMD=accept ;;
+            /block)  STATE=BLOCKED;  CMD=block ;;
+            *) echo "not a gate command"; exit 0 ;;
+          esac
+          if [ "$ACTOR" != "$TRUSTED" ]; then
+            echo "ignored actor $ACTOR"
+            exit 0
+          fi
+          EXISTING="$(gh api "repos/${GH_REPO}/issues/${ISSUE}/comments" --paginate \
+            | jq -r --arg m "$MARKER" '.[] | select(.user.login=="github-actions[bot]" and (.body|contains($m))) | .id' \
+            | head -n1 || true)"
+          STAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          BODY_OUT="${MARKER}
+## ${HEADING}
+**${STATE}** by @${TRUSTED} via /${CMD} at ${STAMP}
+
+This only records the issue gate. It does not merge, sign, or open a pull request."
+          if [ -n "${EXISTING}" ]; then
+            gh api -X PATCH "repos/${GH_REPO}/issues/comments/${EXISTING}" -f body="$BODY_OUT"
+          else
+            gh api -X POST "repos/${GH_REPO}/issues/${ISSUE}/comments" -f body="$BODY_OUT"
+          fi
+
+  from-reaction:
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Plus-one on issue body
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, pathlib
+          cfg = json.loads(pathlib.Path(".github/swarm-conductor.json").read_text())
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as f:
+              f.write("TRUSTED=%s\n" % cfg["trustedActor"])
+              f.write("HEADING=%s\n" % cfg["heading"])
+              f.write("MARKER=%s\n" % cfg["statusMarker"])
+          PY
+          gh api "repos/${GH_REPO}/issues?state=open&per_page=50" \
+            | jq -r '.[] | select(.pull_request == null) | .number' \
+            | while read -r ISSUE; do
+            [ -z "$ISSUE" ] && continue
+            STICKY="$(gh api "repos/${GH_REPO}/issues/${ISSUE}/comments" --paginate \
+              | jq -r --arg m "$MARKER" '.[] | select(.user.login=="github-actions[bot]" and (.body|contains($m))) | .body' \
+              | head -n1 || true)"
+            if printf '%s' "$STICKY" | grep -qE '\*\*ACCEPTED\*\*|\*\*BLOCKED\*\*'; then
+              continue
+            fi
+            HIT="$(gh api "repos/${GH_REPO}/issues/${ISSUE}/reactions" \
+              | jq --arg u "$TRUSTED" '[.[] | select(.user.login==$u and .content=="+1")] | length')"
+            [ "$HIT" = "0" ] && continue
+            STAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            BODY_OUT="${MARKER}
+## ${HEADING}
+**ACCEPTED** by @${TRUSTED} via issue-body +1 at ${STAMP}
+
+This only records the issue gate. It does not merge, sign, or open a pull request."
+            gh api -X POST "repos/${GH_REPO}/issues/${ISSUE}/comments" -f body="$BODY_OUT"
+          done
