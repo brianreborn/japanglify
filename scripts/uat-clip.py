@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Record a short Pixel UAT clip and shrink still-heavy footage.
 
-Stock Android screenrecord is ~4 Mbps CBR (15s ≈ 7.5 MB) even when the chip
-does not move. This records at 400 kbps, then ffmpeg mpdecimate + 6 fps.
+Input: mp4 / mov / webm (whatever ffmpeg reads). Compact output defaults to
+VP9 WebM — smaller on still UI than CBR H.264. GitHub's inline player is
+mp4/mov only; compact files live on a release link anyway.
 """
 
 from __future__ import annotations
@@ -50,6 +51,10 @@ def record(seconds: int, dest: Path) -> Path:
     return dest
 
 
+def _vf() -> str:
+    return "mpdecimate,fps=6,scale=720:-2"
+
+
 def shrink(src: Path, dest: Path) -> Path:
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
@@ -57,31 +62,31 @@ def shrink(src: Path, dest: Path) -> Path:
         if src.resolve() != dest.resolve():
             dest.write_bytes(src.read_bytes())
         return dest
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    webm = dest.suffix.lower() != ".mp4"
+    if webm and dest.suffix.lower() != ".webm":
+        dest = dest.with_suffix(".webm")
+    if webm:
+        cmd = [
+            ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
+            "-i", str(src), "-an", "-vf", _vf(),
+            "-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "36",
+            "-cpu-used", "4", "-row-mt", "1", "-deadline", "good",
+            "-pix_fmt", "yuv420p", str(dest),
+        ]
+        try:
+            run(cmd)
+            return dest
+        except subprocess.CalledProcessError:
+            print("VP9 failed; falling back to H.264 mp4", file=sys.stderr)
+            dest = dest.with_suffix(".mp4")
     run(
         [
-            ffmpeg,
-            "-y",
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-i",
-            str(src),
-            "-an",
-            "-vf",
-            "mpdecimate,fps=6,scale=720:-2",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "fast",
-            "-crf",
-            "32",
-            "-tune",
-            "stillimage",
-            "-pix_fmt",
-            "yuv420p",
-            "-movflags",
-            "+faststart",
-            str(dest),
+            ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
+            "-i", str(src), "-an", "-vf", _vf(),
+            "-c:v", "libx264", "-preset", "fast", "-crf", "32",
+            "-tune", "stillimage", "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart", str(dest),
         ]
     )
     return dest
@@ -90,9 +95,9 @@ def shrink(src: Path, dest: Path) -> Path:
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--record", action="store_true", help="adb screenrecord on the Pixel")
-    p.add_argument("--from", dest="src", type=Path, help="shrink an existing mp4")
+    p.add_argument("--from", dest="src", type=Path, help="shrink an existing mp4/mov/webm")
     p.add_argument("--seconds", type=int, default=15)
-    p.add_argument("-o", "--out", type=Path, default=Path("uat-small.mp4"))
+    p.add_argument("-o", "--out", type=Path, default=Path("uat-small.webm"))
     args = p.parse_args()
 
     raw = Path("uat-raw.mp4")

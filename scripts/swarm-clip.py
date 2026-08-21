@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Auto-offer a compact clip when a fat video lands on an issue.
 
+Accepts GitHub attachment URLs and .webm/.mp4/.mov links. Compact file is VP9 WebM.
 Already-small (≤ SMALL_KB) is left alone (quiet on auto). /clip-ok splices.
 """
 
@@ -18,7 +19,10 @@ MARKER = "<!-- swarm-clip-compact -->"
 SMALL_KB = 512
 VIDEO_RE = re.compile(
     r"https://(?:github\.com/user-attachments/assets/[A-Za-z0-9-]+|"
-    r"(?:private-)?user-images\.githubusercontent\.com/[^\s)"']+)"
+    r"(?:private-)?user-images\.githubusercontent\.com/[^\s)"']+|"
+    r"github\.com/[\w.-]+/[\w.-]+/(?:releases/download|raw)/[^\s)"']+\.(?:webm|mp4|mov)|"
+    r"[\w.-]+/[^\s)"']+\.webm)",
+    re.I,
 )
 
 
@@ -46,11 +50,13 @@ def comments(n: str) -> list[dict]:
 
 
 def videos_in(text: str) -> list[str]:
-    return VIDEO_RE.findall(text or "")
+    urls = VIDEO_RE.findall(text or "")
+    return [u for u in urls if f"/releases/download/clip-" not in u]
 
 
-def compact_url(n: str) -> str:
-    return f"https://github.com/{repo()}/releases/download/clip-{n}/clip-{n}.mp4"
+def compact_url(n: str, name: str = "") -> str:
+    asset = name or f"clip-{n}.webm"
+    return f"https://github.com/{repo()}/releases/download/clip-{n}/{asset}"
 
 
 def splice(text: str, compact: str) -> str:
@@ -135,7 +141,7 @@ def cmd_shrink(n: str, *, auto: bool) -> int:
         return 0
 
     src = Path("clip-raw.bin")
-    small = Path(f"clip-{n}.mp4")
+    small = Path(f"clip-{n}.webm")
     where, url, _ = found
     download(url, src)
     raw_kb = src.stat().st_size / 1024
@@ -152,9 +158,10 @@ def cmd_shrink(n: str, *, auto: bool) -> int:
     subprocess.check_call(
         [sys.executable, "scripts/uat-clip.py", "--from", str(src), "-o", str(small)]
     )
-    if not small.is_file():
+    produced = small if small.is_file() else small.with_suffix(".mp4")
+    if not produced.is_file():
         raise SystemExit("shrink produced no file")
-    small_kb = small.stat().st_size / 1024
+    small_kb = produced.stat().st_size / 1024
     tag = f"clip-{n}"
     subprocess.call(
         ["gh", "release", "delete", tag, "--yes", "--cleanup-tag"],
@@ -166,19 +173,19 @@ def cmd_shrink(n: str, *, auto: bool) -> int:
             "release",
             "create",
             tag,
-            str(small),
+            str(produced),
             "--prerelease",
             "--title",
             f"compact clip for issue {n}",
             "--notes",
-            "Still-heavy bug video after mpdecimate. Not an app release. Not /latest.",
+            "Still-heavy bug video after mpdecimate (WebM VP9, or mp4 fallback). Not an app release. Not /latest.",
         ]
     )
-    asset = compact_url(n)
+    asset = compact_url(n, produced.name)
     post(
         n,
         f"{MARKER}\n## Compact clip offered\n\n"
-        f"Source: `{where}` ({raw_kb:.0f} KB) → [{small.name}]({asset}) ({small_kb:.0f} KB).\n\n"
+        f"Source: `{where}` ({raw_kb:.0f} KB) → [{produced.name}]({asset}) ({small_kb:.0f} KB).\n\n"
         f"If this still shows the bug, comment `/clip-ok` (owner or reporter). "
         f"That puts this file **in the original comment** and unlinks the big one from the thread.",
     )
@@ -193,7 +200,18 @@ def cmd_ok(n: str, actor: str) -> int:
     if actor not in allowed:
         print("ignored actor", actor)
         return 0
-    compact = compact_url(n)
+    name = f"clip-{n}.webm"
+    mp4 = f"clip-{n}.mp4"
+    compact = compact_url(n, name)
+    for row in comments(n):
+        body = row.get("body") or ""
+        if MARKER in body and ".mp4" in body and ".webm" not in body:
+            compact = compact_url(n, mp4)
+            name = mp4
+            break
+        if MARKER in body and name in body:
+            compact = compact_url(n, name)
+            break
     swapped = 0
     if issue.get("body") and videos_in(issue["body"]):
         patch_issue(n, splice(issue["body"], compact))
@@ -211,7 +229,7 @@ def cmd_ok(n: str, actor: str) -> int:
             gh("-X", "DELETE", f"repos/{repo()}/issues/comments/{row['id']}")
     post(
         n,
-        f"{MARKER}\n**Spliced** by @{actor} via /clip-ok ({swapped} original slot(s) → compact). "
+        f"{MARKER}\n**Spliced** by @{actor} via /clip-ok ({swapped} original slot(s) → {name}). "
         f"Reporter text stayed.",
     )
     return 0

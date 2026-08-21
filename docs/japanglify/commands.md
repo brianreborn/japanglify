@@ -12,6 +12,6 @@ Saved replies — [github.com/settings/replies](https://github.com/settings/repl
 | `/clip-shrink` | Actions `swarm-clip.yml` (owner, **also auto**) | Offer a compact copy **unless** the clip already looks small (≤512 KB) |
 | `/clip-ok` | same (owner **or reporter**) | Put that compact file in the original comment |
 
-A fat screen recording on an issue or comment is transcoded automatically. Already-small files are left alone (no extra comment). `/clip-shrink` is a manual retry. `/clip-ok` still requires agreement.
+A fat screen recording (mp4 / mov / **webm**) is transcoded automatically to compact **VP9 WebM**. Already-small files are left alone. GitHub’s inline player is mp4/mov only; the compact copy is a release link. `/clip-ok` still requires agreement.
 
 Grok App comments do **not** run `/uat` or `/clip-*`. `/accept` is the Grok automation.
