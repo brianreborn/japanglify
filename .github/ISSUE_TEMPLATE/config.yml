@@ -1,5 +1,8 @@
 blank_issues_enabled: true
 contact_links:
-  - name: How issue commands work
+  - name: Reporter — /clip-ok
     url: https://github.com/brianreborn/japanglify/blob/main/docs/japanglify/commands.md
-    about: /accept, /block, /uat — whole-comment, owner only
+    about: After we offer a compact clip, comment /clip-ok as the whole comment if it still shows the bug.
+  - name: Owner — /accept /uat /block
+    url: https://github.com/brianreborn/japanglify/blob/main/docs/japanglify/commands.md
+    about: Whole-comment, github.com, owner only. Not in GitHub’s / dropdown — use saved replies.
