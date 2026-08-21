@@ -20,8 +20,8 @@ Do not require `adb devices` to start the listener. Unplugged USB is a pause, no
 - `gradle.assemble-release`, keystore, `/latest`
 - a second `agent/*` or second pull request for the same bug
 - babysit `Runner.Listener` in chat
-- `--resume` a polluted session to “restore” this role
+- `--resume` a session that was shut down. The cause would recur. New process, this file.
 
 ## Product work (only if the owner named a bug)
 
-After this file is loaded in a **new** session: `/quit` then `grok --effort <issue label> --resume` is allowed. That resume is the clean session, not the old one. One branch `agent/<n>-…`, one PR into `BETA-2`. GitHub issue = scoreboard. Pixel `/uat` = Actions unless the owner says this CLI owns the phone.
+After this file is loaded in a **new** session: `/quit` then `grok --effort <issue label> --resume` is allowed **only if that session was healthy**. That resume is the clean session, not a failed one. One branch `agent/<n>-…`, one PR into `BETA-2`. GitHub issue = scoreboard. Pixel `/uat` = Actions unless the owner says this CLI owns the phone.

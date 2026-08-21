@@ -14,9 +14,9 @@ When product work starts, **do not** `/effort` mid-session. Canonical relaunch *
 grok --effort <from the issue> --resume
 ```
 
-`--resume` keeps the same clone/lease/runner context. `--effort` must be on that process start. Same cwd.
+`--resume` keeps the same clone/lease/runner context. `--effort` must be on that process start. Same cwd. Use it only to continue **healthy** product work.
 
-**To replace a polluted session**, do **not** `--resume`. New process, load the role file:
+**To replace a polluted or shut-down session, do not `--resume`.** Whatever caused the shutdown (loop, stale role, babysitting the listener) is in that transcript and would recur. New process, load the role file:
 
 ```text
 /quit
