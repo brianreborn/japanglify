@@ -8,43 +8,28 @@ Policy: `docs/japanglify/swarm-bench.md`. Kickoff details: `docs/japanglify/swar
 
 `Runner.Listener` is **not** Grok. `/quit` must not kill it.
 
-On this host the Grok CLI default effort is **medium** (`default_reasoning_effort` in `%USERPROFILE%\.grok\config.toml`, written by `swarm-bench-runner.ps1`). Do not pass `--effort medium`. Extra `--effort` / `--model` come only from `scripts/swarm_budget.py --argv` (see [budget.md](budget.md)).
+On this host the Grok CLI default effort is **medium** (`default_reasoning_effort` in `%USERPROFILE%\.grok\config.toml`, written by `swarm-bench-runner.ps1`). Do not pass `--effort medium`. Extra `--effort` / `--model` come only from `scripts/swarm-grok.py` (see [budget.md](budget.md)).
 
 ### Null start (no transcript)
 
-`grok [OPTIONS] [PROMPT]` — `PROMPT` is the first TUI message. Slurp **this file**. Do not use `-p` / `--print` / `--single` (those exit). Do not pass `--resume`, `-r`, `--continue`, or `-c`.
+Owner runs **one** script (Windows cmd or Unix sh). That script slurps **this file** as the first TUI message. Do not use `-p`. Do not pass `--resume`, `-r`, `--continue`, or `-c` on Restore.
 
-From the clone that has this file (`brianreborn/japanglify` `main`). Full copy-paste (both shells): [budget.md](budget.md).
-
-PowerShell:
-
-```powershell
-git pull origin main
-$issue = $env:ISSUE_EFFORT
-$b = @('scripts/swarm_budget.py', '--role', 'swarm-bench', '--argv')
-if ($issue) { $b = @('scripts/swarm_budget.py', '--role', 'swarm-bench', '--issue-effort', $issue, '--argv') }
-$flags = @(((py -3 @b | Out-String).Trim() -split '\s+' | Where-Object { $_ }))
-grok @flags (Get-Content -Raw docs/swarm-conductor/prompt-bench.md)
+```bat
+scripts\swarm-grok.cmd
 ```
-
-sh:
 
 ```sh
-git pull origin main
-if [ -n "${ISSUE_EFFORT:-}" ]; then
-  flags=$(python3 scripts/swarm_budget.py --role swarm-bench --issue-effort "$ISSUE_EFFORT" --argv)
-else
-  flags=$(python3 scripts/swarm_budget.py --role swarm-bench --argv)
-fi
-grok $flags "$(< docs/swarm-conductor/prompt-bench.md)"
+./scripts/swarm-grok
 ```
 
-Bare `grok` is a new session at **medium**. `--continue` would reattach the last session for this directory.
+```text
+python3 scripts/swarm-grok.py
+```
 
 | Situation | What you type | What must stay up |
 |---|---|---|
 | **Normal stop** — work is done, session was healthy | `/quit` | Windows **logged on**. Hidden `swarm-run-loop.cmd`, `Runner.Listener`, `swarm-kick-watch.ps1` |
-| **Normal start** — continue that healthy work | same cwd: `grok @flags --resume` / `grok $flags --resume` (flags from `swarm_budget.py --argv`) | Listener. Do **not** slurp this file. Do **not** run `swarm-bench-runner.ps1` unless GitHub shows the runner **offline** |
+| **Normal start** — continue that healthy work | `scripts\swarm-grok.cmd --resume` or `./scripts/swarm-grok --resume` (add `--issue-effort` if the issue is not medium **and** the cap allows) | Listener. Do **not** slurp this file. Do **not** run `swarm-bench-runner.ps1` unless GitHub shows the runner **offline** |
 | **Restore** — first start this logon, or you killed a bad session | `/quit` if a window is still open. Then **Null start** (above) | Listener starts from step “Always this logon” below |
 | **GitHub says `SHALOM-swarm-bench` offline** | Restore | Same |
 | **Log off / reboot** | Nothing in Grok. Next logon, HKCU Run starts the loop. Grok is optional. If still offline, Restore | This Windows logon (USB needs it) |
@@ -55,7 +40,7 @@ Never `taskkill` `Runner.Listener` as a “restart.” Never paste “start the 
 
 ## Always this logon (USB optional)
 
-1. `git pull` on the clone that has `scripts/swarm-bench-runner.ps1` (`brianreborn/japanglify` `main`).
+1. `git pull` on the clone that has `scripts/swarm-bench-runner.ps1` (`brianreborn/japanglify` `main`). The start script pulls unless `--no-pull`.
 2. `pwsh -File scripts/swarm-bench-runner.ps1` once. Hidden listener loop + HKCU Run + Grok CLI default **medium**. **You are not the supervisor after that.**
 3. Reply one line: `Listener running yes/no`. Then **normal stop** (`/quit`).
 
@@ -74,4 +59,4 @@ Do not require `adb devices` to start the listener. Unplugged USB is a pause, no
 
 ## Product work (only if the owner named a bug)
 
-Use **Normal start** (`--resume`) only if the last session was healthy and already loaded this file. Add `--effort` / `--model` only from `swarm_budget.py --argv`. One branch `agent/<n>-…`, one pull request into `BETA-2`. GitHub issue = scoreboard. Pixel `/uat` = Actions unless the owner says this CLI owns the phone.
+Use **Normal start** (`swarm-grok --resume`) only if the last session was healthy and already loaded this file. One branch `agent/<n>-…`, one pull request into `BETA-2`. GitHub issue = scoreboard. Pixel `/uat` = Actions unless the owner says this CLI owns the phone.

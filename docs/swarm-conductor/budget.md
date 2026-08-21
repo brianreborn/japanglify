@@ -9,7 +9,7 @@ Two knobs, GitHub as the mailbox. Agents do **not** scrape the SuperGrok meter.
 
 **Effective** = the lowest of: issue request, fleet `cap.effort`, `perRole[role].effort`. Same for model if set.
 
-`scripts/swarm_budget.py` is the only matcher. `--effort` / model flags must be on **process start** (Null start / Normal start). A cap change does not `/effort` a running session.
+`scripts/swarm_budget.py` is the matcher. `scripts/swarm-grok.py` is the **one** start command (Windows cmd and Unix sh). `--effort` / model flags must be on **process start**. A cap change does not `/effort` a running session.
 
 ## Window
 
@@ -21,43 +21,39 @@ Owner, by editing `docs/japanglify/budget.json` on `main`. Not a Grok chat. Not 
 
 Cloud automations (intake, PR-follow, UAT-complete) stay at `perRole` **low** even when the bench is xhigh. GitHub Actions watchdog is not a Grok wallet.
 
-## CLI (PowerShell and sh)
+## CLI (one script, both OS)
 
-From the clone that has `scripts/swarm_budget.py` and `docs/swarm-conductor/prompt-bench.md`. Set `ISSUE_EFFORT` to the issue label, or leave it empty (unlabeled → medium request).
+From the clone that has `scripts/swarm-grok.py`. Do not use `-p`. Do not hand-roll `grok --effort`.
 
-Prints `--effort …` / `--model …` only when they differ from the host default (medium / unset). Empty stdout → omit the flags.
+Windows **cmd.exe** (preferred over `.ps1`):
 
-**PowerShell** (`py -3`; SHALOM):
-
-```powershell
-git pull origin main
-$issue = $env:ISSUE_EFFORT   # e.g. 'xhigh' or ''
-$b = @('scripts/swarm_budget.py', '--role', 'swarm-bench', '--argv')
-if ($issue) { $b = @('scripts/swarm_budget.py', '--role', 'swarm-bench', '--issue-effort', $issue, '--argv') }
-$flags = @(((py -3 @b | Out-String).Trim() -split '\s+' | Where-Object { $_ }))
-# Null start (Restore):
-grok @flags (Get-Content -Raw docs/swarm-conductor/prompt-bench.md)
-# Normal start (healthy session), instead of the line above:
-# grok @flags --resume
+```bat
+scripts\swarm-grok.cmd
+scripts\swarm-grok.cmd --resume
+scripts\swarm-grok.cmd --issue-effort xhigh
+scripts\swarm-grok.cmd --resume --issue-effort xhigh
 ```
 
-**sh** (bash / git-bash / zsh):
+Unix **sh**:
 
 ```sh
-git pull origin main
-# optional: ISSUE_EFFORT=xhigh
-if [ -n "${ISSUE_EFFORT:-}" ]; then
-  flags=$(python3 scripts/swarm_budget.py --role swarm-bench --issue-effort "$ISSUE_EFFORT" --argv)
-else
-  flags=$(python3 scripts/swarm_budget.py --role swarm-bench --argv)
-fi
-# Null start (Restore). $flags is unquoted on purpose (word-split).
-grok $flags "$(< docs/swarm-conductor/prompt-bench.md)"
-# Normal start (healthy session), instead of the line above:
-# grok $flags --resume
+./scripts/swarm-grok
+./scripts/swarm-grok --resume
+./scripts/swarm-grok --issue-effort xhigh
+./scripts/swarm-grok --resume --issue-effort xhigh
 ```
 
-Do not use `-p` / `--print` / `--single` (those exit). Do not pass `--resume` on Restore. Do not pass `--continue` / `-c`.
+Same Python on either (if you already have `python3` / `py -3` on PATH):
+
+```text
+python3 scripts/swarm-grok.py
+python3 scripts/swarm-grok.py --resume --issue-effort xhigh
+python3 scripts/swarm-grok.py --dry-run --no-pull
+```
+
+`ISSUE_EFFORT` / `ISSUE_MODEL` env vars work if you omit the flags. `--dry-run` prints argv and does not exec `grok`.
+
+Null start slurps [prompt-bench.md](prompt-bench.md). `--resume` is a healthy continue (no slurp). Empty budget argv → no `--effort` (host default medium). Today’s cap clamps bench xhigh to medium.
 
 ## Never
 
@@ -65,3 +61,4 @@ Do not use `-p` / `--print` / `--single` (those exit). Do not pass `--resume` on
 - Invent `grokCredits` remaining
 - Mid-session `/effort` because the cap moved — `/quit` and start again
 - Raise an issue’s label to dodge the cap (the script still clamps)
+- A PowerShell-only start; `swarm-grok.cmd` is the Windows entry

@@ -20,12 +20,12 @@ Without that listener, `/uat` is a dead click. A queued `/uat` will pick up as s
 
 Canonical table: [prompt-bench.md](../swarm-conductor/prompt-bench.md) (that file wins). Owner cheat sheet only points here: [admin.md](admin.md).
 
-**Null start:** both shells in [budget.md](../swarm-conductor/budget.md) (PowerShell `grok @flags (Get-Content -Raw …)`; sh `grok $flags "$(< …)"`). `$flags` from `swarm_budget.py --argv`. No `--resume`, `-c`, `-p`.
+**Null start:** `scripts\swarm-grok.cmd` or `./scripts/swarm-grok` ([budget.md](../swarm-conductor/budget.md)). `--resume` for a healthy session. No `-c`, `-p`.
 
 | Situation | Do |
 |---|---|
 | **Normal stop** | `/quit`. Stay logged on to Windows. Do not kill `Runner.Listener`. |
-| **Normal start** (last session was healthy) | same cwd: `grok --resume` — add `--effort` only if the issue is not medium |
+| **Normal start** (last session was healthy) | `scripts\swarm-grok.cmd --resume` / `./scripts/swarm-grok --resume` |
 | **Restore** (first this logon, or you killed a bad session) | Null start. |
 | **Runner offline** on GitHub | Restore. |
 | **Log off / reboot** | HKCU Run starts the loop. Grok optional. |

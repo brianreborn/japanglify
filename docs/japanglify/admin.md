@@ -10,27 +10,22 @@ Grok CLI default effort on this host is **medium** (`%USERPROFILE%\.grok\config.
 
 ## Shutdown and restart
 
-**Null start** (no transcript). In the clone with `prompt-bench.md`. Both shells: [budget.md](../swarm-conductor/budget.md).
+**Null start** (no transcript). One script, both OS: [budget.md](../swarm-conductor/budget.md).
 
-PowerShell:
-
-```powershell
-git pull origin main
-$issue = $env:ISSUE_EFFORT
-$b = @('scripts/swarm_budget.py', '--role', 'swarm-bench', '--argv')
-if ($issue) { $b = @('scripts/swarm_budget.py', '--role', 'swarm-bench', '--issue-effort', $issue, '--argv') }
-$flags = @(((py -3 @b | Out-String).Trim() -split '\s+' | Where-Object { $_ }))
-grok @flags (Get-Content -Raw docs/swarm-conductor/prompt-bench.md)
+```bat
+scripts\swarm-grok.cmd
 ```
 
-sh: `grok $flags "$(< docs/swarm-conductor/prompt-bench.md)"` after the same `swarm_budget.py --argv` (see budget.md).
+```sh
+./scripts/swarm-grok
+```
 
-No `--resume`, `-r`, `--continue`, `-c`, `-p`. Healthy continue: `grok @flags --resume` / `grok $flags --resume`.
+`--resume` is healthy continue. `--issue-effort xhigh` if the issue asks and the cap allows. No `-r`/`-c`/`-p` on Restore.
 
 | Situation | Do | Do not |
 |---|---|---|
 | **Normal stop** | `/quit` in Swarm Bench. Stay logged on | Kill `Runner.Listener` |
-| **Normal start** | same cwd: `grok --resume` (add `--effort` only if the issue is not medium) | Slurp a new brain if the last session was healthy |
+| **Normal start** | `scripts\swarm-grok.cmd --resume` (add `--issue-effort` only if the issue is not medium **and** the cap allows) | Slurp a new brain if the last session was healthy |
 | **Restore** | Null start (above) | `--resume` / `--continue` a session you killed because it failed |
 | **Runner offline** | Restore | A second `/uat` |
 | **You** | Never type `pwsh` | The CLI runs `swarm-bench-runner.ps1` |

@@ -50,7 +50,7 @@ jobs:
           PY
       - name: swarm-lease + uat-map + usage + cmd + launch + kick + ping + clip + watchdog + budget self-test
         run: |
-          python3 -m py_compile scripts/swarm_cmd.py scripts/swarm_kick.py scripts/swarm_ping.py scripts/swarm_watchdog.py scripts/swarm-clip.py scripts/swarm-launch.py scripts/swarm-lease.py scripts/swarm-usage.py scripts/swarm_budget.py scripts/uat-map.py scripts/uat-clip.py
+          python3 -m py_compile scripts/swarm_cmd.py scripts/swarm_kick.py scripts/swarm_ping.py scripts/swarm_watchdog.py scripts/swarm-clip.py scripts/swarm-launch.py scripts/swarm-lease.py scripts/swarm-usage.py scripts/swarm_budget.py scripts/swarm-grok.py scripts/uat-map.py scripts/uat-clip.py
           python3 scripts/swarm-lease.py --self-test
           python3 scripts/swarm-lease.py --from local --id win11-pixel
           python3 scripts/uat-map.py --self-test
@@ -63,6 +63,8 @@ jobs:
           python3 scripts/swarm-clip.py --self-test
           python3 scripts/swarm_watchdog.py --self-test
           python3 scripts/swarm_budget.py --self-test
+          python3 scripts/swarm-grok.py --self-test
+          python3 scripts/swarm-grok.py --dry-run --no-pull
       - name: Prove per-step host routing (dry-run, no spawn)
         run: |
           set -euo pipefail

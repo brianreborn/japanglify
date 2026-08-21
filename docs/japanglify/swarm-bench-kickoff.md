@@ -6,22 +6,12 @@
 
 ## Shutdown and restart
 
-**Null start:** both shells in [budget.md](../swarm-conductor/budget.md).
-
-```powershell
-grok @flags (Get-Content -Raw docs/swarm-conductor/prompt-bench.md)
-```
-
-```sh
-grok $flags "$(< docs/swarm-conductor/prompt-bench.md)"
-```
-
-No `--resume`, `-r`, `--continue`, `-c`. `$flags` from `swarm_budget.py --argv`. Then this file is already the prompt.
+**Null start:** `scripts\swarm-grok.cmd` or `./scripts/swarm-grok` ([budget.md](../swarm-conductor/budget.md)). `--resume` if healthy. `--issue-effort` from the issue label (still clamped).
 
 | Situation | Do |
 |---|---|
 | **Normal stop** | `/quit`. Stay logged on. Do not kill `Runner.Listener`. |
-| **Normal start** (healthy session) | same cwd: `grok --resume` — add `--effort` only if the issue is not medium |
+| **Normal start** (healthy session) | `./scripts/swarm-grok --resume` / `scripts\swarm-grok.cmd --resume` |
 | **Restore** (first this logon, or you killed a bad session) | Null start. |
 | **Runner offline** | Restore. |
 
@@ -83,4 +73,4 @@ Do not start product work. Summarize live rows from cutover (`#5` chip, `#6` liv
 
 ## If I name a bug
 
-**Normal start** only if bootstrap was healthy: `/quit` then `grok --resume` (add `--effort <issue>` only if not medium). If bootstrap had to be killed, **Null start**. Work that issue on `agent/<number>-<short-name>` from `BETA-2` (or the existing agent branch in cutover). One pull request. Pixel `/uat` stays Actions unless I say this CLI owns the phone.
+**Normal start** only if bootstrap was healthy: `/quit` then `./scripts/swarm-grok --resume` (Windows: `scripts\swarm-grok.cmd --resume`). Add `--issue-effort` from the issue if not medium (still clamped). If bootstrap had to be killed, **Null start**. Work that issue on `agent/<number>-<short-name>` from `BETA-2` (or the existing agent branch in cutover). One pull request. Pixel `/uat` stays Actions unless I say this CLI owns the phone.
