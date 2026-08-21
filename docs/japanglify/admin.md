@@ -48,6 +48,14 @@ Bodies exactly: `/accept` `/block` `/uat` `/clip-ok`. [How](saved-replies.md).
 | uat | same box, Actions listener | `/uat` on github.com. Unlock the phone. If it sits: same relaunch as above. No second `/uat` |
 | watchdog | GitHub-hosted | Nothing. **Ready for Pixel UAT** is your cue |
 
+## Exceptions log
+
+| When | What | Why |
+|---|---|---|
+| 2026-08-21 | `workflow_dispatch` UAT for #5 ([run 31](https://github.com/brianreborn/japanglify/actions/runs/32489806072)) and #7 ([run 32](https://github.com/brianreborn/japanglify/actions/runs/32489806131)) | First `/uat` jobs died (listener offline + invalid YAML). Not a second `/uat` comment. Not routine. |
+
+Re-fire via `workflow_dispatch` **only** when a `/uat` job is not queued and never reached **UAT installed**. Do not use this because phone UAT failed — that stays the same pull request + a later `/uat`.
+
 ## Do not
 
 - Type `pwsh` — the CLI starts the listener
