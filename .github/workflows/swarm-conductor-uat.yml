@@ -3,10 +3,12 @@
 # YAML must not embed raw newlines in expressions (invalid workflow).
 # Real command match is scripts/swarm_cmd.py. YAML only prefilters owner comments.
 # NEVER YAML contains("/uat") — watchdog quotes it.
+# Concurrency: prefer inputs.issue (workflow_dispatch). Include event name so a
+# dispatch and a comment cannot collapse to the same empty group and cancel.
 name: Swarm Conductor UAT
 
 concurrency:
-  group: uat-${{ github.event.issue.number || github.event.inputs.issue }}
+  group: uat-${{ github.event_name }}-${{ github.event.inputs.issue || github.event.issue.number }}
   cancel-in-progress: true
 
 on:
