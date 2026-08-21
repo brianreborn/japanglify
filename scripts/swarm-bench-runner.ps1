@@ -127,6 +127,14 @@ function Write-RunnerEnv {
         $extra += (Join-Path $android "platform-tools")
         $extra += (Join-Path $android "emulator")
     }
+    foreach ($d in @(
+        "C:\Program Files\PowerShell\7",
+        "C:\Program Files\Git\cmd",
+        "C:\Program Files\GitHub CLI",
+        "$env:SystemRoot\System32\WindowsPowerShell\v1.0"
+    )) {
+        if (Test-Path $d) { $extra += $d }
+    }
     if ($extra.Count -gt 0) {
         $lines += ("PATH=" + ($extra -join ";") + ";" + $env:PATH)
     }

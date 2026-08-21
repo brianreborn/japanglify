@@ -171,7 +171,7 @@ jobs:
       - name: Prove host + adb
         id: prove
         timeout-minutes: 5
-        shell: pwsh
+        shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
           Write-Host "computer=$env:COMPUTERNAME"
@@ -195,7 +195,7 @@ jobs:
 
       - name: Clone agent branch
         timeout-minutes: 5
-        shell: pwsh
+        shell: powershell
         env:
           DEV_REPO: ${{ needs.dispatch.outputs.repo }}
           BRANCH: ${{ needs.dispatch.outputs.branch }}
@@ -210,7 +210,7 @@ jobs:
 
       - name: Assemble downloadable debug
         timeout-minutes: 35
-        shell: pwsh
+        shell: powershell
         working-directory: ${{ env.WORK }}
         run: |
           $ErrorActionPreference = "Stop"
@@ -219,7 +219,7 @@ jobs:
       - name: adb install
         id: install
         timeout-minutes: 8
-        shell: pwsh
+        shell: powershell
         working-directory: ${{ env.WORK }}
         env:
           APPID: ${{ needs.dispatch.outputs.appid }}
@@ -241,7 +241,7 @@ jobs:
           BRANCH: ${{ needs.dispatch.outputs.branch }}
           APK: ${{ steps.install.outputs.apk }}
           SERIAL: ${{ steps.install.outputs.serial }}
-        shell: pwsh
+        shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
           $t0 = Get-Date
