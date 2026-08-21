@@ -97,7 +97,10 @@ jobs:
           dev = row.get("devRepo") or inst["devRepo"]
           appid = uat.get("applicationId") or "com.japanglify.app"
           comment(
-              f"{marker}\n## Swarm Bench\n**UAT dispatched** for issue #{issue} → `{dev}` `{branch}`.\n\nWaiting for a self-hosted runner labeled `swarm-bench` (Windows 11 + Pixel). Unlock the phone. This does not merge or `/accept`."
+              f"{marker}\n## Swarm Bench\n**UAT dispatched** for issue #{issue} → `{dev}` `{branch}`.\n\n"
+              f"Waiting for a self-hosted runner labeled `swarm-bench`. If this sits, on the Windows box:\n"
+              f"`pwsh -File scripts/swarm-bench-runner.ps1`\n\n"
+              f"A queued job will pick up when that service starts — no second `/uat`. Unlock the phone. This does not merge or `/accept`."
           )
           out("go", "true")
           out("issue", issue)
