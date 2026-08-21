@@ -25,7 +25,7 @@ function Import-SwarmPath {
     if (-not $local) {
         $local = Join-Path $env:TEMP "swarm-path.ps1"
         Write-Host "fetch $HunterUrl"
-        Invoke-WebRequest -UseBasicParsing -Uri $HunterUrl -OutFile $local
+        Invoke-WebRequest -UseBasicParsing -Uri "$HunterUrl?$(Get-Random)" -OutFile $local
     }
     . $local
     if (-not $env:SWARM_GIT -or -not (Test-Path -LiteralPath $env:SWARM_GIT)) {

@@ -35,7 +35,7 @@ SHALOM:
 Windows — **one** PowerShell (System32). Hunts Git/gh/pwsh, then clones. No git-on-PATH, no curl:
 
 ```powershell
-$boot = "$env:TEMP\swarm-bootstrap.ps1"
+$boot = Join-Path $env:TEMP ("swarm-bootstrap-{0}.ps1" -f [guid]::NewGuid())
 Invoke-WebRequest -UseBasicParsing -Uri "https://raw.githubusercontent.com/brianreborn/japanglify/main/scripts/swarm-bootstrap.ps1" -OutFile $boot
 & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File $boot -Restore
 ```
