@@ -28,6 +28,7 @@ jobs:
           cfg = load(".github/swarm-conductor.json")
           roles = load("docs/swarm-conductor/roles.json")
           inst = load("docs/japanglify/instance.json")
+          hosts = load("docs/japanglify/hosts.json")
           assert cfg["trustedActor"] == "brianreborn", cfg
           assert cfg["statusMarker"].startswith("<!--")
           assert "swarm-conductor" in roles["roles"]
@@ -35,6 +36,11 @@ jobs:
           assert "ci.remote-assemble" in roles["never"]["swarm-bench"]
           assert "swarm-bench" in inst["capabilityOverlay"]
           assert "adb.install" in inst["capabilityOverlay"]["swarm-bench"]
-          assert "windows-workstation" in inst["hosts"]["swarm-bench"]
+          ids = [l["id"] for l in hosts["leases"]]
+          assert len(ids) == len(set(ids)), ids
+          assert "win11-pixel" in ids
+          assert all("role" in l for l in hosts["leases"])
           print("conductor config valid")
           PY
+      - name: swarm-lease --id win11-pixel
+        run: python3 scripts/swarm-lease.py --from local --id win11-pixel

@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "note": "Checked-in leases. No secrets. A machine asks GitHub (or this file in a clone) who it is — like DHCP with static reservations. Unknown machines get an --offer stub; they do not auto-register.",
+  "source": "brianreborn/japanglify/docs/japanglify/hosts.json",
+  "unknown": {
+    "role": null,
+    "never": ["git.push-agent-branch", "gradle.assemble-tester", "adb.install", "secret.*"]
+  },
+  "leases": [
+    {
+      "id": "win11-pixel",
+      "role": "swarm-bench",
+      "os": "windows",
+      "device": "adb",
+      "devRepo": "electrobrian/japanglify",
+      "branch": "BETA-2",
+      "notes": "Owner Windows 11 + Pixel USB. Bind hostname via matchHostnames after first --offer.",
+      "matchHostnames": [],
+      "never": ["gradle.assemble-release", "secret.keystore-release", "ci.remote-assemble"]
+    },
+    {
+      "id": "unix-pixel",
+      "role": "swarm-bench",
+      "os": "unix",
+      "device": "adb",
+      "devRepo": "electrobrian/japanglify",
+      "branch": "BETA-2",
+      "notes": "Linux/macOS/FreeBSD Linuxulator + Pixel.",
+      "matchHostnames": [],
+      "never": ["gradle.assemble-release", "secret.keystore-release", "ci.remote-assemble"]
+    },
+    {
+      "id": "github-actions",
+      "role": "watchdog",
+      "os": "linux",
+      "device": null,
+      "notes": "GitHub-hosted. Conductor/watchdog/config only.",
+      "matchHostnames": [],
+      "never": ["gradle.*", "adb.*", "secret.keystore-release", "secret.gh-electrobrian"]
+    },
+    {
+      "id": "grok-cloud",
+      "role": "swarm-conductor",
+      "os": "cloud",
+      "device": null,
+      "notes": "Grok Automations. Dispatch only.",
+      "matchHostnames": [],
+      "never": ["gradle.*", "adb.*", "secret.*", "git.push-agent-branch"]
+    }
+  ]
+}
