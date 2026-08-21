@@ -16,6 +16,11 @@ $Name = if ($env:SWARM_RUNNER_NAME) { $env:SWARM_RUNNER_NAME } else { "$env:COMP
 $Labels = "swarm-bench"
 
 function Ensure-ToolPath {
+    $hunter = Join-Path $PSScriptRoot "swarm-path.ps1"
+    if (Test-Path $hunter) {
+        . $hunter -Quiet
+        return
+    }
     $add = @(
         "$env:SystemRoot\System32",
         "$env:SystemRoot\System32\WindowsPowerShell\v1.0",
@@ -23,6 +28,7 @@ function Ensure-ToolPath {
         "${env:ProgramFiles}\Git\bin",
         "${env:ProgramFiles(x86)}\Git\cmd",
         "${env:ProgramFiles}\PowerShell\7",
+        "${env:ProgramFiles}\GitHub CLI",
         "$env:LOCALAPPDATA\Programs\Python\Launcher",
         "$env:LOCALAPPDATA\Microsoft\WinGet\Links",
         "$env:ProgramData\chocolatey\bin",

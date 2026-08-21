@@ -17,7 +17,7 @@ git pull origin main
 scripts\swarm-grok.cmd
 ```
 
-Thin `cmd.exe` PATH (no `git` / `pwsh`): `scripts\swarm-path.cmd` prepends Git for Windows, PowerShell 7, `py`. Stop/runner/grok cmd trampolines call it. PowerShell fallback is `%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe`.
+Thin `cmd.exe` PATH: `scripts\swarm-path.ps1` hunts system Git (HKLM GitForWindows), GitHub CLI, pwsh, Python, adb, JDK. `swarm-path.cmd` always launches `%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe` then imports `SWARM_GIT` / `SWARM_GH` / PATH. Not `where.exe`.
 
 First machine: [paths.md](paths.md) (`swarm-bootstrap.ps1` / `swarm-bootstrap.sh`). Grok CLI is the other client.
 
