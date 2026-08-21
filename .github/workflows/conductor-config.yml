@@ -43,7 +43,8 @@ jobs:
           assert all("role" in l for l in hosts["leases"])
           print("conductor config valid")
           PY
-      - name: swarm-lease self-test + pin
+      - name: swarm-lease + uat-map self-test
         run: |
           python3 scripts/swarm-lease.py --self-test
           python3 scripts/swarm-lease.py --from local --id win11-pixel
+          python3 scripts/uat-map.py --self-test
