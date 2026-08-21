@@ -13,11 +13,12 @@ Owner Pixel UAT is **Swarm Bench**. GitHub `/uat` dispatches the self-hosted Win
 | Piece | State |
 |---|---|
 | `/accept` `/block` | Grok automation `japanglify-swarm-conductor` (only intake). Actions accept.yml **removed** |
-| `/uat` | Actions `swarm-conductor-uat.yml` — does not list runners; waits for label `swarm-bench` |
-| Watchdog | Actions `swarm-watchdog.yml` — schedule only; sticky by marker, any author |
-| Config JSON + `swarm-lease.py --self-test` | `conductor-config.yml` on `main` |
-| Webhook conductor | **retired** (prompt is stop) |
-| Self-hosted `swarm-bench` runner | **not installed yet** — `/uat` will dispatch then queue |
+| `/uat` | Actions `swarm-conductor-uat.yml` — maps `agent/<issue>-*` (JSON override optional). Owner comment on github.com |
+| Ready ping | Watchdog every 15m: once per issue when that branch exists. **That is the approval cue.** |
+| Watchdog quotas | `swarm-watchdog.yml` — schedule only |
+| Config JSON + lease/uat-map self-test | `conductor-config.yml` on `main` |
+| Webhook conductor | **retired** |
+| Self-hosted `swarm-bench` runner | `pwsh -File scripts/swarm-bench-runner.ps1` on the logged-in Windows session (not a Windows service — USB) |
 
 ## Repos
 
@@ -51,13 +52,14 @@ Failed UAT does **not** open a new issue or a second pull request. Comment on th
 ```
 official issue + /accept
   → Swarm Conductor may propose
-  → electrobrian agent/* → pull request into BETA-2
-      → tester APKs (ephemeral key)
-          → Pixel UAT (`/uat` or Swarm Bench CLI)
-              → if fail: patch on the bench → adb again; push when handing off
-              → if pass: pull request from fork → brianreborn/main
-                  → you merge
-                      → home official-signer + real keystore
+  → electrobrian agent/<issue>-* → pull request into BETA-2
+      → watchdog: Ready for Pixel UAT on the official issue
+          → you `/uat` on github.com (approval)
+              → Windows swarm-bench runner adb-installs
+                  → if fail: patch on the bench → adb again; push when handing off
+                  → if pass: pull request from fork → brianreborn/main
+                      → you merge
+                          → home official-signer + real keystore
 ```
 
 Japanese writing-system vocabulary: `docs/GLOSSARY.md`. Do not copy that into conductor.
