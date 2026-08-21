@@ -39,8 +39,11 @@ jobs:
           ids = [l["id"] for l in hosts["leases"]]
           assert len(ids) == len(set(ids)), ids
           assert "win11-pixel" in ids
+          assert "pool-bench-windows" in ids
           assert all("role" in l for l in hosts["leases"])
           print("conductor config valid")
           PY
-      - name: swarm-lease --id win11-pixel
-        run: python3 scripts/swarm-lease.py --from local --id win11-pixel
+      - name: swarm-lease self-test + pin
+        run: |
+          python3 scripts/swarm-lease.py --self-test
+          python3 scripts/swarm-lease.py --from local --id win11-pixel
