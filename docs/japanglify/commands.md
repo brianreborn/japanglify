@@ -23,6 +23,7 @@ Saved replies — [github.com/settings/replies](https://github.com/settings/repl
 | `/accept` | owner | Intake ACCEPTED |
 | `/block` | owner | Intake BLOCKED |
 | `/uat` | owner | Install that issue’s `agent/<n>-*` on the Pixel |
+| `/kick` | owner | Mailbox: list pending + ping bench. Does not install |
 | `/clip-shrink` | owner (also auto on attach) | Offer a compact copy **unless** already small (≤512 KB) |
 | `/clip-ok` | owner **or reporter** | Put that compact file in the original comment |
 

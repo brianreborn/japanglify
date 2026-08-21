@@ -54,7 +54,7 @@ STEPS = {
         "process": "actions:swarm-conductor-uat.yml on the same win11-pixel listener",
         "effort": None,
         "never": ["grok --effort", "second /uat", "ubuntu assemble"],
-        "adminHint": "Saved reply /uat on github.com. Unlock the Pixel. If queued: pwsh -File scripts/swarm-bench-runner.ps1 in the logon session. No second /uat.",
+        "adminHint": "Saved reply /uat on github.com. Unlock the Pixel. If queued: Grok CLI starts scripts/swarm-bench-runner.ps1 — owner never types pwsh. No second /uat.",
     },
     "watchdog": {
         "role": "watchdog",

@@ -16,6 +16,7 @@
     {"cmd": "/accept", "who": "owner", "does": "Accept the bug (intake)"},
     {"cmd": "/block", "who": "owner", "does": "Block / stop"},
     {"cmd": "/uat", "who": "owner", "does": "Install on the Pixel (Swarm Bench)"},
+    {"cmd": "/kick", "who": "owner", "does": "Mailbox: list pending + ping bench (does not install)"},
     {"cmd": "/clip-shrink", "who": "owner", "does": "Offer compact transcode unless the clip is already small"},
     {"cmd": "/clip-ok", "who": "owner or reporter", "does": "Splice compact clip into the original comment"}
   ],

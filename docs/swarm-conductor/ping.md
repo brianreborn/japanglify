@@ -12,6 +12,6 @@ Active hosts: `win11-pixel`, `github-actions`, `grok-cloud`. Pools and `unix-pix
 
 Schedule: every 15 minutes + **workflow_dispatch** `swarm-ping.yml`.
 
-A **red** ping run means a live host is down (today: listener not taking #5). That is the reliability signal.
+A **red** ping run means a live host is **down** (`ok: false`) — today that is a queued `swarm-bench` job the listener is not taking. Cancelled/skipped last bench (USB UAT paused) is **unknown**, not red, as long as `github-actions` is up.
 
 `/kick` is the wake. Ping only looks.

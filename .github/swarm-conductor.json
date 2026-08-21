@@ -10,7 +10,8 @@
     "uat": "actions:swarm-conductor-uat.yml",
     "watchdog": "actions:swarm-watchdog.yml",
     "kick": "actions:swarm-kick.yml",
-    "ping": "actions:swarm-ping.yml"
+    "ping": "actions:swarm-ping.yml",
+    "clip": "actions:swarm-clip.yml"
   },
   "quotas": {
     "commentsPerIssuePerHour": 10

@@ -21,10 +21,10 @@ import swarm_cmd  # noqa: E402
 MARKER = "<!-- swarm-clip-compact -->"
 SMALL_KB = 512
 VIDEO_RE = re.compile(
-    r"https://(?:github\.com/user-attachments/assets/[A-Za-z0-9-]+|"
-    r"(?:private-)?user-images\.githubusercontent\.com/[^\s)"']+|"
-    r"github\.com/[\w.-]+/[\w.-]+/(?:releases/download|raw)/[^\s)"']+\.(?:webm|mp4|mov)|"
-    r"[\w.-]+/[^\s)"']+\.webm)",
+    r"""https://(?:github\.com/user-attachments/assets/[A-Za-z0-9-]+|"""
+    r"""(?:private-)?user-images\.githubusercontent\.com/[^\s)"']+|"""
+    r"""github\.com/[\w.-]+/[\w.-]+/(?:releases/download|raw)/[^\s)"']+\.(?:webm|mp4|mov)|"""
+    r"""[\w.-]+/[^\s)"']+\.webm)""",
     re.I,
 )
 
@@ -41,7 +41,7 @@ def cfg() -> dict:
 
 
 def repo() -> str:
-    return os.environ["GH_REPO"]
+    return os.environ.get("GH_REPO") or "brianreborn/japanglify"
 
 
 def load_issue(n: str) -> dict:
@@ -238,7 +238,34 @@ def cmd_ok(n: str, actor: str) -> int:
     return 0
 
 
+def self_test() -> int:
+    failed = 0
+
+    def check(name, got, want):
+        nonlocal failed
+        ok = got == want
+        print("ok" if ok else "FAIL", name, "->", got, "want", want)
+        failed += not ok
+
+    att = "https://github.com/user-attachments/assets/deadbeef-cafe-0000-0000-0123456789ab"
+    img = "https://user-images.githubusercontent.com/1/x.mp4"
+    check("attachment", videos_in(f"see {att} please"), [att])
+    check("usercontent", videos_in(img), [img])
+    compact = compact_url("5", "clip-5.webm")
+    check("splice", splice(f"before {att} after", compact), f"before {compact} after")
+    check("self-release-skipped", videos_in(compact), [])
+    if not swarm_cmd.has_command("/clip-ok", "/clip-ok"):
+        print("FAIL clip-ok command")
+        failed += 1
+    else:
+        print("ok clip-ok command")
+    print("swarm-clip self-test ok" if failed == 0 else f"FAIL {failed}")
+    return 1 if failed else 0
+
+
 def main() -> int:
+    if "--self-test" in sys.argv:
+        return self_test()
     n = os.environ.get("ISSUE") or (sys.argv[2] if len(sys.argv) > 2 else "")
     op = (sys.argv[1] if len(sys.argv) > 1 else "") or os.environ.get("OP") or ""
     actor = os.environ.get("ACTOR") or ""

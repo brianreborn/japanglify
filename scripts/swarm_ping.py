@@ -37,11 +37,21 @@ def classify_github_actions(config_runs: list[dict]) -> dict:
     if not config_runs:
         return {"id": "github-actions", "ok": None, "state": "unknown", "note": "no conductor-config runs"}
     last = config_runs[0]
+    status = last.get("status") or ""
+    if status in WAITING or status == "in_progress":
+        return {
+            "id": "github-actions",
+            "ok": True,
+            "state": status,
+            "run": last.get("html_url"),
+            "ageSec": age_sec(last.get("updated_at") or last.get("created_at")),
+            "note": "Swarm Conductor config running",
+        }
     ok = last.get("conclusion") == "success"
     return {
         "id": "github-actions",
         "ok": ok,
-        "state": last.get("conclusion") or last.get("status") or "unknown",
+        "state": last.get("conclusion") or status or "unknown",
         "run": last.get("html_url"),
         "ageSec": age_sec(last.get("updated_at") or last.get("created_at")),
         "note": "last Swarm Conductor config",
@@ -230,7 +240,22 @@ def self_test() -> int:
         None,
         "cancelled",
     )
+    check(
+        "actions-in-progress-is-up",
+        classify_github_actions(
+            [{"status": "in_progress", "conclusion": None, "updated_at": "2026-08-21T15:10:00Z"}]
+        ),
+        True,
+        "in_progress",
+    )
     assert "swarm-ping.yml" not in BENCH_WORKFLOWS
+    paused = snapshot(
+        [{"conclusion": "success", "updated_at": "2026-08-21T14:58:00Z", "html_url": "x"}],
+        [{"status": "completed", "conclusion": "cancelled", "created_at": "2026-08-21T15:07:00Z", "workflow": "uat"}],
+    )
+    assert paused["hosts"][0]["ok"] is None
+    assert paused["hosts"][1]["ok"] is True
+    assert paused["ok"] is True, paused
     row = snapshot(
         [{"conclusion": "success", "updated_at": "2026-08-21T14:58:00Z", "html_url": "x"}],
         [{"status": "queued", "created_at": "2026-08-21T14:46:00Z", "workflow": "uat"}],

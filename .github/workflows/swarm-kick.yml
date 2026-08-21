@@ -157,15 +157,15 @@ jobs:
           $devs = @(adb devices | Select-String "\tdevice$")
           if ($devs.Count -ne 1) { Write-Warning "adb device count=$($devs.Count)" }
           if ($env:ISSUE -and $env:ISSUE -ne "0") {
-            $body = @"
-          <!-- swarm-kick -->
-          ## Swarm kick
-          **Bench woke** `$env:COMPUTERNAME`
-
-          - adb `$($devs.Count)` device(s)
-          - listener proved (this job ran on swarm-bench)
-
-          Checked pending UAT runs. This is not an install.
-          "@
+            $body = @(
+              "<!-- swarm-kick -->"
+              "## Swarm kick"
+              "**Bench woke** ``$($env:COMPUTERNAME)``"
+              ""
+              "- adb $($devs.Count) device(s)"
+              "- listener proved (this job ran on swarm-bench)"
+              ""
+              "Checked pending UAT runs. This is not an install."
+            ) -join "`n"
             @{ body = $body } | ConvertTo-Json | gh api -X POST "repos/$env:GH_REPO/issues/$env:ISSUE/comments" --input -
           }

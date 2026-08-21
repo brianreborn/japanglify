@@ -7,7 +7,7 @@
 name: Swarm Conductor UAT
 
 concurrency:
-  group: uat-${{ github.event_name }}-${{ github.event.inputs.issue || github.event.issue.number }}
+  group: uat-${{ github.event.inputs.issue || github.event.issue.number || github.run_id }}
   cancel-in-progress: true
 
 on:
@@ -114,8 +114,11 @@ jobs:
           appid = row.get("applicationId") or "com.japanglify.app"
           pull = row.get("pull")
           extra = f" pull request `{pull}`" if pull else ""
+          run_id = os.environ.get("GITHUB_RUN_ID") or ""
+          url = f"https://github.com/{repo}/actions/runs/{run_id}" if run_id else ""
+          extra_run = f"\n\nRun: {url}" if url else ""
           comment(
-              f"{marker}\n## Swarm Bench\n**UAT dispatched** for issue #{issue} → `{dev}` `{branch}`{extra} (via `{row.get('source')}`).\n\n"
+              f"{marker}\n## Swarm Bench\n**UAT dispatched** for issue #{issue} → `{dev}` `{branch}`{extra} (via `{row.get('source')}`).{extra_run}\n\n"
               f"Waiting for `SHALOM-swarm-bench`. Unlock the Pixel. Do not type a second command. This does not merge."
           )
           out("go", "true")
@@ -212,23 +215,23 @@ jobs:
             delta = @{ wallSec = $wall; ghBillableMin = 0 }
           }
           $json = ($row | ConvertTo-Json -Compress)
-          $body = @"
-          <!-- swarm-bench-uat -->
-          ## Swarm Bench
-          **UAT installed** for issue #$env:ISSUE
-
-          - branch ``$env:BRANCH``
-          - apk ``$env:APK``
-          - adb ``$env:SERIAL``
-          - host ``$env:COMPUTERNAME``
-
-          Unlocked Pixel, long-press Japanese text, wait a few seconds. Comment on this issue what happened. Do not open a second pull request.
-
-          <!-- swarm-usage
-          $json
-          -->
-          usage `swarm-bench` `installed` $($env:COMPUTERNAME) wall 0s · gh 0min · grok credits unknown
-          "@
+          $body = @(
+            "<!-- swarm-bench-uat -->"
+            "## Swarm Bench"
+            "**UAT installed** for issue #$($env:ISSUE)"
+            ""
+            "- branch ``$($env:BRANCH)``"
+            "- apk ``$($env:APK)``"
+            "- adb ``$($env:SERIAL)``"
+            "- host ``$($env:COMPUTERNAME)``"
+            ""
+            "Unlocked Pixel, long-press Japanese text, wait a few seconds. Comment on this issue what happened. Do not open a second pull request."
+            ""
+            "<!-- swarm-usage"
+            $json
+            "-->"
+            "usage ``swarm-bench`` ``installed`` $($env:COMPUTERNAME) wall 0s · gh 0min · grok credits unknown"
+          ) -join "`n"
           @{ body = $body } | ConvertTo-Json | gh api -X POST "repos/$env:GH_REPO/issues/$env:ISSUE/comments" --input -
 
   report:

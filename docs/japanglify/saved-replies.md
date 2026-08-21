@@ -1,6 +1,6 @@
 # Saved replies (owner)
 
-GitHub will not put `/uat` in the `/` menu. These four replies are the picker.
+GitHub will not put `/uat` in the `/` menu. These five replies are the picker.
 
 Create them once at [github.com/settings/replies](https://github.com/settings/replies). Title can be anything; **body must be exactly the command, nothing else.**
 
@@ -9,6 +9,7 @@ Create them once at [github.com/settings/replies](https://github.com/settings/re
 | accept | `/accept` |
 | block | `/block` |
 | uat | `/uat` |
+| kick | `/kick` |
 | clip-ok | `/clip-ok` |
 
 On an issue, type `/` → Saved replies → pick one. github.com only. Grok App comments do not run `/uat`.
