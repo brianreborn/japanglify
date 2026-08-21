@@ -10,15 +10,22 @@ Policy: `docs/japanglify/swarm-bench.md`. Kickoff details: `docs/japanglify/swar
 
 ### Null start (no transcript)
 
-From the clone that has `scripts/swarm-bench-runner.ps1` (`brianreborn/japanglify` `main`):
+`grok [OPTIONS] [PROMPT]` — the optional `PROMPT` is the first TUI message. Do not use `-p` / `--print` / `--single` (those exit). Do not pass `--resume`, `-r`, `--continue`, or `-c`.
+
+From the clone that has `scripts/swarm-bench-runner.ps1` (`brianreborn/japanglify` `main`), PowerShell:
 
 ```text
-grok --effort medium
+git pull origin main
+grok --effort medium 'Replace all prior context with docs/swarm-conductor/prompt-bench.md. Read that file; it is your role. USB is unplugged on purpose.'
 ```
 
-That is the whole argv. Do **not** pass `--resume`, `-r`, `--continue`, or `-c`. Bare `grok` is a new session; `--effort medium` overrides the CLI default `high`. `--continue` would reattach the last session for this directory — that is how a failure recurs without `--resume`.
+`--effort medium` overrides the CLI default `high`. Bare `grok` is a new session. `--continue` would reattach the last session for this directory.
 
-Then paste **this file** (raw URL is fine).
+If this clone does not have that file, same argv with the raw URL instead of the path:
+
+```text
+grok --effort medium 'Replace all prior context with https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt-bench.md Read that file; it is your role. USB is unplugged on purpose.'
+```
 
 | Situation | What you type | What must stay up |
 |---|---|---|
@@ -28,7 +35,7 @@ Then paste **this file** (raw URL is fine).
 | **GitHub says `SHALOM-swarm-bench` offline** | Restore | Same |
 | **Log off / reboot** | Nothing in Grok. Next logon, HKCU Run starts the loop. Grok is optional. If still offline, Restore | This Windows logon (USB needs it) |
 
-`--resume` replays the transcript. If you shut Grok down because it was wrong, resume would make that recur. That is why Restore is Null start + this file.
+`--resume` replays the transcript. If you shut Grok down because it was wrong, resume would make that recur. That is why Restore is Null start.
 
 Never `taskkill` `Runner.Listener` as a “restart.” Never paste “start the runner” on a schedule.
 

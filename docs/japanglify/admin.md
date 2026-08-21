@@ -8,13 +8,14 @@ CLI ritual is **not** this page. It is [prompt-bench.md](../swarm-conductor/prom
 
 ## Shutdown and restart
 
-**Null start** (no transcript):
+**Null start** (no transcript). PowerShell, in the clone with `scripts/swarm-bench-runner.ps1`:
 
 ```text
-grok --effort medium
+git pull origin main
+grok --effort medium 'Replace all prior context with docs/swarm-conductor/prompt-bench.md. Read that file; it is your role. USB is unplugged on purpose.'
 ```
 
-in the clone with `scripts/swarm-bench-runner.ps1`. No `--resume`, no `-r`, no `--continue`, no `-c`. Then paste prompt-bench.md.
+`PROMPT` is the first TUI message. No `--resume`, `-r`, `--continue`, `-c`, `-p`.
 
 | Situation | Do | Do not |
 |---|---|---|
