@@ -4,6 +4,20 @@ Not for reporters. Public repo, but this page is the admin cheat sheet.
 
 **One live bench:** `win11-pixel` (SHALOM). Grok CLI and the Actions listener share the Windows logon. The Pixel is on USB when you want phone UAT; unplugged USB does not excuse a dead listener.
 
+| What | Path |
+|---|---|
+| Official clone (`swarm-grok`, bench-runner source) | `%USERPROFILE%\src\brianreborn\japanglify` |
+| Dev clone (`agent/*`, Gradle, adb inner loop) | `%USERPROFILE%\src\electrobrian\japanglify` |
+| GitHub Actions listener | `C:\actions-runner` — **not** a git clone. Do not `cd` here to start Grok |
+
+```bat
+cd /d %USERPROFILE%\src\brianreborn\japanglify
+git pull origin main
+scripts\swarm-grok.cmd
+```
+
+`swarm-grok.py` cds to the official clone from its own location. `C:\actions-runner` is only `Runner.Listener` / `swarm-run-loop.cmd`.
+
 CLI ritual is **not** this page. It is [prompt-bench.md](../swarm-conductor/prompt-bench.md) ([raw](https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt-bench.md)). This page is github.com + when to use that ritual.
 
 Grok CLI default effort on this host is **medium** (`%USERPROFILE%\.grok\config.toml`, set by `swarm-bench-runner.ps1`). Fleet cap (SuperGrok window, per-role clamp, model): [budget.json](budget.json) / [budget.md](../swarm-conductor/budget.md). Effective flags: `python3 scripts/swarm_budget.py --role swarm-bench --issue-effort xhigh --argv`. Omit `--effort` unless that prints one.

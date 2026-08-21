@@ -14,7 +14,12 @@
       "device": "adb",
       "devRepo": "electrobrian/japanglify",
       "branch": "BETA-2",
-      "notes": "Named reservation. Hostname SHALOM (runner SHALOM-swarm-bench). Beats the windows pool.",
+      "notes": "Named reservation. Hostname SHALOM (runner SHALOM-swarm-bench). Beats the windows pool. Paths: official=%USERPROFILE%\\src\\brianreborn\\japanglify (swarm-grok); dev=%USERPROFILE%\\src\\electrobrian\\japanglify (agent/*); runner=C:\\actions-runner (Listener only — not a git clone).",
+      "workdir": {
+        "official": "%USERPROFILE%\\src\\brianreborn\\japanglify",
+        "dev": "%USERPROFILE%\\src\\electrobrian\\japanglify",
+        "runner": "C:\\actions-runner"
+      },
       "match": { "hostname": ["SHALOM"] },
       "never": ["gradle.assemble-release", "secret.keystore-release", "ci.remote-assemble"]
     },
