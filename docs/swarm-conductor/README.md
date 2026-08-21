@@ -13,10 +13,17 @@ The conductor dispatches; it does not implement, build, or sign.
 | quota trip | Actions `swarm-watchdog.yml` (schedule) | `github-actions[bot]` |
 | JSON + lease/usage self-test | Actions `conductor-config.yml` | `ubuntu-latest` |
 
-Canonical prompts (paste **Raw** into the matching Grok Automation; do not mix):
+## Canonical Grok Automation prompts
 
-- Intake: [prompt.md](prompt.md) — [raw](https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt.md)
-- Pull-request follow: [prompt-pr.md](prompt-pr.md) — [raw](https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt-pr.md)
+Every Japanglify Grok automation has a file in this directory. Open **Raw**, copy all, paste into **that** automation only. Do not mix.
+
+| Grok Automation | File | Raw |
+|---|---|---|
+| `japanglify-swarm-conductor` | [prompt.md](prompt.md) | [raw](https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt.md) |
+| `japanglify-swarm-conductor-pr-follow` | [prompt-pr.md](prompt-pr.md) | [raw](https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt-pr.md) |
+| `japanglify-swarm-conductor-webhook` (retired) | [prompt-webhook.md](prompt-webhook.md) | [raw](https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt-webhook.md) |
+
+Personal automations (e.g. Weekly Twitter recap) are **not** in this repo.
 
 There is **no** Actions `/accept` workflow. GitHub’s `/` dropdown cannot hold our commands — use [Saved replies](https://github.com/settings/replies).
 
