@@ -51,15 +51,15 @@ Current release: **1.0.0-beta1**.
 
 Since this isn't a Play Store install, Android will warn about installing from an unknown source the first time — that's expected; allow it for this APK.
 
-## Bugs, pull requests, and tester APKs
+## Bugs, issues, and pull requests
 
-**Issue** = the bug (this repo). **Pull request** = the fix plus tester APKs (development fork, `BETA-2`).
+GitHub has two objects. **Issue** (bug report) is the problem. **Pull request** is a proposed code change plus tester APKs. There is no “problem report.” This project does not use the letters “PR” in this README — they get read as the wrong thing.
 
-Watch the issue. Install testers from the **PR comment**, not from `/latest`. Tester builds use a different signing key — **uninstall Japanglify first**.
+Watch the **issue**. Install testers from a comment on the **pull request**, not from `/latest`. Tester builds use a different signing key — **uninstall Japanglify first**.
 
-If a fix does not UAT: comment on **that PR** (what you tried). Do not open a new issue. The next commit on the same PR publishes new APKs (`pr-N-build-M+1`). Uninstall the old tester, install the new links, try again.
+If a fix does not UAT: comment on **that pull request** (what you tried). Do not open a new issue. The next commit on the same pull request publishes new APKs (GitHub tags them `pr-<pull-request-number>-build-<n>`). Uninstall the old tester, install the new links, try again.
 
-Owner: `/accept` or 👍 on the issue body to start work; free-form English on the PR to steer it. `/latest` is never a tester key.
+Owner: `/accept` or 👍 on the **issue body** to start work; free-form English on the **pull request** to steer it. `/latest` is never a tester key.
 
 Full guide: [docs/japanglify/ci-for-humans.md](docs/japanglify/ci-for-humans.md).
 
