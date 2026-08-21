@@ -6,6 +6,10 @@ The conductor dispatches; it does not implement, build, or sign.
 This directory has **no product domain**. Japanese linguistics, Android
 intents, APKs, and in-flight Japanglify bugs live under `docs/japanglify/`.
 
+**GitHub names (do not invent others):** an **issue** is a bug or request;
+a **pull request** is a proposed merge. There is no “problem report” object.
+Do not abbreviate pull request as “PR” in user-facing text.
+
 ## What is generic
 
 - `/accept` `/block` (whole comment) and issue-body `+1` from a configured trusted actor
