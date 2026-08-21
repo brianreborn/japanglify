@@ -12,15 +12,17 @@ A command counts when it is the **start or end of a line** (token, not a prefix)
 
 Matcher: `scripts/swarm_cmd.py`. YAML never uses `contains('/uat')`.
 
+Handlers **do not scan** a comment for `/commands` unless that user is allowed to run them. A stranger’s `/uat` never starts Swarm Bench. Those hits only go to the Actions warning log (`swarm-cmd-warn.yml`) — no issue comment.
+
 Saved replies — [github.com/settings/replies](https://github.com/settings/replies) — [saved-replies.md](saved-replies.md). github.com.
 
-| Reply | Who runs it | What |
+| Reply | Who may run it | What |
 |---|---|---|
-| `/accept` | Grok automation `japanglify-swarm-conductor` | Intake ACCEPTED |
-| `/block` | same | Intake BLOCKED |
-| `/uat` | Actions `swarm-conductor-uat.yml` (owner) | Install that issue’s `agent/<n>-*` on the Pixel |
-| `/clip-shrink` | Actions `swarm-clip.yml` (owner, **also auto**) | Offer a compact copy **unless** already small (≤512 KB) |
-| `/clip-ok` | same (owner **or reporter**) | Put that compact file in the original comment |
+| `/accept` | owner | Intake ACCEPTED |
+| `/block` | owner | Intake BLOCKED |
+| `/uat` | owner | Install that issue’s `agent/<n>-*` on the Pixel |
+| `/clip-shrink` | owner (also auto on attach) | Offer a compact copy **unless** already small (≤512 KB) |
+| `/clip-ok` | owner **or reporter** | Put that compact file in the original comment |
 
 **New bugs:** you do **not** edit `instance.json`. `/uat` finds `electrobrian` `agent/<issue>-*` (open pull request, else the ref). No branch yet → it says so; do not invent one. Watchdog comments **Ready for Pixel UAT** once when that branch exists — that is your cue to `/uat` on github.com.
 
