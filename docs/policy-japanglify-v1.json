@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "trustedActor": "brianreborn",
+  "devRepo": "electrobrian/japanglify",
+  "officialRepo": "brianreborn/japanglify",
+  "note": "Draft. Roles are starting capability sets. Do not add caps in place. Catalog parked for later review.",
+  "roles": {
+    "orchestrator": [
+      "task.create",
+      "assignment.propose",
+      "assignment.cancel",
+      "github.ingest",
+      "github.issue-comment",
+      "github.status-edit",
+      "ledger.append"
+    ],
+    "watchdog": [
+      "assignment.cancel",
+      "github.status-edit",
+      "actions.cancel-run",
+      "ledger.append",
+      "alert.human"
+    ],
+    "reproducer": [
+      "git.push-agent-branch",
+      "gradle.domain-test",
+      "ledger.append",
+      "hypothesis.propose"
+    ],
+    "analyzer": [
+      "ledger.append",
+      "hypothesis.propose",
+      "hypothesis.contradict"
+    ],
+    "synthesizer": [
+      "git.push-agent-branch",
+      "github.pr-create",
+      "gradle.domain-test",
+      "ledger.append",
+      "patch.propose",
+      "secret.gh-electrobrian"
+    ],
+    "verifier": [
+      "github.issue-comment",
+      "review.record",
+      "ledger.append"
+    ],
+    "ci-tester": ["gradle.assemble-tester"],
+    "official-signer": [
+      "gradle.assemble-release",
+      "secret.keystore-release"
+    ]
+  },
+  "never": {
+    "orchestrator": [
+      "git.push-agent-branch",
+      "github.pr-create",
+      "gradle.assemble-tester",
+      "gradle.assemble-release",
+      "adb.install",
+      "adb.tap",
+      "secret.gh-electrobrian",
+      "secret.keystore-release"
+    ],
+    "watchdog": [
+      "assignment.propose",
+      "git.push-agent-branch",
+      "github.pr-create",
+      "gradle.assemble-tester",
+      "gradle.assemble-release"
+    ]
+  },
+  "quotas": {
+    "agentsLivePerIssue": 4,
+    "openPrsPerIssue": 1,
+    "prLifetimePerIssue": 3,
+    "commentsPerIssuePerHour": 10,
+    "testerReleasesPerPr": 5,
+    "grandfatherOpenPrs": [4, 8, 10, 11, 12]
+  },
+  "accept": {
+    "wholeComment": ["/accept", "/block"],
+    "issueBodyReaction": "+1",
+    "actor": "brianreborn"
+  }
+}
