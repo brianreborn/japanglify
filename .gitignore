@@ -39,3 +39,7 @@ sdk/
 
 # Claude Code session transcript dumps
 *-this-session-is-being-continued-from-a-previous-c.txt
+
+# Swarm Bench DHCP lease (local ack of docs/japanglify/hosts.json)
+.swarm-host.json
+.swarm-host-id
