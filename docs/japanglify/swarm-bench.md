@@ -20,15 +20,23 @@ Without that listener, `/uat` is a dead click. A queued `/uat` will pick up as s
 
 Canonical table: [prompt-bench.md](../swarm-conductor/prompt-bench.md) (that file wins). Owner cheat sheet only points here: [admin.md](admin.md).
 
+**Null start:**
+
+```text
+grok --effort medium
+```
+
+No `--resume`, `-r`, `--continue`, `-c`. Then paste prompt-bench.md.
+
 | Situation | Do |
 |---|---|
 | **Normal stop** | `/quit`. Stay logged on to Windows. Do not kill `Runner.Listener`. |
 | **Normal start** (last session was healthy) | same cwd: `grok --effort <issue> --resume` |
-| **Restore** (first this logon, or you killed a bad session) | `grok --effort medium` — **no** `--resume`. Paste prompt-bench.md. |
+| **Restore** (first this logon, or you killed a bad session) | Null start. |
 | **Runner offline** on GitHub | Restore. |
 | **Log off / reboot** | HKCU Run starts the loop. Grok optional. |
 
-`--resume` after a bad shutdown would replay the failure. Do not `taskkill` the listener as a restart.
+`--resume` / `--continue` after a bad shutdown would replay the failure. Do not `taskkill` the listener as a restart.
 
 ## Host
 

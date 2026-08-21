@@ -8,13 +8,21 @@ Effort lives on the **GitHub issue**, not in chat.
 
 Swarm Bench **shutdown and restart** (canonical): [prompt-bench.md](prompt-bench.md). Policy copy: [swarm-bench.md](../japanglify/swarm-bench.md).
 
+**Null start** (no transcript — Restore / first this logon):
+
+```text
+grok --effort medium
+```
+
+in the clone that has `scripts/swarm-bench-runner.ps1`. Do not pass `--resume`, `-r`, `--continue`, or `-c`. Then paste prompt-bench.md.
+
 | Situation | Do |
 |---|---|
 | **Normal stop** | `/quit`. Stay logged on. Listener stays. |
 | **Normal start** (healthy) | `grok --effort <from the issue> --resume` — same cwd |
-| **Restore** | `grok --effort medium` — **no** `--resume`. Paste prompt-bench.md. |
+| **Restore** | Null start (above) |
 
-Bootstrap is always **medium**. Do not `/effort` mid-session. `--resume` is only for **healthy** product work. A session you shut down because it failed must not be resumed — the transcript would recur.
+Bootstrap is always **medium**. Do not `/effort` mid-session. `--resume` / `--continue` are only for **healthy** product work. A session you shut down because it failed must not be continued — the transcript would recur.
 
 Conductor cloud automations use [prompt.md](prompt.md) the same way (that file **is** their context).
 

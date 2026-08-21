@@ -8,15 +8,23 @@ CLI ritual is **not** this page. It is [prompt-bench.md](../swarm-conductor/prom
 
 ## Shutdown and restart
 
+**Null start** (no transcript):
+
+```text
+grok --effort medium
+```
+
+in the clone with `scripts/swarm-bench-runner.ps1`. No `--resume`, no `-r`, no `--continue`, no `-c`. Then paste prompt-bench.md.
+
 | Situation | Do | Do not |
 |---|---|---|
 | **Normal stop** | `/quit` in Swarm Bench. Stay logged on | Kill `Runner.Listener` |
 | **Normal start** | same cwd: `grok --effort <issue> --resume` | Paste a new brain if the last session was healthy |
-| **Restore** | `grok --effort medium` — **no** `--resume`. Paste prompt-bench.md | `--resume` a session you killed because it failed |
+| **Restore** | Null start (above) | `--resume` / `--continue` a session you killed because it failed |
 | **Runner offline** | Restore | A second `/uat` |
 | **You** | Never type `pwsh` | The CLI runs `swarm-bench-runner.ps1` |
 
-`--resume` replays the transcript. Restore is a new process + the role file.
+`--resume` and `--continue` replay a transcript. Restore is Null start + the role file.
 
 ## Two install paths (never both)
 
@@ -72,7 +80,7 @@ Re-fire via `workflow_dispatch` **only** when a `/uat` job is not queued and nev
 
 - Type `pwsh`
 - `/uat` or `adb install` from Grok CLI while Actions owns the phone
-- `--resume` a session you shut down because it failed
+- `--resume` or `--continue` a session you shut down because it failed
 - Start a second `agent/*` for #5 or #7
 - `/accept` #6 until you mean to start that work
 - Assemble on `ubuntu-latest` for yourself

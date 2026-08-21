@@ -8,15 +8,27 @@ Policy: `docs/japanglify/swarm-bench.md`. Kickoff details: `docs/japanglify/swar
 
 `Runner.Listener` is **not** Grok. `/quit` must not kill it.
 
+### Null start (no transcript)
+
+From the clone that has `scripts/swarm-bench-runner.ps1` (`brianreborn/japanglify` `main`):
+
+```text
+grok --effort medium
+```
+
+That is the whole argv. Do **not** pass `--resume`, `-r`, `--continue`, or `-c`. Bare `grok` is a new session; `--effort medium` overrides the CLI default `high`. `--continue` would reattach the last session for this directory — that is how a failure recurs without `--resume`.
+
+Then paste **this file** (raw URL is fine).
+
 | Situation | What you type | What must stay up |
 |---|---|---|
 | **Normal stop** — work is done, session was healthy | `/quit` | Windows **logged on**. Hidden `swarm-run-loop.cmd`, `Runner.Listener`, `swarm-kick-watch.ps1` |
 | **Normal start** — continue that healthy work | same cwd: `grok --effort <issue label, else medium> --resume` | Listener. Do **not** paste this file. Do **not** run `swarm-bench-runner.ps1` unless GitHub shows the runner **offline** |
-| **Restore** — first start this logon, or you killed a bad session (loop, stale role, babysitting the listener) | `/quit` if a window is still open. Then **no** `--resume`: `grok --effort medium` and paste **this file** | Listener starts from step “Always this logon” below |
-| **GitHub says `SHALOM-swarm-bench` offline** | Restore (row above), even if Grok looks fine | Same |
+| **Restore** — first start this logon, or you killed a bad session | `/quit` if a window is still open. Then **Null start** (above) | Listener starts from step “Always this logon” below |
+| **GitHub says `SHALOM-swarm-bench` offline** | Restore | Same |
 | **Log off / reboot** | Nothing in Grok. Next logon, HKCU Run starts the loop. Grok is optional. If still offline, Restore | This Windows logon (USB needs it) |
 
-`--resume` replays the transcript. If you shut Grok down because it was wrong, resume would make that recur. That is why Restore is a new process + this file.
+`--resume` replays the transcript. If you shut Grok down because it was wrong, resume would make that recur. That is why Restore is Null start + this file.
 
 Never `taskkill` `Runner.Listener` as a “restart.” Never paste “start the runner” on a schedule.
 
@@ -36,7 +48,7 @@ Do not require `adb devices` to start the listener. Unplugged USB is a pause, no
 - `gradle.assemble-release`, keystore, `/latest`
 - a second `agent/*` or second pull request for the same bug
 - babysit `Runner.Listener` in chat
-- `--resume` a session you shut down because it failed
+- `--resume` / `--continue` / `-c` a session you shut down because it failed
 
 ## Product work (only if the owner named a bug)
 

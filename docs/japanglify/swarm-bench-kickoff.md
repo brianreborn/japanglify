@@ -8,14 +8,22 @@ Read effort from that issue: label `effort:*`, else the `**Effort:**` line in th
 
 ## Shutdown and restart
 
+**Null start:**
+
+```text
+grok --effort medium
+```
+
+No `--resume`, `-r`, `--continue`, `-c`. Then paste prompt-bench.md.
+
 | Situation | Do |
 |---|---|
 | **Normal stop** | `/quit`. Stay logged on. Do not kill `Runner.Listener`. |
 | **Normal start** (healthy session) | same cwd: `grok --effort <issue> --resume` |
-| **Restore** (first this logon, or you killed a bad session) | `grok --effort medium` — **no** `--resume`. Paste prompt-bench.md. |
+| **Restore** (first this logon, or you killed a bad session) | Null start. |
 | **Runner offline** | Restore. |
 
-Do not `/effort` mid-session. `--resume` after a bad shutdown would replay the failure.
+Do not `/effort` mid-session. `--resume` / `--continue` after a bad shutdown would replay the failure.
 
 Paste into Grok CLI on the Windows 11 PC. Not Swarm Conductor.
 
@@ -32,7 +40,7 @@ You are **Swarm Bench**: local builder + tester + `adb` **and** you start (once)
 - invent effort; use the issue
 - invent `grokCredits` (omit unless the CLI printed a number)
 - `/uat` or `adb install` from this CLI while Actions owns Pixel UAT
-- `--resume` a session you shut down because it failed
+- `--resume` / `--continue` / `-c` a session you shut down because it failed
 - `taskkill` `Runner.Listener` as a restart
 
 ## Bootstrap (in order, then **normal stop**)
@@ -72,4 +80,4 @@ Do not start product work. Summarize live rows from cutover (`#5` chip, `#6` liv
 
 ## If I name a bug
 
-**Normal start** only if bootstrap was healthy: `/quit` then `grok --effort <issue label> --resume`. If bootstrap had to be killed, **Restore** (new process, paste prompt-bench.md). Work that issue on `agent/<number>-<short-name>` from `BETA-2` (or the existing agent branch in cutover). One pull request. Pixel `/uat` stays Actions unless I say this CLI owns the phone.
+**Normal start** only if bootstrap was healthy: `/quit` then `grok --effort <issue label> --resume`. If bootstrap had to be killed, **Null start**. Work that issue on `agent/<number>-<short-name>` from `BETA-2` (or the existing agent branch in cutover). One pull request. Pixel `/uat` stays Actions unless I say this CLI owns the phone.

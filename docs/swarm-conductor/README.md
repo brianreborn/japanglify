@@ -48,7 +48,7 @@ Every Japanglify Grok automation has a file in this directory. Open **Raw**, cop
 | `japanglify-uat-complete` | [prompt-uat-complete.md](prompt-uat-complete.md) | [raw](https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt-uat-complete.md) |
 | Grok CLI Swarm Bench (not an automation) | [prompt-bench.md](prompt-bench.md) | [raw](https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt-bench.md) |
 
-CLI **normal stop** is `/quit` (listener stays). **Normal start** is `grok --effort <issue> --resume`. **Restore** (first logon, or a session you killed because it failed): no `--resume`; paste the raw prompt-bench file.
+**Null start** (no transcript): `grok --effort medium` — never `--resume`, `-r`, `--continue`, `-c`. Then paste prompt-bench. **Normal stop** is `/quit` (listener stays). **Normal start** is `grok --effort <issue> --resume`.
 
 Personal automations (e.g. Weekly Twitter recap) are **not** in this repo.
 
