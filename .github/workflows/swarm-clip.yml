@@ -1,0 +1,41 @@
+# /clip-shrink → compact copy. /clip-ok → unlink original from the thread.
+name: Swarm clip
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  issues: write
+  contents: write
+
+jobs:
+  clip:
+    if: >-
+      github.event.issue.pull_request == null &&
+      (github.event.comment.body == '/clip-shrink' ||
+       github.event.comment.body == '/clip-ok')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - name: Run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          ACTOR: ${{ github.event.comment.user.login }}
+          BODY: ${{ github.event.comment.body }}
+          ISSUE: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          TRUSTED="$(python3 -c 'import json,pathlib; print(json.loads(pathlib.Path(".github/swarm-conductor.json").read_text())["trustedActor"])')"
+          case "$BODY" in
+            /clip-shrink)
+              if [ "$ACTOR" != "$TRUSTED" ]; then echo ignored; exit 0; fi
+              python3 scripts/swarm-clip.py shrink "$ISSUE"
+              ;;
+            /clip-ok)
+              python3 scripts/swarm-clip.py ok "$ISSUE"
+              ;;
+          esac
