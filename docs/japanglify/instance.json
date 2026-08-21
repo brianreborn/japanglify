@@ -5,6 +5,31 @@
   "officialRepo": "brianreborn/japanglify",
   "devRepo": "electrobrian/japanglify",
   "devIntegrationBranch": "BETA-2",
+  "trees": {
+    "official": [
+      "conductor",
+      "issues",
+      "commands",
+      "workflows",
+      "swarm-scripts",
+      "swarm-docs",
+      "swarm-grok",
+      "runner-registration",
+      "budget",
+      "hosts",
+      "latest-release"
+    ],
+    "dev": [
+      "product-source",
+      "agent-branches",
+      "pull-requests",
+      "gradle-assemble",
+      "tester-apks",
+      "inner-loop-adb"
+    ],
+    "runnerWorkspace": ["uat-job-checkout"],
+    "note": "Classify/fix: start swarm-grok on official, edit the dev agent/* branch. Not 'conductor vs everything else'."
+  },
   "profiles": ["android-app", "japanese-nlp"],
   "hosts": {
     "swarm-conductor": ["grok-cloud"],

@@ -46,6 +46,9 @@ jobs:
           assert "/kick" in cmds and "/uat" in cmds, cmds
           assert budget["cap"]["effort"] in {"low", "medium", "high", "xhigh"}
           assert "swarm-bench" in budget["perRole"]
+          assert "swarm-grok" in inst["trees"]["official"]
+          assert "product-source" in inst["trees"]["dev"]
+          assert "uat-job-checkout" in inst["trees"]["runnerWorkspace"]
           print("conductor config valid")
           PY
       - name: swarm-lease + uat-map + usage + cmd + launch + kick + ping + clip + watchdog + budget self-test
