@@ -9,9 +9,9 @@ body:
         This is an **issue** (bug report), not a pull request.
         Do not include clipboard contents, account data, API tokens, or device identifiers.
 
-        **Clip (optional):** after you open this, drag a **short** screen recording onto the issue
-        (not a video of the phone taken with another camera). About 15 seconds is enough.
-        Prefer an already-small file (a few hundred KB). If it is already small, we leave it.
+        **Clip (optional):** after you open this, drag a **short, already-small** screen recording
+        onto the issue (~15s, a few hundred KB). Do not film the phone with another camera.
+        We will not compress it. If it is huge, re-record smaller.
   - type: textarea
     id: summary
     attributes:
