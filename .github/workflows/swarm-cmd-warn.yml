@@ -1,0 +1,74 @@
+# Unauthorized /command → Actions warning log. Never posts on the issue. Never dispatches UAT.
+name: Swarm command warn
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+jobs:
+  warn:
+    if: >-
+      github.event.issue.pull_request == null &&
+      github.event.comment.user.login != 'github-actions[bot]' &&
+      github.event.comment.user.login != 'brianreborn' &&
+      !contains(github.event.comment.body, 'swarm-bench-uat') &&
+      !contains(github.event.comment.body, 'swarm-uat-ready') &&
+      !contains(github.event.comment.body, 'swarm-clip-compact') &&
+      !(
+        github.event.comment.user.login == github.event.issue.user.login &&
+        (
+          startsWith(github.event.comment.body, '/clip-ok') ||
+          endsWith(github.event.comment.body, '/clip-ok') ||
+          contains(github.event.comment.body, '
+/clip-ok') ||
+          contains(github.event.comment.body, '/clip-ok
+')
+        )
+      ) &&
+      (
+        startsWith(github.event.comment.body, '/uat') ||
+        endsWith(github.event.comment.body, '/uat') ||
+        contains(github.event.comment.body, '
+/uat') ||
+        contains(github.event.comment.body, '/uat
+') ||
+        startsWith(github.event.comment.body, '/accept') ||
+        endsWith(github.event.comment.body, '/accept') ||
+        contains(github.event.comment.body, '
+/accept') ||
+        contains(github.event.comment.body, '/accept
+') ||
+        startsWith(github.event.comment.body, '/block') ||
+        endsWith(github.event.comment.body, '/block') ||
+        contains(github.event.comment.body, '
+/block') ||
+        contains(github.event.comment.body, '/block
+') ||
+        startsWith(github.event.comment.body, '/clip-ok') ||
+        endsWith(github.event.comment.body, '/clip-ok') ||
+        contains(github.event.comment.body, '
+/clip-ok') ||
+        contains(github.event.comment.body, '/clip-ok
+') ||
+        startsWith(github.event.comment.body, '/clip-shrink') ||
+        endsWith(github.event.comment.body, '/clip-shrink') ||
+        contains(github.event.comment.body, '
+/clip-shrink') ||
+        contains(github.event.comment.body, '/clip-shrink
+')
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log unauthorized command
+        env:
+          ACTOR: ${{ github.event.comment.user.login }}
+          BODY: ${{ github.event.comment.body }}
+          ISSUE: ${{ github.event.issue.number }}
+          REPORTER: ${{ github.event.issue.user.login }}
+          TRUSTED: brianreborn
+          COMMENT_URL: ${{ github.event.comment.html_url }}
+        run: python3 scripts/swarm_cmd.py --warn
