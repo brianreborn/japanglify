@@ -2,6 +2,27 @@
 
 GitHub already long-polls and webhooks. Do not 2-minute busy-wait in a Grok chat.
 
+The bench does **not** poll the conductor. The conductor does **not** poll SHALOM. Mailbox is GitHub.
+
+```mermaid
+sequenceDiagram
+  participant You
+  participant Conductor as Conductor (cloud)
+  participant GH as GitHub Actions queue
+  participant Listener as Runner.Listener on SHALOM
+  participant Bench as assemble plus adb
+
+  You->>GH: /uat or workflow_dispatch
+  Conductor->>GH: dispatch job labels swarm-bench
+  loop long-poll (GitHub protocol)
+    Listener->>GH: any job for me?
+  end
+  GH->>Listener: bench job
+  Listener->>Bench: run it
+  Bench->>GH: logs plus UAT installed comment
+  GH->>You: workflow_run_completed
+```
+
 | Event | Native mechanism |
 |---|---|
 | Job available for SHALOM | `Runner.Listener` long-polls Actions (this **is** the backend poll) |
