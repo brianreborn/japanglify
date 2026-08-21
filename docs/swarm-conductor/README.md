@@ -8,9 +8,15 @@ The conductor dispatches; it does not implement, build, or sign.
 | Command / job | Runner | Identity |
 |---|---|---|
 | `/accept` `/block` | Grok automation `japanglify-swarm-conductor` | posts as the trusted actor |
+| owner free-form on a **pull request** | Grok automation `japanglify-swarm-conductor-pr-follow` | same; **zero comments** on plain issues |
 | `/uat` | Actions `swarm-conductor-uat.yml` | `github-actions[bot]` → self-hosted `swarm-bench` |
 | quota trip | Actions `swarm-watchdog.yml` (schedule) | `github-actions[bot]` |
 | JSON + lease/usage self-test | Actions `conductor-config.yml` | `ubuntu-latest` |
+
+Canonical prompts (paste **Raw** into the matching Grok Automation; do not mix):
+
+- Intake: [prompt.md](prompt.md) — [raw](https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt.md)
+- Pull-request follow: [prompt-pr.md](prompt-pr.md) — [raw](https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt-pr.md)
 
 There is **no** Actions `/accept` workflow. GitHub’s `/` dropdown cannot hold our commands — use [Saved replies](https://github.com/settings/replies).
 
