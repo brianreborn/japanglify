@@ -1,0 +1,172 @@
+# /uat on an official issue → Swarm Bench (self-hosted Windows + Pixel).
+# Never assemble on ubuntu-latest.
+name: Swarm Conductor UAT
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: Official issue number
+        required: true
+
+permissions:
+  issues: write
+  contents: read
+  actions: read
+
+jobs:
+  dispatch:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request == null)
+    runs-on: ubuntu-latest
+    outputs:
+      go: ${{ steps.pick.outputs.go }}
+      issue: ${{ steps.pick.outputs.issue }}
+      branch: ${{ steps.pick.outputs.branch }}
+      repo: ${{ steps.pick.outputs.repo }}
+      appid: ${{ steps.pick.outputs.appid }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: pick
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          ACTOR: ${{ github.event.comment.user.login || github.actor }}
+          BODY: ${{ github.event.comment.body || '' }}
+          ISSUE_COMMENT: ${{ github.event.issue.number || 0 }}
+          ISSUE_DISPATCH: ${{ github.event.inputs.issue || '' }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess
+
+          cfg = json.loads(pathlib.Path(".github/swarm-conductor.json").read_text())
+          inst = json.loads(pathlib.Path("docs/japanglify/instance.json").read_text())
+          trusted = cfg["trustedActor"]
+          actor = os.environ.get("ACTOR") or ""
+          event = os.environ["EVENT"]
+          body = (os.environ.get("BODY") or "").replace("\r", "").strip()
+          uat = inst.get("uat") or {}
+          cmd = (uat.get("command") or "/uat").strip()
+
+          def out(k, v):
+              with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
+                  f.write(f"{k}={v}\n")
+
+          if actor != trusted:
+              print("ignored actor", actor)
+              out("go", "false")
+              raise SystemExit(0)
+          if event == "issue_comment" and body != cmd:
+              print("not", cmd)
+              out("go", "false")
+              raise SystemExit(0)
+
+          issue = os.environ.get("ISSUE_DISPATCH") or os.environ.get("ISSUE_COMMENT") or "0"
+          issue = str(int(issue))
+          row = (uat.get("issues") or {}).get(issue)
+          marker = "<!-- swarm-bench-uat -->"
+          repo = os.environ["GH_REPO"]
+
+          def comment(text):
+              subprocess.run(
+                  [
+                      "gh",
+                      "api",
+                      "-X",
+                      "POST",
+                      f"repos/{repo}/issues/{issue}/comments",
+                      "--input",
+                      "-",
+                  ],
+                  input=json.dumps({"body": text}),
+                  text=True,
+                  check=True,
+              )
+
+          if not row:
+              comment(
+                  f"{marker}\n## Swarm Bench\n**UAT skipped** — issue #{issue} has no `uat.issues` branch in `docs/japanglify/instance.json`."
+              )
+              out("go", "false")
+              raise SystemExit(0)
+
+          runners = subprocess.check_output(
+              ["gh", "api", f"repos/{repo}/actions/runners"], text=True
+          )
+          data = json.loads(runners)
+          online = []
+          for r in data.get("runners") or []:
+              names = {lb.get("name") for lb in r.get("labels") or []}
+              if r.get("status") == "online" and "swarm-bench" in names:
+                  online.append(r.get("name"))
+          if not online:
+              comment(
+                  f"{marker}\n## Swarm Bench\n**UAT queued / no host** — no online self-hosted runner labeled `swarm-bench`.\n\nOn the Windows 11 Pixel PC: install a GitHub Actions runner for `{repo}` with labels `Windows,swarm-bench`, leave it running, then comment `{cmd}` again on this issue."
+              )
+              out("go", "false")
+              raise SystemExit(0)
+
+          branch = row["branch"]
+          dev = row.get("devRepo") or inst["devRepo"]
+          appid = uat.get("applicationId") or "com.japanglify.app"
+          comment(
+              f"{marker}\n## Swarm Bench\n**UAT dispatched** for issue #{issue} → `{dev}` `{branch}` on `{online[0]}`.\n\nGet the Pixel unlocked. This does not merge or `/accept`."
+          )
+          out("go", "true")
+          out("issue", issue)
+          out("branch", branch)
+          out("repo", dev)
+          out("appid", appid)
+          print("dispatch", issue, dev, branch, online)
+          PY
+
+  bench:
+    needs: dispatch
+    if: needs.dispatch.outputs.go == 'true'
+    runs-on: [self-hosted, Windows, swarm-bench]
+    timeout-minutes: 60
+    steps:
+      - name: Assemble + adb install
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          ISSUE: ${{ needs.dispatch.outputs.issue }}
+          DEV_REPO: ${{ needs.dispatch.outputs.repo }}
+          BRANCH: ${{ needs.dispatch.outputs.branch }}
+          APPID: ${{ needs.dispatch.outputs.appid }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          adb devices
+          $work = Join-Path $env:RUNNER_TEMP "japanglify-uat"
+          if (Test-Path $work) { Remove-Item -Recurse -Force $work }
+          git clone --depth 1 --branch $env:BRANCH "https://github.com/$env:DEV_REPO.git" $work
+          Set-Location $work
+          if (Test-Path .\gradlew.bat) {
+            .\gradlew.bat --no-daemon :app:assembleDownloadableDebug
+          } else {
+            throw "no gradlew.bat"
+          }
+          $apk = Get-ChildItem -Recurse -Filter "app-downloadable-debug.apk" | Select-Object -First 1
+          if (-not $apk) { throw "no downloadable debug apk" }
+          adb uninstall $env:APPID 2>$null
+          adb install -r $apk.FullName
+          $serial = (adb devices | Select-String "device$").Line
+          $body = @"
+          <!-- swarm-bench-uat -->
+          ## Swarm Bench
+          **UAT installed** for issue #$env:ISSUE
+
+          - branch ``$env:BRANCH``
+          - apk ``$($apk.Name)``
+          - adb ``$serial``
+
+          Unlocked Pixel, long-press Japanese text, wait a few seconds. Comment on this issue what happened. Do not open a second pull request.
+          "@
+          gh api -X POST "repos/$env:GH_REPO/issues/$env:ISSUE/comments" -f body="$body"
