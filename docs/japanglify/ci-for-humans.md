@@ -31,6 +31,8 @@ An **issue** is the bug or request (“the chip vanishes”). A **pull request**
 
 The official issue stays the **scoreboard** (open until the fix ships). The pull request is where commits, checks, and APK links appear. One bug → one live pull request. A failed test does **not** open a second pull request.
 
+Grok CLI **effort** is on the issue: label `effort:low` / `effort:medium` / `effort:high` / `effort:xhigh`, and a first-line `**Effort:**`. Unlabeled → medium. Change the label; do not debate it in chat.
+
 ## Owner local UAT — Grok CLI, not the issue tracker
 
 The Pixel is on your desk. Cloud Swarm Conductor cannot `adb` it. For **your** UAT loop, use **Grok CLI** on the workstation that has the phone (and Gradle). Talk in ordinary English: “chip still gone in 1s, try again.”
@@ -90,6 +92,7 @@ owner merges official     →  later /latest (real key)
 ## Owner (admin) notes
 
 - **Issues:** whole-comment `/accept` or `/block`, or 👍 on the issue body. That is the only intake gate. Free-form on an issue does not start work.
+- **Effort:** set `effort:*` on the issue when you file or accept it. Bench reads that; do not pick effort in chat.
 - **Pull requests:** free-form English is the instruction channel. Keep product work on `electrobrian` `agent/*` → `BETA-2`. Swarm Conductor docs may use `chore/*` pull requests on this repo.
 - **Retries:** same pull request, new commit, new `pr-<number>-build-<n>` tag. Do not open a second pull request for a failed UAT.
 - **Ship:** you merge to `main`; official signed `/latest` is a separate home-machine step. Tester keys never become `/latest`.
