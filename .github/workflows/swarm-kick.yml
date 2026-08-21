@@ -61,12 +61,9 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import importlib.util, json, os, subprocess, sys
+          import json, os, subprocess, sys
           sys.path.insert(0, "scripts")
-          import swarm_cmd
-          spec = importlib.util.spec_from_file_location("swarm_kick", "scripts/swarm-kick.py")
-          swarm_kick = importlib.util.module_from_spec(spec)
-          spec.loader.exec_module(swarm_kick)
+          import swarm_cmd, swarm_kick
 
           cfg = json.loads(open(".github/swarm-conductor.json", encoding="utf-8").read())
           trusted = cfg["trustedActor"]
