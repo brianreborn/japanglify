@@ -39,18 +39,6 @@ function Ensure-ToolPath {
 }
 Ensure-ToolPath
 
-function Git-GitHubPassword {
-    $git = $env:SWARM_GIT
-    if (-not $git) { $git = "git" }
-    $fill = "protocol=https`nhost=github.com`n`n"
-    $out = $fill | & $git credential fill 2>$null
-    if ($LASTEXITCODE -ne 0) { return $null }
-    foreach ($line in @($out)) {
-        if ($line -match '^password=(.+)$') { return $Matches[1].Trim() }
-    }
-    return $null
-}
-
 function Ensure-GhAuth {
     if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
         throw "gh.exe not found (GitHub CLI). swarm-path.ps1 should have located C:\\Program Files\\GitHub CLI\\gh.exe"
@@ -58,14 +46,10 @@ function Ensure-GhAuth {
     gh auth status --hostname github.com 2>$null | Out-Null
     if ($LASTEXITCODE -eq 0) { return }
     if ($env:GH_TOKEN -or $env:GITHUB_TOKEN) { return }
-    $pw = Git-GitHubPassword
-    if ($pw) {
-        Write-Host "gh auth: using Git Credential Manager (same as git pull)"
-        $pw | gh auth login --hostname github.com --with-token
-        gh auth status --hostname github.com 2>$null | Out-Null
-        if ($LASTEXITCODE -eq 0) { return }
-    }
-    throw "gh is not logged in. One-time: gh auth login --hostname github.com --git-protocol https --web"
+    Write-Host "starting gh auth login --web (finish in the browser, then this script continues)"
+    gh auth login --hostname github.com --git-protocol https --web
+    gh auth status --hostname github.com 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "gh auth login did not finish" }
 }
 
 function Gh-LoginName {
