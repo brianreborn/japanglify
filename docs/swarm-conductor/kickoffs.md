@@ -6,8 +6,8 @@ Effort lives on the **GitHub issue**, not in chat.
 2. First line of the issue body: `**Effort: high** (`grok --effort high`)`
 3. If both missing: **medium** (do not use the CLI default `high`)
 
-Bootstrap (clone, `adb`, lease, runner) is always **medium**.
-When product work starts, **do not** `/effort` mid-session. Canonical relaunch:
+Bootstrap (clone, lease, runner) is always **medium**.
+When product work starts, **do not** `/effort` mid-session. Canonical relaunch **from a session that already loaded the role file**:
 
 ```text
 /quit
@@ -15,6 +15,15 @@ grok --effort <from the issue> --resume
 ```
 
 `--resume` keeps the same clone/lease/runner context. `--effort` must be on that process start. Same cwd.
+
+**To replace a polluted session**, do **not** `--resume`. New process, load the role file:
+
+```text
+/quit
+grok --effort medium
+```
+
+Then: *Replace all prior context with `docs/swarm-conductor/prompt-bench.md`.* That file is the Swarm Bench brain. Conductor cloud automations use `prompt.md` the same way.
 
 | Level | Use |
 |---|---|

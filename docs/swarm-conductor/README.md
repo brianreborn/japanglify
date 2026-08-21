@@ -15,6 +15,7 @@ The conductor dispatches; it does not implement, build, or sign.
 | UAT finished | Grok automation `japanglify-uat-complete` | `workflow_run_completed`, APP_ONLY |
 | quota / 20min queue stall | Actions `swarm-watchdog.yml` (every 10 min) | `github-actions[bot]` |
 | JSON + lease/usage self-test | Actions `conductor-config.yml` | `ubuntu-latest` |
+| Swarm Bench **CLI** on SHALOM | Grok CLI; load [prompt-bench.md](prompt-bench.md) | not an automation; listener is `swarm-run-loop.cmd` |
 
 GitHub is the event bus. Spec: [events.md](events.md). Kick: [kick.md](kick.md). Ping: [ping.md](ping.md).
 
@@ -28,6 +29,9 @@ Every Japanglify Grok automation has a file in this directory. Open **Raw**, cop
 | `japanglify-swarm-conductor-pr-follow` | [prompt-pr.md](prompt-pr.md) | [raw](https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt-pr.md) |
 | `japanglify-swarm-conductor-webhook` (retired) | [prompt-webhook.md](prompt-webhook.md) | [raw](https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt-webhook.md) |
 | `japanglify-uat-complete` | [prompt-uat-complete.md](prompt-uat-complete.md) | [raw](https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt-uat-complete.md) |
+| Grok CLI Swarm Bench (not an automation) | [prompt-bench.md](prompt-bench.md) | [raw](https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt-bench.md) |
+
+To restore a polluted CLI session: `/quit`, **no** `--resume`, `grok --effort medium`, then “replace all prior context with that raw file.”
 
 Personal automations (e.g. Weekly Twitter recap) are **not** in this repo.
 
