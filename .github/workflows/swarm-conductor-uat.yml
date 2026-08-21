@@ -1,10 +1,7 @@
 # /uat on an official issue → Swarm Bench (self-hosted Windows + Pixel).
 # Never assemble on ubuntu-latest.
-# Do not list runners (GITHUB_TOKEN is not admin — 403).
-# New bugs: scripts/uat-map.py finds electrobrian agent/<issue>-* (JSON is override).
-#
-# Loop guards: ignore bots and our own markers. Do not scan /uat unless the
-# actor is the trusted owner. Line-edge match (scripts/swarm_cmd.py).
+# YAML must not embed raw newlines in expressions (invalid workflow).
+# Real command match is scripts/swarm_cmd.py. YAML only prefilters owner comments.
 # NEVER YAML contains("/uat") — watchdog quotes it.
 name: Swarm Conductor UAT
 
@@ -38,11 +35,7 @@ jobs:
         !contains(github.event.comment.body, 'swarm-conductor-status') &&
         (
           startsWith(github.event.comment.body, '/uat') ||
-          endsWith(github.event.comment.body, '/uat') ||
-          contains(github.event.comment.body, '
-/uat') ||
-          contains(github.event.comment.body, '/uat
-')
+          endsWith(github.event.comment.body, '/uat')
         )
       )
     runs-on: ubuntu-latest
