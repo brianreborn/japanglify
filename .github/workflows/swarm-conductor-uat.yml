@@ -2,6 +2,10 @@
 # Never assemble on ubuntu-latest.
 # Do not list runners (GITHUB_TOKEN is not admin — 403).
 # New bugs: scripts/uat-map.py finds electrobrian agent/<issue>-* (JSON is override).
+#
+# Loop guards: ignore bots and our own markers. Whole-comment /uat only
+# (startsWith so a trailing newline still counts; NEVER contains("/uat") —
+# watchdog ready-text mentions the command).
 name: Swarm Conductor UAT
 
 concurrency:
@@ -25,9 +29,15 @@ jobs:
   dispatch:
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'issue_comment' &&
-       github.event.issue.pull_request == null &&
-       github.event.comment.body == '/uat')
+      (
+        github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request == null &&
+        github.event.comment.user.login != 'github-actions[bot]' &&
+        !contains(github.event.comment.body, 'swarm-bench-uat') &&
+        !contains(github.event.comment.body, 'swarm-uat-ready') &&
+        !contains(github.event.comment.body, 'swarm-conductor-status') &&
+        startsWith(github.event.comment.body, '/uat')
+      )
     runs-on: ubuntu-latest
     outputs:
       go: ${{ steps.pick.outputs.go }}
@@ -66,7 +76,7 @@ jobs:
               out("go", "false")
               raise SystemExit(0)
           if event == "issue_comment" and body != "/uat":
-              print("not /uat")
+              print("not whole-comment /uat", repr(body[:40]))
               out("go", "false")
               raise SystemExit(0)
 
@@ -82,6 +92,18 @@ jobs:
                   text=True,
                   check=True,
               )
+
+          existing = json.loads(
+              subprocess.check_output(
+                  ["gh", "api", f"repos/{repo}/issues/{issue}/comments?per_page=100"],
+                  text=True,
+              )
+          )
+          recent_dispatch = False
+          for c in existing:
+              b = c.get("body") or ""
+              if marker in b and "UAT dispatched" in b:
+                  recent_dispatch = True
 
           proc = subprocess.run(
               [sys.executable, "scripts/uat-map.py", issue],
@@ -103,12 +125,15 @@ jobs:
           appid = row.get("applicationId") or "com.japanglify.app"
           pull = row.get("pull")
           extra = f" pull request `{pull}`" if pull else ""
-          comment(
-              f"{marker}\n## Swarm Bench\n**UAT dispatched** for issue #{issue} → `{dev}` `{branch}`{extra} (via `{row.get('source')}`).\n\n"
-              f"Waiting for a self-hosted runner labeled `swarm-bench`. If this sits, on the Windows box (logged-in user, not a Windows service):\n"
-              f"`pwsh -File scripts/swarm-bench-runner.ps1`\n\n"
-              f"A queued job will pick up when that listener starts — no second `/uat`. Unlock the phone. This does not merge or `/accept`."
-          )
+          if not recent_dispatch:
+              comment(
+                  f"{marker}\n## Swarm Bench\n**UAT dispatched** for issue #{issue} → `{dev}` `{branch}`{extra} (via `{row.get('source')}`).\n\n"
+                  f"Waiting for a self-hosted runner labeled `swarm-bench`. If this sits, on the Windows box (logged-in user, not a Windows service):\n"
+                  f"`pwsh -File scripts/swarm-bench-runner.ps1`\n\n"
+                  f"A queued job will pick up when that listener starts — no second `/uat`. Unlock the phone. This does not merge or `/accept`."
+              )
+          else:
+              print("suppress duplicate UAT dispatched comment")
           out("go", "true")
           out("issue", issue)
           out("branch", branch)
