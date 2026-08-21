@@ -135,9 +135,7 @@ jobs:
           if not recent_dispatch:
               comment(
                   f"{marker}\n## Swarm Bench\n**UAT dispatched** for issue #{issue} → `{dev}` `{branch}`{extra} (via `{row.get('source')}`).\n\n"
-                  f"Waiting for a self-hosted runner labeled `swarm-bench`. If this sits, on the Windows box (logged-in user, not a Windows service):\n"
-                  f"`pwsh -File scripts/swarm-bench-runner.ps1`\n\n"
-                  f"A queued job will pick up when that listener starts — no second `/uat`. Unlock the phone. This does not merge or `/accept`."
+                  f"Waiting for the win11-pixel listener. If this sits: `/quit` then `grok --effort xhigh --resume` on that box (the CLI starts the listener). No second `/uat`. Unlock the phone. This does not merge or `/accept`."
               )
           else:
               print("suppress duplicate UAT dispatched comment")
