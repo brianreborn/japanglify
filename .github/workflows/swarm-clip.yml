@@ -1,6 +1,5 @@
 # Auto-transcode fat issue videos. /clip-ok splices into the original slot.
-# Commands: do not scan /clip-* unless the actor is allowed (owner, or reporter for /clip-ok).
-# Attachments still auto-shrink for anyone (not a command).
+# YAML must not embed raw newlines in expressions.
 name: Swarm clip
 
 concurrency:
@@ -23,8 +22,8 @@ jobs:
       github.event.issue.pull_request == null &&
       github.event.sender.login != 'github-actions[bot]' &&
       (
-        github.event.comment.user.login != 'github-actions[bot]' ||
-        github.event_name == 'issues'
+        github.event_name == 'issues' ||
+        github.event.comment.user.login != 'github-actions[bot]'
       ) &&
       (
         (
@@ -45,27 +44,15 @@ jobs:
               (
                 startsWith(github.event.comment.body, '/clip-shrink') ||
                 endsWith(github.event.comment.body, '/clip-shrink') ||
-                contains(github.event.comment.body, '
-/clip-shrink') ||
-                contains(github.event.comment.body, '/clip-shrink
-') ||
                 startsWith(github.event.comment.body, '/clip-ok') ||
-                endsWith(github.event.comment.body, '/clip-ok') ||
-                contains(github.event.comment.body, '
-/clip-ok') ||
-                contains(github.event.comment.body, '/clip-ok
-')
+                endsWith(github.event.comment.body, '/clip-ok')
               )
             ) ||
             (
               github.event.comment.user.login == github.event.issue.user.login &&
               (
                 startsWith(github.event.comment.body, '/clip-ok') ||
-                endsWith(github.event.comment.body, '/clip-ok') ||
-                contains(github.event.comment.body, '
-/clip-ok') ||
-                contains(github.event.comment.body, '/clip-ok
-')
+                endsWith(github.event.comment.body, '/clip-ok')
               )
             )
           )
@@ -75,7 +62,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: ffmpeg
-        if: ${{ !startsWith(github.event.comment.body, '/clip-ok') && !endsWith(github.event.comment.body, '/clip-ok') }}
+        if: ${{ github.event_name == 'issues' || (!startsWith(github.event.comment.body, '/clip-ok') && !endsWith(github.event.comment.body, '/clip-ok')) }}
         run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
       - name: Run
         env:
