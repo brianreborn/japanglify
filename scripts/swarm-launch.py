@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Launch the per-host worker for one issue step. Default is dry-run (print plan, do not spawn).
 
-Intake is grok-cloud (already the Grok automation). Classify/fix/uat are swarm-bench.
-Watchdog is github-actions. Wrong host → NAK, no spawn. Never /uat from this script.
+One live bench: win11-pixel (Grok CLI + the Actions listener). Classify/fix/uat all go there.
+Intake is grok-cloud. Watchdog is github-actions. Pools are dormant until a second machine exists.
+Wrong host → NAK. Never /uat from this script.
 """
 
 from __future__ import annotations
@@ -16,7 +17,8 @@ ROOT = Path(__file__).resolve().parent.parent
 HOSTS = ROOT / "docs/japanglify/hosts.json"
 INSTANCE = ROOT / "docs/japanglify/instance.json"
 
-# step → who may run it. spawn false = already a long-running worker (do not start a second).
+LIVE_BENCH = ["win11-pixel"]
+
 STEPS = {
     "intake": {
         "role": "swarm-conductor",
@@ -28,12 +30,7 @@ STEPS = {
     },
     "classify": {
         "role": "swarm-bench",
-        "leaseIds": [
-            "win11-pixel",
-            "pool-bench-windows",
-            "unix-pixel",
-            "pool-bench-unix",
-        ],
+        "leaseIds": LIVE_BENCH,
         "spawn": True,
         "process": "grok --effort {effort} --resume",
         "effortFromIssue": True,
@@ -41,12 +38,7 @@ STEPS = {
     },
     "fix": {
         "role": "swarm-bench",
-        "leaseIds": [
-            "win11-pixel",
-            "pool-bench-windows",
-            "unix-pixel",
-            "pool-bench-unix",
-        ],
+        "leaseIds": LIVE_BENCH,
         "spawn": True,
         "process": "grok --effort {effort} --resume",
         "effortFromIssue": True,
@@ -54,16 +46,11 @@ STEPS = {
     },
     "uat": {
         "role": "swarm-bench",
-        "leaseIds": [
-            "win11-pixel",
-            "pool-bench-windows",
-            "unix-pixel",
-            "pool-bench-unix",
-        ],
+        "leaseIds": LIVE_BENCH,
         "spawn": False,
-        "process": "actions:swarm-conductor-uat.yml (owner /uat)",
+        "process": "actions:swarm-conductor-uat.yml on the same win11-pixel listener",
         "effort": None,
-        "never": ["grok --effort", "second /uat"],
+        "never": ["grok --effort", "second /uat", "ubuntu assemble"],
     },
     "watchdog": {
         "role": "watchdog",
@@ -111,7 +98,7 @@ def plan(step: str, *, issue: str, lease_id: str | None, effort: str | None) -> 
     if lease_id not in spec["leaseIds"]:
         return {
             "status": "nak",
-            "reason": f"lease {lease_id} not in {spec['leaseIds']} for {step}",
+            "reason": f"lease {lease_id} not live for {step} (live bench: {spec['leaseIds']})",
             "step": step,
         }
     if spec.get("effortFromIssue"):
@@ -129,7 +116,7 @@ def plan(step: str, *, issue: str, lease_id: str | None, effort: str | None) -> 
         "process": proc,
         "effort": eff,
         "never": spec["never"],
-        "note": "dry-run; this script does not start grok or post /uat",
+        "note": "one live bench: win11-pixel. dry-run; does not start grok or post /uat",
     }
 
 
@@ -164,10 +151,13 @@ def self_test() -> int:
         "ack",
         role="swarm-bench",
         spawn=True,
+        lease="win11-pixel",
     )
+    check(plan("classify", issue="5", lease_id=None, effort="xhigh"), "ack", lease="win11-pixel")
     check(plan("classify", issue="5", lease_id="grok-cloud", effort="xhigh"), "nak")
     check(plan("classify", issue="5", lease_id="github-actions", effort="xhigh"), "nak")
-    check(plan("fix", issue="7", lease_id="pool-bench-windows", effort="xhigh"), "ack", spawn=True)
+    check(plan("classify", issue="5", lease_id="pool-bench-windows", effort="xhigh"), "nak")
+    check(plan("fix", issue="7", lease_id="win11-pixel", effort="xhigh"), "ack", spawn=True)
     check(plan("uat", issue="5", lease_id="win11-pixel", effort=None), "ack", spawn=False)
     check(plan("uat", issue="5", lease_id="github-actions", effort=None), "nak")
     check(plan("watchdog", issue="5", lease_id="github-actions", effort=None), "ack", spawn=False)
@@ -181,7 +171,7 @@ def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--step", choices=list(STEPS), help="intake|classify|fix|uat|watchdog")
     p.add_argument("--issue", default="")
-    p.add_argument("--id", help="lease id (default: canonical host for the step)")
+    p.add_argument("--id", help="lease id (default: the one live host for that step)")
     p.add_argument("--effort", default="")
     p.add_argument("--self-test", action="store_true")
     args = p.parse_args()
