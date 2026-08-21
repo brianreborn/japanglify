@@ -1,0 +1,64 @@
+name: Swarm Conductor issue help
+
+on:
+  issues:
+    types: [opened]
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: Issue number to post the command card on
+        required: true
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  card:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Post command card
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          ISSUE: ${{ github.event.issue.number || github.event.inputs.issue }}
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess, pathlib
+          inst = json.loads(pathlib.Path("docs/japanglify/instance.json").read_text())
+          cmds = inst.get("commands") or []
+          lines = [
+              "<!-- swarm-conductor-commands -->",
+              "## Commands",
+              "",
+              "Type the **whole comment** on this issue, on github.com.",
+              "",
+              "| Command | Who | What |",
+              "|---|---|---|",
+          ]
+          for c in cmds:
+              lines.append("| `%s` | %s | %s |" % (c["cmd"], c["who"], c["does"]))
+          lines += [
+              "",
+              "Testers: write ordinary English on the **pull request**, not a new issue.",
+              "Guide: [commands.md](https://github.com/brianreborn/japanglify/blob/main/docs/japanglify/commands.md)",
+          ]
+          body = "\n".join(lines)
+          issue = os.environ["ISSUE"]
+          repo = os.environ["GH_REPO"]
+          existing = subprocess.check_output(
+              ["gh", "api", f"repos/{repo}/issues/{issue}/comments", "--paginate"],
+              text=True,
+          )
+          for row in json.loads(existing):
+              if "<!-- swarm-conductor-commands -->" in (row.get("body") or ""):
+                  print("already posted")
+                  raise SystemExit(0)
+          subprocess.run(
+              ["gh", "api", "-X", "POST", f"repos/{repo}/issues/{issue}/comments", "--input", "-"],
+              input=json.dumps({"body": body}),
+              text=True,
+              check=True,
+          )
+          PY
