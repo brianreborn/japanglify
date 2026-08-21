@@ -4,11 +4,11 @@ Not for reporters. Public repo, but this page is the admin cheat sheet.
 
 **One live bench:** `win11-pixel` (SHALOM). Grok CLI and the Actions listener share the Windows logon. The Pixel is on USB when you want phone UAT; unplugged USB does not excuse a dead listener.
 
-| What | Path |
+| What | Path (from `scripts/swarm_paths.py --id win11-pixel`) |
 |---|---|
-| Official clone (`swarm-grok`, bench-runner source) | `%USERPROFILE%\src\brianreborn\japanglify` |
-| Dev clone (`agent/*`, Gradle, adb inner loop) | `%USERPROFILE%\src\electrobrian\japanglify` |
-| GitHub Actions listener | `C:\actions-runner` — **not** a git clone. Do not `cd` here to start Grok |
+| Official clone (`swarm-grok`) | `%USERPROFILE%\src\brianreborn\japanglify` |
+| Dev clone (`agent/*`) | `%USERPROFILE%\src\electrobrian\japanglify` |
+| GitHub Actions listener | `C:\actions-runner` — **not** a git clone |
 
 ```bat
 cd /d %USERPROFILE%\src\brianreborn\japanglify

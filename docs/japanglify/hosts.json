@@ -1,7 +1,19 @@
 {
-  "schemaVersion": 2,
-  "note": "Static reservations + wildcard pools. Most specific match wins. Empty match is id-only (not a catch-all). No secrets. Unknown does not auto-register.",
+  "schemaVersion": 3,
+  "note": "Static reservations + wildcard pools. Most specific match wins. Empty match is id-only (not a catch-all). No secrets. Unknown does not auto-register. Workdirs: scripts/swarm_paths.py — {home}/src/{owner}/{repo}.",
   "source": "brianreborn/japanglify/docs/japanglify/hosts.json",
+  "workdir": {
+    "layout": "{home}/src/{owner}/{repo}",
+    "srcDir": "src",
+    "home": { "windows": "USERPROFILE", "unix": "HOME" },
+    "runner": {
+      "windows": "C:\\actions-runner",
+      "unix": "{home}/actions-runner",
+      "github-actions": "GITHUB_WORKSPACE",
+      "grok-cloud": null
+    },
+    "override": "SWARM_SRC replaces {home}/src"
+  },
   "unknown": {
     "role": null,
     "never": ["git.push-agent-branch", "gradle.assemble-tester", "adb.install", "secret.*"]
@@ -14,12 +26,7 @@
       "device": "adb",
       "devRepo": "electrobrian/japanglify",
       "branch": "BETA-2",
-      "notes": "Named reservation. Hostname SHALOM (runner SHALOM-swarm-bench). Beats the windows pool. Paths: official=%USERPROFILE%\\src\\brianreborn\\japanglify (swarm-grok); dev=%USERPROFILE%\\src\\electrobrian\\japanglify (agent/*); runner=C:\\actions-runner (Listener only — not a git clone).",
-      "workdir": {
-        "official": "%USERPROFILE%\\src\\brianreborn\\japanglify",
-        "dev": "%USERPROFILE%\\src\\electrobrian\\japanglify",
-        "runner": "C:\\actions-runner"
-      },
+      "notes": "Named reservation. Hostname SHALOM (runner SHALOM-swarm-bench). Beats the windows pool. Paths from workdir template (swarm_paths.py).",
       "match": { "hostname": ["SHALOM"] },
       "never": ["gradle.assemble-release", "secret.keystore-release", "ci.remote-assemble"]
     },
@@ -30,7 +37,7 @@
       "device": "adb",
       "devRepo": "electrobrian/japanglify",
       "branch": "BETA-2",
-      "notes": "Named reservation for a specific Unix bench.",
+      "notes": "Named reservation for a specific Unix bench. Same {home}/src/{owner}/{repo} layout.",
       "match": { "hostname": [] },
       "never": ["gradle.assemble-release", "secret.keystore-release", "ci.remote-assemble"]
     },
@@ -41,7 +48,7 @@
       "device": "adb",
       "devRepo": "electrobrian/japanglify",
       "branch": "BETA-2",
-      "notes": "DHCP pool: any Windows box with a Pixel on adb.",
+      "notes": "DHCP pool: any Windows box with a Pixel on adb. Same path layout as win11-pixel.",
       "match": { "osFamily": "windows", "adbAttached": true },
       "never": ["gradle.assemble-release", "secret.keystore-release", "ci.remote-assemble"]
     },
@@ -52,7 +59,7 @@
       "device": "adb",
       "devRepo": "electrobrian/japanglify",
       "branch": "BETA-2",
-      "notes": "DHCP pool: any Unix box with a Pixel on adb.",
+      "notes": "DHCP pool: any Unix box with a Pixel on adb. Same path layout as unix-pixel.",
       "match": { "osFamily": "unix", "adbAttached": true },
       "never": ["gradle.assemble-release", "secret.keystore-release", "ci.remote-assemble"]
     },
@@ -61,7 +68,7 @@
       "role": "watchdog",
       "os": "linux",
       "device": null,
-      "notes": "GitHub-hosted. Not a laptop pool.",
+      "notes": "GitHub-hosted. Not a laptop pool. Workdir is GITHUB_WORKSPACE.",
       "match": { "os": "linux", "hostname": ["fv-az*", "runner-*"] },
       "never": ["gradle.*", "adb.*", "secret.keystore-release", "secret.gh-electrobrian"]
     },
@@ -70,7 +77,7 @@
       "role": "swarm-conductor",
       "os": "cloud",
       "device": null,
-      "notes": "Pin only (--id grok-cloud). Do not wildcard onto workstations.",
+      "notes": "Pin only (--id grok-cloud). Do not wildcard onto workstations. No local workdir.",
       "match": {},
       "never": ["gradle.*", "adb.*", "secret.*", "git.push-agent-branch"]
     }

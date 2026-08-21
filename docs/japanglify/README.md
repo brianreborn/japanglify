@@ -17,7 +17,7 @@ GitHub **issue** = bug report. GitHub **pull request** = proposed merge. Not a â
 | Tester APKs / names | [ci-for-humans.md](ci-for-humans.md) | root README |
 | Live bugs | [cutover.md](cutover.md) | Effort labels live on the issues |
 | Event bus | [../swarm-conductor/events.md](../swarm-conductor/events.md) | kick, ping, loops |
-| Host leases | [hosts.json](hosts.json) | `swarm-lease.py` |
+| Host leases + workdirs | [hosts.json](hosts.json) + [paths.md](paths.md) | `swarm-lease.py`, `swarm_paths.py` |
 
 If two files disagree on CLI stop/start, **prompt-bench.md wins.** If they disagree on effective effort/model, **budget.json + swarm_budget.py win.**
 
@@ -28,7 +28,8 @@ If two files disagree on CLI stop/start, **prompt-bench.md wins.** If they disag
 | `swarm-bench-kickoff.md` | Long bootstrap. Not the paste if prompt-bench exists |
 | `../swarm-conductor/prompt-bench.md` | **Paste** for Grok CLI |
 | `budget.json` | SuperGrok window cap (effort + model) |
-| `hosts.json` | Checked-in host leases (DHCP table + wildcard pools) |
+| `paths.md` | `{home}/src/{owner}/{repo}` â€” same on every host |
+| `hosts.json` | Checked-in host leases (DHCP table + wildcard pools + workdir template) |
 | `instance.json` | Repos, Android caps, Japanese-NLP rules |
 | `cutover.md` | Live bugs, fork pull requests, smoke record |
 | `admin.md` | Owner github.com + when to Restore |

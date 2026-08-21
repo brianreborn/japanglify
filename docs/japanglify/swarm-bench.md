@@ -45,9 +45,11 @@ Pick the workstation that has:
 Windows and Unix (Linux, macOS, FreeBSD Linuxulator) are both valid. The OS is not the role. **Windows 11 + Pixel USB is the usual owner bench.**
 
 ```text
-cd <electrobrian-japanglify>
-grok
+cd %USERPROFILE%\src\electrobrian\japanglify    # Windows
+cd $HOME/src/electrobrian/japanglify            # Unix
 ```
+
+Official clone (Grok start) is `{home}/src/brianreborn/japanglify`. Convention: [paths.md](paths.md). Start: `scripts\swarm-grok.cmd` / `./scripts/swarm-grok`.
 
 Tell it you are **Swarm Bench**. Point it at `docs/japanglify/cutover.md` if the bug already has a branch. USB can be unplugged; the listener must still start.
 

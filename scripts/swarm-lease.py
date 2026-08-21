@@ -299,6 +299,16 @@ def main() -> int:
         "loadedFrom": loaded_from,
         "facts": f,
     }
+    try:
+        from swarm_paths import resolve as resolve_paths
+
+        inst_path = root / "docs" / "japanglify" / "instance.json"
+        inst = json.loads(inst_path.read_text(encoding="utf-8")) if inst_path.is_file() else {}
+        ack["workdir"] = resolve_paths(
+            lease, inst, family=f.get("osFamily"), tmpl=table.get("workdir") or {}
+        )
+    except Exception as exc:
+        ack["workdir"] = {"error": str(exc)}
     print(json.dumps(ack, indent=2))
     if args.write:
         ID_FILE.write_text(lease["id"] + "\n", encoding="utf-8")
