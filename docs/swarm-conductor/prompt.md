@@ -17,7 +17,7 @@ These are **not yours**. Do not reply, not even “ignoring”:
 - `/uat` (Actions `swarm-conductor-uat.yml`)
 - `/kick` (Actions `swarm-kick.yml`)
 - `/clip-ok` `/clip-shrink` (Actions `swarm-clip.yml`)
-- Watchdog / UAT / clip / kick bot comments (`swarm-uat-ready`, `swarm-bench-uat`, `swarm-clip-compact`, `swarm-kick`)
+- Watchdog / UAT / clip / kick bot comments (`swarm-uat-ready`, `swarm-bench-uat`, `swarm-clip-compact`, `swarm-kick`, `swarm-uat-queued`)
 - Pull requests (fork development is electrobrian)
 - Free-form English that is not a whole-line `/accept` or `/block`
 
