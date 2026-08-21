@@ -1,7 +1,13 @@
-# /clip-shrink → offer compact copy unless already small. /clip-ok → splice into original slot.
+# Auto-transcode fat issue videos. /clip-ok splices into the original slot.
 name: Swarm clip
 
+concurrency:
+  group: clip-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
 on:
+  issues:
+    types: [opened, edited]
   issue_comment:
     types: [created]
 
@@ -13,29 +19,34 @@ jobs:
   clip:
     if: >-
       github.event.issue.pull_request == null &&
-      (github.event.comment.body == '/clip-shrink' ||
-       github.event.comment.body == '/clip-ok')
+      (
+        github.event_name == 'issues' &&
+        (
+          contains(github.event.issue.body, 'user-attachments') ||
+          contains(github.event.issue.body, 'githubusercontent.com')
+        )
+      ) ||
+      (
+        github.event_name == 'issue_comment' &&
+        github.event.comment.user.login != 'github-actions[bot]' &&
+        (
+          github.event.comment.body == '/clip-ok' ||
+          github.event.comment.body == '/clip-shrink' ||
+          contains(github.event.comment.body, 'user-attachments') ||
+          contains(github.event.comment.body, 'githubusercontent.com')
+        )
+      )
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: ffmpeg
+        if: github.event.comment.body != '/clip-ok'
         run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
       - name: Run
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-          ACTOR: ${{ github.event.comment.user.login }}
-          BODY: ${{ github.event.comment.body }}
+          ACTOR: ${{ github.event.comment.user.login || github.event.sender.login }}
+          BODY: ${{ github.event.comment.body || '' }}
           ISSUE: ${{ github.event.issue.number }}
-        run: |
-          set -euo pipefail
-          TRUSTED="$(python3 -c 'import json,pathlib; print(json.loads(pathlib.Path(".github/swarm-conductor.json").read_text())["trustedActor"])')"
-          case "$BODY" in
-            /clip-shrink)
-              if [ "$ACTOR" != "$TRUSTED" ]; then echo ignored; exit 0; fi
-              python3 scripts/swarm-clip.py shrink "$ISSUE"
-              ;;
-            /clip-ok)
-              python3 scripts/swarm-clip.py ok "$ISSUE"
-              ;;
-          esac
+        run: python3 scripts/swarm-clip.py
