@@ -2,11 +2,11 @@
 
 Project-specific. Swarm Conductor reads this as the **instance work map**, not as conductor spec.
 
-**In-flight fork work is the source of truth until UAT.** Human-facing CI: [ci-for-humans.md](ci-for-humans.md) and the root README section. Owner cheat sheet: [admin.md](admin.md).
+**In-flight fork work is the source of truth until UAT.** Human-facing CI: [ci-for-humans.md](ci-for-humans.md) and the root README section. Owner cheat sheet: [admin.md](admin.md). CLI ritual: [prompt-bench.md](../swarm-conductor/prompt-bench.md).
 
 **Names:** GitHub **issue** = bug report. GitHub **pull request** = proposed merge. Do not write “PR” in user-facing text; it is not a “problem report.”
 
-Owner Pixel UAT is **Swarm Bench**. GitHub `/uat` dispatches the self-hosted Windows runner; Grok CLI on that box is the inner loop. See [swarm-bench.md](swarm-bench.md). Commands: [commands.md](commands.md).
+Owner Pixel UAT is **Swarm Bench**. GitHub `/uat` dispatches the self-hosted Windows runner; Grok CLI on that box is the inner loop **or** silent while Actions owns the phone. See [swarm-bench.md](swarm-bench.md). Commands: [commands.md](commands.md).
 
 ## Live (2026-08-21)
 
@@ -14,11 +14,12 @@ Owner Pixel UAT is **Swarm Bench**. GitHub `/uat` dispatches the self-hosted Win
 |---|---|
 | `/accept` `/block` | Grok automation `japanglify-swarm-conductor` (only intake). Actions accept.yml **removed** |
 | `/uat` | Actions `swarm-conductor-uat.yml` — maps `agent/<issue>-*` (JSON override optional). Owner comment on github.com |
-| Ready ping | Watchdog every 15m: once per issue when that branch exists. **That is the approval cue.** |
-| Watchdog quotas | `swarm-watchdog.yml` — schedule only |
+| Ready ping | Watchdog every **10** min: once per issue when that branch exists. **That is the approval cue.** |
+| Host ping | `swarm-ping.yml` every **15** min. Observes; does not `/uat` |
+| Watchdog quotas / 20 min stall | `swarm-watchdog.yml` — schedule only |
 | Config JSON + lease/uat-map self-test | `conductor-config.yml` on `main` |
 | Webhook conductor | **retired** |
-| Self-hosted `swarm-bench` | one box, `win11-pixel`. Owner relaunch: `/quit` then `grok --effort xhigh --resume`. CLI starts the listener |
+| Self-hosted `swarm-bench` | one box, `win11-pixel`. Ritual: [prompt-bench.md](../swarm-conductor/prompt-bench.md). Normal stop `/quit` (listener stays). Restore: no `--resume`. Effort from the **issue**, not a chat default |
 
 ## Repos
 

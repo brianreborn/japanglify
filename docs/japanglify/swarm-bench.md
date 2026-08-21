@@ -2,13 +2,13 @@
 
 Local starting set for **build + domain test + interactive `adb` + issue/pull-request handoff**. Grok CLI on a home computer (Windows or Unix). Not Swarm Conductor.
 
-The Pixel is on the USB cable. Remote GitHub-hosted assemble is slower and cannot tap the device. **Do not wait on ubuntu-latest** for this loop.
+Remote GitHub-hosted assemble is slower and cannot tap the device. **Do not wait on ubuntu-latest** for this loop.
 
-**CLI brain (paste this, not a chat dump):** [prompt-bench.md](../swarm-conductor/prompt-bench.md) ([raw](https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt-bench.md)). Long bootstrap: [swarm-bench-kickoff.md](swarm-bench-kickoff.md). **Effort: medium** (`grok --effort medium`) unless the issue says otherwise.
+**CLI brain (paste this, not a chat dump):** [prompt-bench.md](../swarm-conductor/prompt-bench.md) ([raw](https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt-bench.md)). If this file disagrees with that one on `/quit` / `--resume` / listener, **prompt-bench wins**. Long bootstrap: [swarm-bench-kickoff.md](swarm-bench-kickoff.md). **Effort: medium** on restore unless the issue says otherwise.
 
 Lease: `scripts/swarm-lease.py --from github --write` against [hosts.json](hosts.json) (named reservations + wildcard pools).
 
-`/uat` on an official issue is a **GitHub Actions** job: `runs-on: [self-hosted, Windows, swarm-bench]`. That is a different process from Grok CLI. Grok starts the listener **once** per logon; Grok is not the supervisor:
+`/uat` on an official issue is a **GitHub Actions** job: `runs-on: [self-hosted, Windows, swarm-bench]`. That is a different process from Grok CLI. Grok starts the listener **once** per Restore; Grok is not the supervisor:
 
 ```powershell
 pwsh -File scripts/swarm-bench-runner.ps1
@@ -18,7 +18,7 @@ Without that listener, `/uat` is a dead click. A queued `/uat` will pick up as s
 
 ## Shutdown and restart
 
-Canonical table: [prompt-bench.md](../swarm-conductor/prompt-bench.md) (that file wins).
+Canonical table: [prompt-bench.md](../swarm-conductor/prompt-bench.md) (that file wins). Owner cheat sheet only points here: [admin.md](admin.md).
 
 | Situation | Do |
 |---|---|
@@ -51,12 +51,14 @@ Tell it you are **Swarm Bench**. Point it at `docs/japanglify/cutover.md` if the
 
 ## Windows 11 owner loop (minimize network)
 
-Two ways to install a debug APK on the Pixel:
+Two ways to install a debug APK on the Pixel. **Never both at once.**
 
 | Path | When |
 |---|---|
-| Grok CLI, local `gradlew` + `adb` | You are at the box, iterating |
+| Grok CLI, local `gradlew` + `adb` | You are at the box, iterating. GitHub silent |
 | `/uat` on the official issue | You are on github.com; the runner does the same assemble+install |
+
+If a `/uat` job is queued or running, this CLI does not `adb install`.
 
 You can open the pull request from GitHub or from the console (`gh pr create`). Either way, **this machine** builds and UATs. Do not send assemble to `ubuntu-latest` for yourself.
 

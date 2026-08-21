@@ -2,59 +2,41 @@
 
 Not for reporters. Public repo, but this page is the admin cheat sheet.
 
-**One live bench:** `win11-pixel` — Grok CLI + the Actions listener, same Windows logon session, Pixel on USB.
+**One live bench:** `win11-pixel` (SHALOM). Grok CLI and the Actions listener share the Windows logon. The Pixel is on USB when you want phone UAT; unplugged USB does not excuse a dead listener.
 
-## Major problem: listener start failure
+CLI ritual is **not** this page. It is [prompt-bench.md](../swarm-conductor/prompt-bench.md) ([raw](https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt-bench.md)). This page is github.com + when to use that ritual.
 
-`/uat` does **nothing** unless `Runner.Listener` is running in the logged-in Windows session. Grok CLI `/quit` / `--resume` does **not** revive a dead Actions job. Cloud watchdog cannot list runners (`GITHUB_TOKEN` 403). The owner must not type `pwsh`.
+## Shutdown and restart
 
-If the CLI fails to start (or keep) the listener:
+| Situation | Do | Do not |
+|---|---|---|
+| **Normal stop** | `/quit` in Swarm Bench. Stay logged on | Kill `Runner.Listener` |
+| **Normal start** | same cwd: `grok --effort <issue> --resume` | Paste a new brain if the last session was healthy |
+| **Restore** | `grok --effort medium` — **no** `--resume`. Paste prompt-bench.md | `--resume` a session you killed because it failed |
+| **Runner offline** | Restore | A second `/uat` |
+| **You** | Never type `pwsh` | The CLI runs `swarm-bench-runner.ps1` |
 
-- `/uat` comments look successful ("dispatched")
-- bench jobs sit **queued** then die
-- `--resume` does not pick them up
-- there is no routine recovery except telling that same CLI to start `scripts/swarm-bench-runner.ps1` itself (and keep `scripts/swarm-kick-watch.ps1` running)
+`--resume` replays the transcript. Restore is a new process + the role file.
 
-**Invariant:** bootstrap must print `Runner.Listener` running (or start it) **before** `/quit`. The logon scheduled task is backup, not the proof. Treat listener-down as a P0 on Swarm Bench, not a docs miss.
+## Two install paths (never both)
 
-After **20 minutes queued**, watchdog posts **UAT still queued** (`swarm-uat-queued`). That is not a second `/uat`.
+| Path | When |
+|---|---|
+| Grok CLI + `adb` | You are at the box, iterating. GitHub is silent |
+| `/uat` on the **issue** | You are on github.com. Actions uses the listener |
 
-Live evidence 2026-08-21: [#5 run 35](https://github.com/brianreborn/japanglify/actions/runs/32489983569) failed silent; [#5 run 42](https://github.com/brianreborn/japanglify/actions/runs/32493916092) still queued on `self-hosted, Windows, swarm-bench`.
-
-## Relaunch (you type this; never `pwsh`)
-
-In the running Grok CLI:
-
-```text
-/quit
-```
-
-Same clone directory:
-
-```text
-grok --effort low --resume
-```
-
-Use `--effort xhigh` only when classifying/fixing #5 #6 #7. Waiting on UAT is **low**.
-
-If it asks for a first message, paste **exactly**:
-
-```text
-Swarm Bench on win11-pixel. If Runner.Listener is not in this logon session, start scripts/swarm-bench-runner.ps1 yourself — do not ask me to type pwsh. Also keep scripts/swarm-kick-watch.ps1 running. Prove listener with Get-Process Runner.Listener before you stop. Do not /uat. Do not adb install. Actions owns Pixel UAT. Unlock the phone when a job is queued. Continue existing agent/5-chip-persistence and agent/electrobrian-9-proper-names. No second pull request. #6 waits for /accept.
-```
-
-Validate: after resume it reports lease `win11-pixel`, one `adb` `device`, and **`Runner.Listener` running**. It does not install an APK.
+If Actions already owns the phone, the CLI does not `adb install`.
 
 ## Commands (github.com, saved replies)
 
-Bodies exactly: `/accept` `/block` `/uat` `/kick` `/clip-ok`. [How](saved-replies.md).
+Bodies exactly: `/accept` `/block` `/uat` `/kick` `/clip-ok`. [How](saved-replies.md). Spec: [commands.md](commands.md).
 
 | You type | What you are telling the swarm |
 |---|---|
 | `/accept` | Intake ACCEPTED. Cloud conductor only. Does **not** start a bench worker |
 | `/block` | Stop intake |
 | `/uat` | Install this issue’s `agent/<n>-*` on the Pixel via the **same** win11-pixel listener |
-| `/kick` or `/kick win11-pixel` | Mailbox: list pending + ping bench. Does **not** install |
+| `/kick` or `/kick win11-pixel` | Mailbox: list pending. Does **not** install, does **not** occupy swarm-bench |
 | `/clip-ok` | Splice compact clip (you or the reporter) |
 
 ## Per step
@@ -62,10 +44,18 @@ Bodies exactly: `/accept` `/block` `/uat` `/kick` `/clip-ok`. [How](saved-replie
 | Step | Host | You do |
 |---|---|
 | intake | `grok-cloud` | `/accept` on the issue. Do not start Grok CLI for this |
-| classify / fix | `win11-pixel` | `/quit` then `grok --effort xhigh --resume` |
-| uat | same box, Actions listener | `/uat` on github.com. Unlock the phone. Listener must already be up. No second `/uat` |
-| stall | GitHub-hosted watchdog | If **UAT still queued** (~20 min): tell the CLI to start the listener + watch. Do not `/uat` again |
+| classify / fix | `win11-pixel` | **Normal start** at the issue’s `effort:*` (xhigh if that is the label). Restore if the last session was bad |
+| uat | same box, Actions listener | `/uat` on github.com. Unlock the phone. Listener already up. No second `/uat` |
+| stall | GitHub-hosted watchdog | **UAT still queued** (~20 min): **Restore** the CLI. Do not `/uat` again |
 | done | Grok `japanglify-uat-complete` | APP_ONLY when the workflow **completes**. Issue already has installed/failed |
+
+## Major problem: listener down
+
+`/uat` comments can look successful (“dispatched”) while the bench job sits **queued**. Ping is red if `/actions/runners` says `offline`. `GITHUB_TOKEN` in Actions often 403s that API (unknown, not green). Owner `gh` can list `SHALOM-swarm-bench`.
+
+After **20 minutes queued**, watchdog posts **UAT still queued** (`swarm-uat-queued`). That is not a second `/uat`.
+
+Proof the host is up: GitHub runner **online**, or `Runner.Listener.exe`. HKCU Run / `swarm-run-loop.cmd` is the supervisor. Grok is not.
 
 ## Exceptions log
 
@@ -74,14 +64,16 @@ Bodies exactly: `/accept` `/block` `/uat` `/kick` `/clip-ok`. [How](saved-replie
 | 2026-08-21 | `workflow_dispatch` #5/#7 runs 31–32 cancelled | empty concurrency group |
 | 2026-08-21 | `workflow_dispatch` #5 [run 35](https://github.com/brianreborn/japanglify/actions/runs/32489983569) and #7 [run 36](https://github.com/brianreborn/japanglify/actions/runs/32490006022) | re-fire after concurrency fix; bench **queued** — listener not proven |
 | 2026-08-21 | #5 [run 42](https://github.com/brianreborn/japanglify/actions/runs/32493916092) | listener still not taking jobs |
+| 2026-08-21 | #5 [run 43](https://github.com/brianreborn/japanglify/actions/runs/32497992026) cancelled | USB paused; do not fail adb on an idle-offline bring-up |
 
 Re-fire via `workflow_dispatch` **only** when a `/uat` job is not queued and never reached **UAT installed**. Do not use this because phone UAT failed — that stays the same pull request + a later `/uat`.
 
 ## Do not
 
-- Type `pwsh` — the CLI starts the listener and the kick watch
+- Type `pwsh`
 - `/uat` or `adb install` from Grok CLI while Actions owns the phone
+- `--resume` a session you shut down because it failed
 - Start a second `agent/*` for #5 or #7
 - `/accept` #6 until you mean to start that work
-- Assemble on `ubuntu-latest`
+- Assemble on `ubuntu-latest` for yourself
 - Pin `pool-bench-windows` (dormant)

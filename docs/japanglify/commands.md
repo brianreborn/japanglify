@@ -14,7 +14,7 @@ Matcher: `scripts/swarm_cmd.py`. YAML never uses `contains('/uat')`.
 
 Handlers **do not scan** a comment for `/commands` unless that user is allowed to run them. A stranger’s `/uat` never starts Swarm Bench. Those hits only go to the Actions warning log (`swarm-cmd-warn.yml`) — no issue comment.
 
-**Owner:** [admin.md](admin.md) — one runner, `/quit` then `--resume`, when to `/uat`. Not the bug form.
+**Owner github.com:** [admin.md](admin.md). **Owner Grok CLI ritual:** [prompt-bench.md](../swarm-conductor/prompt-bench.md) (normal stop `/quit`, normal start `--resume`, restore = new process + that file). This page is the command table, not the bug form.
 
 Saved replies — [github.com/settings/replies](https://github.com/settings/replies) — [saved-replies.md](saved-replies.md). github.com.
 
@@ -23,7 +23,7 @@ Saved replies — [github.com/settings/replies](https://github.com/settings/repl
 | `/accept` | owner | Intake ACCEPTED |
 | `/block` | owner | Intake BLOCKED |
 | `/uat` | owner | Install that issue’s `agent/<n>-*` on the Pixel |
-| `/kick` | owner | Mailbox: list pending + ping bench. Does not install |
+| `/kick` | owner | Mailbox: list pending. Does not install |
 | `/clip-shrink` | owner (also auto on attach) | Offer a compact copy **unless** already small (≤512 KB) |
 | `/clip-ok` | owner **or reporter** | Put that compact file in the original comment |
 

@@ -33,22 +33,25 @@ The official issue stays the **scoreboard** (open until the fix ships). The pull
 
 Grok CLI **effort** is on the issue: label `effort:low` / `effort:medium` / `effort:high` / `effort:xhigh`, and a first-line `**Effort:**`. Unlabeled → medium. Change the label; do not debate it in chat.
 
-## Owner local UAT — Grok CLI, not the issue tracker
+## Owner local UAT — desk vs github.com
 
-The Pixel is on your desk. Cloud Swarm Conductor cannot `adb` it. For **your** UAT loop, use **Grok CLI** on the workstation that has the phone (and Gradle). Talk in ordinary English: “chip still gone in 1s, try again.”
-
-Do **not** file issues, `/accept`, or GitHub comments for each retry. That is handoff, not the inner loop.
+The Pixel is on your desk. Cloud Swarm Conductor cannot `adb` it. **Never both installs at once.**
 
 | Loop | Tool | GitHub |
 |---|---|---|
-| You + Pixel, iterating | Grok CLI + `adb` | Silent until you hand off |
+| You + Pixel, iterating at the box | Grok CLI + `adb` | Silent until you hand off |
+| You are on github.com | `/uat` on the **issue** | Actions listener on the same box installs |
 | Other testers / public scoreboard | — | Issue (why) + pull request (bits + tester APKs) |
 | Incoming bug from someone else | — | They file an **issue**; you `/accept` once |
+
+If a `/uat` job is already queued or running, the CLI does **not** `adb install`. CLI ritual: [prompt-bench.md](../swarm-conductor/prompt-bench.md).
+
+Do **not** file issues, `/accept`, or GitHub comments for each desk retry. That is handoff, not the inner loop.
 
 Handoff (the only times the issue system should see you):
 
 1. **Start:** `/accept` on the official issue (or you already did).
-2. **During:** when you want someone else to try, **push** the same `agent/*` branch so CI publishes a new tester APK. One sentence on the pull request is enough.
+2. **During:** when you want someone else to try, **push** the same `agent/*` branch so CI publishes a new tester APK. One sentence on the pull request is enough. When you want the **listener** to install, `/uat` on the issue (not a new issue).
 3. **Done:** UAT passed or you stopped — comment on the **issue** (scoreboard) and the **pull request**. You still merge official; CLI does not.
 
 Stay on `electrobrian` `agent/*`. CLI-as-owner still does not push `main` or use the real keystore unless you are actually shipping `/latest`.
@@ -96,6 +99,6 @@ owner merges official     →  later /latest (real key)
 - **Pull requests:** free-form English is the instruction channel. Keep product work on `electrobrian` `agent/*` → `BETA-2`. Swarm Conductor docs may use `chore/*` pull requests on this repo.
 - **Retries:** same pull request, new commit, new `pr-<number>-build-<n>` tag. Do not open a second pull request for a failed UAT.
 - **Ship:** you merge to `main`; official signed `/latest` is a separate home-machine step. Tester keys never become `/latest`.
-- **Local UAT:** Grok CLI + `adb` on the Pixel workstation. GitHub is handoff only.
+- **Desk UAT:** Grok CLI + `adb`. **github.com UAT:** `/uat` on the issue (listener). Never both. Ritual: [prompt-bench.md](../swarm-conductor/prompt-bench.md). Cheat sheet: [admin.md](admin.md).
 
 More detail: [cutover.md](cutover.md). Swarm Conductor itself (generic, no Japanese/Android): [../swarm-conductor/README.md](../swarm-conductor/README.md).

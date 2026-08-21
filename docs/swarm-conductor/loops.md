@@ -21,6 +21,8 @@ Rules in force:
 - `/kick` is ubuntu-only. It does not occupy swarm-bench, `/uat`, or `/accept`. Spec: [kick.md](kick.md).
 - An `in_progress` UAT **run** is not a live listener; ping/watch look at the swarm-bench **job** and the runner API.
 - The listener keep-alive is `swarm-run-loop.cmd` / HKCU Run / watch.ps1 — **not** a Grok session. Do not paste “start the runner” into Grok on a schedule.
+- CLI stop/start/restore is only [prompt-bench.md](prompt-bench.md). `admin.md` / `cutover.md` / kickoff must **point**, not invent a second paste.
+- Desk `adb` and github.com `/uat` must not install at the same time.
 - Queued > 20 min is [events.md](events.md), not a Grok poll.
 - `/accept` does not spawn a worker.
 - Conductor never replies “plain issue, not a PR”. Prompt: [prompt.md](prompt.md).

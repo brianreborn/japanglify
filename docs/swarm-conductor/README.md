@@ -3,6 +3,23 @@
 Generic CI coordinator. A **role is only a starting set of capabilities**.
 The conductor dispatches; it does not implement, build, or sign.
 
+## Who owns which file
+
+| Topic | Wins |
+|---|---|
+| Issue intake (cloud Grok) | [prompt.md](prompt.md) |
+| Pull-request follow | [prompt-pr.md](prompt-pr.md) |
+| UAT-complete notify | [prompt-uat-complete.md](prompt-uat-complete.md) |
+| Grok **CLI** Swarm Bench | [prompt-bench.md](prompt-bench.md) |
+| Effort labels | [kickoffs.md](kickoffs.md) (ritual still prompt-bench) |
+| Event bus | [events.md](events.md) |
+| `/kick` | [kick.md](kick.md) |
+| Ping | [ping.md](ping.md) |
+| Anti-loop | [loops.md](loops.md) |
+| Japanglify overlay | `docs/japanglify/` — [who owns](../japanglify/README.md) |
+
+If two files disagree on `/quit` / `--resume` / listener, **prompt-bench.md wins.** Cloud automations never load prompt-bench. The CLI never loads prompt.md.
+
 ## Who runs what (do not stack these)
 
 | Command / job | Runner | Identity |
@@ -37,7 +54,7 @@ Personal automations (e.g. Weekly Twitter recap) are **not** in this repo.
 
 There is **no** Actions `/accept` workflow. GitHub’s `/` dropdown cannot hold our commands — use [Saved replies](https://github.com/settings/replies).
 
-`GITHUB_TOKEN` cannot list self-hosted runners (admin API). Do not call it.
+`GITHUB_TOKEN` in Actions **often 403s** `GET .../actions/runners`. Ping may call it; on 403 it treats runner status as unknown (not green). Owner `gh` as `brianreborn` can list `SHALOM-swarm-bench`.
 
 Worker **cost** (wall, CPU, optional Grok credits) is a fence on the same state-change comment, not a heartbeat. See [usage.md](usage.md).
 
