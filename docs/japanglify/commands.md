@@ -1,20 +1,15 @@
 # Issue commands
 
-GitHub’s `/` dropdown in a comment is **only** GitHub’s own helpers (`/table`, `/code`, `/saved-replies`, …). A repo **cannot** add `/accept` there.
+GitHub’s `/` dropdown is only GitHub helpers (`/table`, `/code`, `/saved-replies`). A repo cannot add `/accept` there.
 
-Put ours in **Saved replies** (that is the dropdown):
+Saved replies — [github.com/settings/replies](https://github.com/settings/replies) — bodies exactly `/accept`, `/block`, `/uat`. On an issue: `/saved-replies` → pick → submit. Whole comment, github.com, as owner.
 
-1. [github.com/settings/replies](https://github.com/settings/replies)
-2. Add three replies, body exactly:
-   - `/accept`
-   - `/block`
-   - `/uat`
-3. On an issue, type `/saved-replies`, pick one, submit. Whole comment, github.com, as owner.
+| Reply | Who runs it | What |
+|---|---|---|
+| `/accept` | Grok automation `japanglify-swarm-conductor` | Intake ACCEPTED |
+| `/block` | same | Intake BLOCKED |
+| `/uat` | Actions `swarm-conductor-uat.yml` | Pixel install (needs `swarm-bench` runner) |
 
-| Reply | What |
-|---|---|
-| `/accept` | Intake: accept the bug |
-| `/block` | Stop |
-| `/uat` | Swarm Bench: assemble + `adb install` on the Pixel |
+Grok App comments do **not** run `/uat` (Actions). Browser comments as `brianreborn` do. `/accept` is the opposite: the Grok automation is the live gate; there is no Actions `/accept` workflow.
 
-Do not paste a command table onto the issue. Grok App comments do not run Actions.
+Do not paste a command table onto the issue.
