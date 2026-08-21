@@ -2,7 +2,7 @@ blank_issues_enabled: true
 contact_links:
   - name: Reporter — /clip-ok
     url: https://github.com/brianreborn/japanglify/blob/main/docs/japanglify/commands.md
-    about: After we offer a compact clip, comment /clip-ok as the whole comment if it still shows the bug.
-  - name: Owner — /accept /uat /block
-    url: https://github.com/brianreborn/japanglify/blob/main/docs/japanglify/commands.md
-    about: Whole-comment, github.com, owner only. Not in GitHub’s / dropdown — use saved replies.
+    about: After we offer a compact clip, comment /clip-ok if it still shows the bug.
+  - name: Owner only — do not open unless you are brianreborn
+    url: https://github.com/brianreborn/japanglify/blob/main/docs/japanglify/admin.md
+    about: /accept /uat /block, one runner (win11-pixel), /quit then grok --resume. Not the bug form.
