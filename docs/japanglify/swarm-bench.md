@@ -4,17 +4,31 @@ Local starting set for **build + domain test + interactive `adb` + issue/pull-re
 
 The Pixel is on the USB cable. Remote GitHub-hosted assemble is slower and cannot tap the device. **Do not wait on ubuntu-latest** for this loop.
 
-Paste: [swarm-bench-kickoff.md](swarm-bench-kickoff.md). **Effort: medium** (`grok --effort medium`). Do not leave the CLI default `high`.
+**CLI brain (paste this, not a chat dump):** [prompt-bench.md](../swarm-conductor/prompt-bench.md) ([raw](https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt-bench.md)). Long bootstrap: [swarm-bench-kickoff.md](swarm-bench-kickoff.md). **Effort: medium** (`grok --effort medium`) unless the issue says otherwise.
 
 Lease: `scripts/swarm-lease.py --from github --write` against [hosts.json](hosts.json) (named reservations + wildcard pools).
 
-`/uat` on an official issue is a **GitHub Actions** job: `runs-on: [self-hosted, Windows, swarm-bench]`. That is a different process from Grok CLI. Install and leave it running:
+`/uat` on an official issue is a **GitHub Actions** job: `runs-on: [self-hosted, Windows, swarm-bench]`. That is a different process from Grok CLI. Grok starts the listener **once** per logon; Grok is not the supervisor:
 
 ```powershell
 pwsh -File scripts/swarm-bench-runner.ps1
 ```
 
-Without that service, `/uat` is a dead click. A queued `/uat` will pick up as soon as the service starts — no need to comment again.
+Without that listener, `/uat` is a dead click. A queued `/uat` will pick up as soon as the listener is **online** — no need to comment again.
+
+## Shutdown and restart
+
+Canonical table: [prompt-bench.md](../swarm-conductor/prompt-bench.md) (that file wins).
+
+| Situation | Do |
+|---|---|
+| **Normal stop** | `/quit`. Stay logged on to Windows. Do not kill `Runner.Listener`. |
+| **Normal start** (last session was healthy) | same cwd: `grok --effort <issue> --resume` |
+| **Restore** (first this logon, or you killed a bad session) | `grok --effort medium` — **no** `--resume`. Paste prompt-bench.md. |
+| **Runner offline** on GitHub | Restore. |
+| **Log off / reboot** | HKCU Run starts the loop. Grok optional. |
+
+`--resume` after a bad shutdown would replay the failure. Do not `taskkill` the listener as a restart.
 
 ## Host
 
@@ -22,7 +36,7 @@ Pick the workstation that has:
 
 - JDK + Gradle wrapper
 - Android SDK / `adb`
-- The Pixel attached (`adb devices`)
+- The Pixel attached (`adb devices`) when you want phone UAT
 - A clone of **electrobrian/japanglify**, branch `agent/*` (or `BETA-2` to branch from)
 - GitHub Actions runner labeled `swarm-bench` (for `/uat` only)
 
@@ -30,11 +44,10 @@ Windows and Unix (Linux, macOS, FreeBSD Linuxulator) are both valid. The OS is n
 
 ```text
 cd <electrobrian-japanglify>
-adb devices
 grok --effort medium
 ```
 
-Tell it you are **Swarm Bench**. Point it at `docs/japanglify/cutover.md` if the bug already has a branch.
+Tell it you are **Swarm Bench**. Point it at `docs/japanglify/cutover.md` if the bug already has a branch. USB can be unplugged; the listener must still start.
 
 ## Windows 11 owner loop (minimize network)
 
@@ -82,7 +95,7 @@ Put `[skip ci]` on the commit message while you are the only tester, so electrob
 | Push `agent/*`, open/update **one** pull request into `BETA-2` | A second pull request for the same bug |
 | Comment on the official **issue** (handoff only) | `/accept` (that is the owner, or Conductor recording it) |
 | Talk in ordinary English in the CLI | File a new issue for a failed UAT |
-| Run `swarm-bench-runner.ps1` so `/uat` has a listener | Register the runner on a machine without the Pixel |
+| Run `swarm-bench-runner.ps1` **once** so `/uat` has a listener | Stay in chat to keep the listener alive; `/uat` from this CLI |
 
 Pushing `agent/*` may *also* trigger cloud tester APKs for other people. That is a side effect. Your UAT APK is the one you just `adb install`’d.
 

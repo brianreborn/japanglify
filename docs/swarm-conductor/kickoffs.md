@@ -6,24 +6,17 @@ Effort lives on the **GitHub issue**, not in chat.
 2. First line of the issue body: `**Effort: high** (`grok --effort high`)`
 3. If both missing: **medium** (do not use the CLI default `high`)
 
-Bootstrap (clone, lease, runner) is always **medium**.
-When product work starts, **do not** `/effort` mid-session. Canonical relaunch **from a session that already loaded the role file**:
+Swarm Bench **shutdown and restart** (canonical): [prompt-bench.md](prompt-bench.md). Policy copy: [swarm-bench.md](../japanglify/swarm-bench.md).
 
-```text
-/quit
-grok --effort <from the issue> --resume
-```
+| Situation | Do |
+|---|---|
+| **Normal stop** | `/quit`. Stay logged on. Listener stays. |
+| **Normal start** (healthy) | `grok --effort <from the issue> --resume` — same cwd |
+| **Restore** | `grok --effort medium` — **no** `--resume`. Paste prompt-bench.md. |
 
-`--resume` keeps the same clone/lease/runner context. `--effort` must be on that process start. Same cwd. Use it only to continue **healthy** product work.
+Bootstrap is always **medium**. Do not `/effort` mid-session. `--resume` is only for **healthy** product work. A session you shut down because it failed must not be resumed — the transcript would recur.
 
-**To replace a polluted or shut-down session, do not `--resume`.** Whatever caused the shutdown (loop, stale role, babysitting the listener) is in that transcript and would recur. New process, load the role file:
-
-```text
-/quit
-grok --effort medium
-```
-
-Then: *Replace all prior context with `docs/swarm-conductor/prompt-bench.md`.* That file is the Swarm Bench brain. Conductor cloud automations use `prompt.md` the same way.
+Conductor cloud automations use [prompt.md](prompt.md) the same way (that file **is** their context).
 
 | Level | Use |
 |---|---|
