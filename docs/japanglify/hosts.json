@@ -30,7 +30,8 @@
       "notes": "Named reservation. Hostname SHALOM (runner SHALOM-swarm-bench). Tool PATH from C:\\actions-runner\\.env then absolute fallbacks in swarm-path.cmd — not where.exe.",
       "tools": {
         "envFile": "C:\\actions-runner\\.env",
-        "git": "C:\\Program Files\\Git\\cmd\\git.exe",
+        "git": "HKLM\\SOFTWARE\\GitForWindows InstallPath\\cmd\\git.exe",
+        "gh": "C:\\Program Files\\GitHub CLI\\gh.exe",
         "pwsh": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
         "powershell": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
         "py": "C:\\Windows\\py.exe",
