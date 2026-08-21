@@ -1,5 +1,6 @@
 # /uat on an official issue → Swarm Bench (self-hosted Windows + Pixel).
 # Never assemble on ubuntu-latest.
+# GITHUB_TOKEN cannot list runners (admin); do not call that API.
 name: Swarm Conductor UAT
 
 on:
@@ -14,14 +15,14 @@ on:
 permissions:
   issues: write
   contents: read
-  actions: read
 
 jobs:
   dispatch:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'issue_comment' &&
-       github.event.issue.pull_request == null)
+       github.event.issue.pull_request == null &&
+       github.event.comment.body == '/uat')
     runs-on: ubuntu-latest
     outputs:
       go: ${{ steps.pick.outputs.go }}
@@ -76,13 +77,9 @@ jobs:
           def comment(text):
               subprocess.run(
                   [
-                      "gh",
-                      "api",
-                      "-X",
-                      "POST",
+                      "gh", "api", "-X", "POST",
                       f"repos/{repo}/issues/{issue}/comments",
-                      "--input",
-                      "-",
+                      "--input", "-",
                   ],
                   input=json.dumps({"body": text}),
                   text=True,
@@ -96,34 +93,18 @@ jobs:
               out("go", "false")
               raise SystemExit(0)
 
-          runners = subprocess.check_output(
-              ["gh", "api", f"repos/{repo}/actions/runners"], text=True
-          )
-          data = json.loads(runners)
-          online = []
-          for r in data.get("runners") or []:
-              names = {lb.get("name") for lb in r.get("labels") or []}
-              if r.get("status") == "online" and "swarm-bench" in names:
-                  online.append(r.get("name"))
-          if not online:
-              comment(
-                  f"{marker}\n## Swarm Bench\n**UAT queued / no host** — no online self-hosted runner labeled `swarm-bench`.\n\nOn the Windows 11 Pixel PC: install a GitHub Actions runner for `{repo}` with labels `Windows,swarm-bench`, leave it running, then comment `{cmd}` again on this issue."
-              )
-              out("go", "false")
-              raise SystemExit(0)
-
           branch = row["branch"]
           dev = row.get("devRepo") or inst["devRepo"]
           appid = uat.get("applicationId") or "com.japanglify.app"
           comment(
-              f"{marker}\n## Swarm Bench\n**UAT dispatched** for issue #{issue} → `{dev}` `{branch}` on `{online[0]}`.\n\nGet the Pixel unlocked. This does not merge or `/accept`."
+              f"{marker}\n## Swarm Bench\n**UAT dispatched** for issue #{issue} → `{dev}` `{branch}`.\n\nWaiting for a self-hosted runner labeled `swarm-bench` (Windows 11 + Pixel). Unlock the phone. This does not merge or `/accept`."
           )
           out("go", "true")
           out("issue", issue)
           out("branch", branch)
           out("repo", dev)
           out("appid", appid)
-          print("dispatch", issue, dev, branch, online)
+          print("dispatch", issue, dev, branch)
           PY
 
   bench:
