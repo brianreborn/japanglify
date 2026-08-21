@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Cloud ping of swarm hosts. Observes GitHub; does not /uat or enqueue if bench is already queued."""
+"""Cloud ping of swarm hosts. Observes GitHub; does not /uat or enqueue if bench is already queued.
+
+An in_progress *workflow run* is NOT a live listener. Ubuntu dispatch makes the
+UAT run in_progress while the swarm-bench *job* is still queued. Only a job
+labeled swarm-bench with status in_progress means the listener took it.
+"""
 
 from __future__ import annotations
 
@@ -11,7 +16,8 @@ from datetime import datetime, timezone
 
 ACTIVE = ("win11-pixel", "github-actions", "grok-cloud")
 # Never include swarm-ping.yml — that job is ubuntu and would false-green the bench.
-BENCH_WORKFLOWS = ("swarm-conductor-uat.yml", "swarm-kick.yml")
+# Kick is ubuntu-only (mailbox); do not treat its runs as bench jobs.
+BENCH_WORKFLOWS = ("swarm-conductor-uat.yml",)
 WAITING = {"queued", "waiting", "pending", "requested"}
 IDLE_DONE = {"cancelled", "skipped"}
 
@@ -150,6 +156,7 @@ def gh_runs(repo: str, workflow: str, limit: int = 8) -> list[dict]:
     for r in data.get("workflow_runs") or []:
         out.append(
             {
+                "id": r.get("id"),
                 "status": r.get("status"),
                 "conclusion": r.get("conclusion"),
                 "created_at": r.get("created_at"),
@@ -161,15 +168,46 @@ def gh_runs(repo: str, workflow: str, limit: int = 8) -> list[dict]:
     return out
 
 
+def jobs_labeled_bench(jobs: list[dict], workflow: str, run_url: str) -> list[dict]:
+    """Keep only the self-hosted swarm-bench job, never ubuntu dispatch/report."""
+    out = []
+    for j in jobs:
+        labels = j.get("labels") or []
+        if "swarm-bench" not in labels:
+            continue
+        out.append(
+            {
+                "status": j.get("status"),
+                "conclusion": j.get("conclusion"),
+                "created_at": j.get("created_at"),
+                "updated_at": j.get("completed_at") or j.get("started_at") or j.get("created_at"),
+                "workflow": workflow,
+                "html_url": run_url,
+                "runner": j.get("runner_name"),
+            }
+        )
+    return out
+
+
 def collect(repo: str) -> dict:
     config_runs = gh_runs(repo, "conductor-config.yml")
     bench_jobs: list[dict] = []
     for wf in BENCH_WORKFLOWS:
         try:
-            bench_jobs.extend(gh_runs(repo, wf, limit=8))
+            runs = gh_runs(repo, wf, limit=5)
         except subprocess.CalledProcessError as e:
             print(f"gh api {wf} failed: {e}", file=sys.stderr)
             continue
+        for r in runs:
+            rid = r.get("id")
+            if not rid:
+                continue
+            try:
+                data = gh_api(f"repos/{repo}/actions/runs/{rid}/jobs")
+            except subprocess.CalledProcessError as e:
+                print(f"gh api jobs {rid} failed: {e}", file=sys.stderr)
+                continue
+            bench_jobs.extend(jobs_labeled_bench(data.get("jobs") or [], wf, r.get("html_url") or ""))
     bench_jobs.sort(key=lambda j: j.get("created_at") or "", reverse=True)
     print("bench_jobs", json.dumps(bench_jobs[:8]), file=sys.stderr)
     return snapshot(config_runs, bench_jobs)
@@ -219,7 +257,7 @@ def self_test() -> int:
     check(
         "bench-waiting",
         classify_win11(
-            [{"status": "waiting", "created_at": "2026-08-21T14:46:00Z", "workflow": "swarm-kick.yml"}]
+            [{"status": "waiting", "created_at": "2026-08-21T14:46:00Z", "workflow": "swarm-conductor-uat.yml"}]
         ),
         False,
         "queued",
@@ -227,7 +265,7 @@ def self_test() -> int:
     check(
         "bench-running",
         classify_win11(
-            [{"status": "in_progress", "created_at": "2026-08-21T14:46:00Z", "workflow": "swarm-kick.yml"}]
+            [{"status": "in_progress", "created_at": "2026-08-21T14:46:00Z", "workflow": "swarm-conductor-uat.yml"}]
         ),
         True,
         "in_progress",
@@ -248,7 +286,21 @@ def self_test() -> int:
         True,
         "in_progress",
     )
+    # Ubuntu dispatch job must not count as the listener.
+    ignored = jobs_labeled_bench(
+        [{"labels": ["ubuntu-latest"], "status": "in_progress", "name": "dispatch"}],
+        "swarm-conductor-uat.yml",
+        "https://example/1",
+    )
+    assert ignored == [], ignored
+    kept = jobs_labeled_bench(
+        [{"labels": ["self-hosted", "Windows", "swarm-bench"], "status": "queued", "created_at": "t"}],
+        "swarm-conductor-uat.yml",
+        "https://example/1",
+    )
+    assert len(kept) == 1 and kept[0]["status"] == "queued", kept
     assert "swarm-ping.yml" not in BENCH_WORKFLOWS
+    assert "swarm-kick.yml" not in BENCH_WORKFLOWS
     paused = snapshot(
         [{"conclusion": "success", "updated_at": "2026-08-21T14:58:00Z", "html_url": "x"}],
         [{"status": "completed", "conclusion": "cancelled", "created_at": "2026-08-21T15:07:00Z", "workflow": "uat"}],

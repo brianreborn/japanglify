@@ -6,6 +6,10 @@
 # C:\actions-runner\run.cmd. That is optional: USB UAT already requires this
 # logon session to stay open. Do not treat a blocked logon task as runner-down.
 # Proof is Runner.Listener.exe + "Listening for Jobs".
+#
+# Also starts scripts/swarm-kick-watch.ps1 as a companion. After ubuntu
+# dispatch, the UAT *run* is in_progress while the bench *job* is still
+# queued — watch.ps1 must see that and restart a dead listener.
 
 $ErrorActionPreference = "Stop"
 $Repo = "brianreborn/japanglify"
@@ -55,7 +59,7 @@ function Write-RunnerEnv {
 function Ensure-SwarmLabel {
     # Old installs skipped config.cmd when .runner existed, so GitHub never got swarm-bench.
     try {
-        $jq = ".runners[] | select(.name==\"$Name\") | .labels[].name"
+        $jq = ".runners[] | select(.name==`"$Name`") | .labels[].name"
         $have = @(gh api "repos/$Repo/actions/runners" --jq $jq)
         if ($have.Count -eq 0) {
             Write-Warning "runner $Name not listed on $Repo — wrong repo or offline"
@@ -73,6 +77,25 @@ function Ensure-SwarmLabel {
     } catch {
         Write-Warning "could not verify runner labels: $($_.Exception.Message)"
     }
+}
+
+function Start-KickWatch {
+    $watch = Join-Path $PSScriptRoot "swarm-kick-watch.ps1"
+    if (-not (Test-Path $watch)) {
+        Write-Warning "no $watch — listener will not self-restart after lost communication"
+        return
+    }
+    $hit = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+        $_.Name -match '^(pwsh|powershell)\.exe$' -and $_.CommandLine -and ($_.CommandLine -match 'swarm-kick-watch')
+    })
+    if ($hit.Count -gt 0) {
+        Write-Host "swarm-kick-watch already running pid=$($hit[0].ProcessId)"
+        return
+    }
+    $pwsh = Get-Command pwsh -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
+    if (-not $pwsh) { $pwsh = "powershell.exe" }
+    Write-Host "starting kick-watch $watch"
+    Start-Process -FilePath $pwsh -ArgumentList @("-NoProfile", "-File", $watch) -WindowStyle Minimized
 }
 
 Need-Gh
@@ -128,4 +151,5 @@ if ($already) {
     Write-Host "starting $run in this user session (keep this login; USB needs it)"
     Start-Process -FilePath $run -WorkingDirectory $Root -WindowStyle Minimized
 }
+Start-KickWatch
 Write-Host "registered $Name labels=$Labels"

@@ -1,5 +1,5 @@
-# Owner /kick → mailbox. Members check pending events.
-# No inbound HTTPS on laptops. Bench kick runs ON the self-hosted listener.
+# Owner /kick → ubuntu mailbox. Never occupies swarm-bench.
+# Members check pending events outbound (watch.ps1). No inbound HTTPS.
 # NEVER YAML contains("/kick") as a substring of our own comments.
 name: Swarm kick
 
@@ -43,7 +43,7 @@ jobs:
     outputs:
       go: ${{ steps.p.outputs.go }}
       target: ${{ steps.p.outputs.target }}
-      bench: ${{ steps.p.outputs.bench }}
+      watch: ${{ steps.p.outputs.watch }}
       cloud: ${{ steps.p.outputs.cloud }}
       issue: ${{ steps.p.outputs.issue }}
     steps:
@@ -99,12 +99,13 @@ jobs:
           run = os.environ.get("GITHUB_RUN_ID") or ""
           url = f"https://github.com/{repo}/actions/runs/{run}" if run else ""
           text = (
-              f"{marker}\n## Swarm kick\n**Kick sent** `{target}` — mailbox only, no inbound HTTPS.\n\n"
-              f"- bench ping: `{row['bench']}`\n"
+              f"{marker}\n## Swarm kick\n**Kick sent** `{target}` — ubuntu mailbox, does not occupy swarm-bench.\n\n"
+              f"- watch mailbox (win11-pixel): `{row['watch']}`\n"
               f"- cloud pending list: `{row['cloud']}`\n"
               f"- run {url}\n\n"
-              f"If the Windows listener is down, `scripts/swarm-kick-watch.ps1` on that box starts it. "
-              f"This does not `/uat` or `/accept`."
+              f"After ubuntu dispatch, a UAT run is `in_progress` while the bench job may still be queued. "
+              f"`scripts/swarm-kick-watch.ps1` treats that as pending and starts Runner.Listener if it is down. "
+              f"This is not an install."
           )
           if issue and issue != "0":
               subprocess.run(
@@ -115,7 +116,7 @@ jobs:
               )
           out("go", "true")
           out("target", target)
-          out("bench", "true" if row["bench"] else "false")
+          out("watch", "true" if row["watch"] else "false")
           out("cloud", "true" if row["cloud"] else "false")
           out("issue", issue)
           print("kick", row)
@@ -123,49 +124,15 @@ jobs:
 
   cloud:
     needs: parse
-    if: needs.parse.outputs.go == 'true' && needs.parse.outputs.cloud == 'true'
+    if: needs.parse.outputs.go == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: List pending UAT / kick runs
+      - name: List pending UAT (in_progress counts)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
+          echo "::notice::UAT run status is in_progress after ubuntu dispatch even while the swarm-bench job is still queued."
           gh run list --repo "$GH_REPO" --workflow swarm-conductor-uat.yml --limit 8
-          gh run list --repo "$GH_REPO" --workflow swarm-kick.yml --limit 5
+          gh run list --repo "$GH_REPO" --workflow swarm-kick.yml --limit 3
           echo "cloud member checked pending events"
-
-  bench:
-    needs: parse
-    if: needs.parse.outputs.go == 'true' && needs.parse.outputs.bench == 'true'
-    runs-on: [self-hosted, Windows, swarm-bench]
-    timeout-minutes: 8
-    steps:
-      - name: Check pending + prove host
-        timeout-minutes: 5
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-          ISSUE: ${{ needs.parse.outputs.issue }}
-        run: |
-          $ErrorActionPreference = "Stop"
-          Write-Host "computer=$env:COMPUTERNAME kick"
-          Get-Process Runner.Listener -ErrorAction SilentlyContinue | Format-Table Id,ProcessName -AutoSize
-          adb devices -l
-          gh run list --repo $env:GH_REPO --workflow swarm-conductor-uat.yml --limit 5
-          $devs = @(adb devices | Select-String "\tdevice$")
-          if ($devs.Count -ne 1) { Write-Warning "adb device count=$($devs.Count)" }
-          if ($env:ISSUE -and $env:ISSUE -ne "0") {
-            $body = @(
-              "<!-- swarm-kick -->"
-              "## Swarm kick"
-              "**Bench woke** ``$($env:COMPUTERNAME)``"
-              ""
-              "- adb $($devs.Count) device(s)"
-              "- listener proved (this job ran on swarm-bench)"
-              ""
-              "Checked pending UAT runs. This is not an install."
-            ) -join "`n"
-            @{ body = $body } | ConvertTo-Json | gh api -X POST "repos/$env:GH_REPO/issues/$env:ISSUE/comments" --input -
-          }

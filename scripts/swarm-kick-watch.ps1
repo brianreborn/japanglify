@@ -1,7 +1,10 @@
 # Outbound kick watcher for win11-pixel.
-# Poll GitHub for queued swarm-bench jobs or a recent kick comment.
-# If Runner.Listener is down, start it. No inbound HTTPS.
-# Grok CLI may start this; the owner never types pwsh.
+# Poll GitHub for UAT/kick runs that still need the listener.
+#
+# CRITICAL: after ubuntu `dispatch` succeeds, the WORKFLOW RUN is
+# `in_progress` while the swarm-bench JOB is still queued. Looking
+# only at `--status queued` misses the stuck listener case.
+# No inbound HTTPS. Grok CLI may start this; the owner never types pwsh.
 
 $ErrorActionPreference = "Stop"
 $Repo = "brianreborn/japanglify"
@@ -23,15 +26,19 @@ function Start-Listener {
 }
 
 function Pending-Kick {
-    $runs = gh run list --repo $Repo --workflow swarm-conductor-uat.yml --status queued --limit 5 --json databaseId,status,name 2>$null | ConvertFrom-Json
-    if ($runs) { return $true }
-    $runs = gh run list --repo $Repo --workflow swarm-kick.yml --status queued --limit 5 --json databaseId 2>$null | ConvertFrom-Json
-    if ($runs) { return $true }
+    $workflows = @("swarm-conductor-uat.yml", "swarm-kick.yml")
+    $states = @("queued", "waiting", "in_progress")
+    foreach ($wf in $workflows) {
+        foreach ($st in $states) {
+            $runs = gh run list --repo $Repo --workflow $wf --status $st --limit 5 --json databaseId,status 2>$null | ConvertFrom-Json
+            if ($runs -and @($runs).Count -gt 0) { return $true }
+        }
+    }
     return $false
 }
 
 if ($args -contains "-Once") {
-    if (Pending-Kick) { Start-Listener } else { Write-Host "no queued kick/UAT" }
+    if (Pending-Kick) { Start-Listener } else { Write-Host "no queued/in_progress kick/UAT" }
     if (Listener-Up) { Write-Host "listener up" } else { Write-Warning "listener still down" }
     exit 0
 }

@@ -7,11 +7,11 @@ Active hosts: `win11-pixel`, `github-actions`, `grok-cloud`. Pools and `unix-pix
 | Host | How we know |
 |---|---|
 | `github-actions` | last `conductor-config.yml` conclusion |
-| `win11-pixel` | queued vs `in_progress` vs last completed `swarm-bench` job |
+| `win11-pixel` | **jobs labeled `swarm-bench`**, not the workflow run. queued job = listener down. `in_progress` job = listener took it. An `in_progress` UAT *run* after ubuntu dispatch is not a live up. |
 | `grok-cloud` | event-driven (no Actions ping) |
 
 Schedule: every 15 minutes + **workflow_dispatch** `swarm-ping.yml`.
 
-A **red** ping run means a live host is **down** (`ok: false`) — today that is a queued `swarm-bench` job the listener is not taking. Cancelled/skipped last bench (USB UAT paused) is **unknown**, not red, as long as `github-actions` is up.
+A **red** ping run means a live host is **down** (`ok: false`) — today that is a queued `swarm-bench` **job** the listener is not taking. Cancelled/skipped last bench (USB UAT paused) is **unknown**, not red, as long as `github-actions` is up.
 
-`/kick` is the wake. Ping only looks.
+`/kick` is the ubuntu wake mailbox. Ping only looks. Kick never occupies swarm-bench.

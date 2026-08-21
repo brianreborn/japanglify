@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Quota trip + UAT-ready ping + per-issue 20min queue stall. Not intake. Does not install."""
+"""Quota trip + UAT-ready ping + per-issue 20min queue stall. Not intake. Does not install.
+
+Stall looks at the swarm-bench *job*, not the workflow *run*. After ubuntu
+dispatch the run is in_progress while the bench job may still be queued.
+"""
 
 from __future__ import annotations
 
@@ -49,6 +53,15 @@ def mapped(n: int | str) -> dict | None:
     if not raw or raw == "{}":
         return None
     return json.loads(raw)
+
+
+def run_id_from_url(url: str | None) -> str | None:
+    if not url:
+        return None
+    parts = url.rstrip("/").split("/")
+    if len(parts) >= 2 and parts[-2] == "runs" and parts[-1].isdigit():
+        return parts[-1]
+    return None
 
 
 def uat_state(comments: list[dict]) -> dict:
@@ -115,8 +128,9 @@ def stall_decision(
     queued: list[dict],
     now: datetime | None = None,
     stall_min: int = STALL_MIN,
+    bench_job: dict | None = None,
 ) -> dict | None:
-    """Stall only this issue's still-queued dispatch, never a sibling issue's run."""
+    """Stall only this issue's still-queued bench job, never a sibling and never a running assemble."""
     now = now or now_utc()
     if state.get("last") != "dispatched" or state.get("saw_stall"):
         return None
@@ -126,6 +140,11 @@ def stall_decision(
     age = (now - dispatched_at).total_seconds() / 60.0
     if age < stall_min:
         return None
+    if bench_job is not None:
+        status = (bench_job.get("status") or "").lower()
+        if status in WAITING:
+            return {"url": state.get("run_url") or "", "age_min": int(age)}
+        return None
     hit = matching_queued(state.get("run_url"), dispatched_at, queued)
     if not hit:
         return None
@@ -133,6 +152,14 @@ def stall_decision(
     if status not in WAITING:
         return None
     return {"url": hit.get("html_url") or "", "age_min": int(age)}
+
+
+def bench_job_for(repo: str, run_id: str) -> dict | None:
+    data = api("GET", f"repos/{repo}/actions/runs/{run_id}/jobs")
+    for j in data.get("jobs") or []:
+        if "swarm-bench" in (j.get("labels") or []):
+            return j
+    return None
 
 
 def self_test() -> int:
@@ -159,6 +186,7 @@ def self_test() -> int:
     st = uat_state(comments)
     check("last-wins-dispatched", st["last"], "dispatched")
     check("run-url-from-last", st["run_url"], "https://github.com/brianreborn/japanglify/actions/runs/42")
+    check("run-id", run_id_from_url(st["run_url"]), "42")
 
     queued = [
         {
@@ -216,6 +244,18 @@ def self_test() -> int:
     d2 = stall_decision(no_url, fresh, now=now)
     check("no-url-matches-fresh-queued", bool(d2 and d2["url"].endswith("/8")), True)
 
+    # in_progress run with queued bench job → stall. Running assemble → no stall.
+    check(
+        "queued-bench-job-stalls",
+        bool(stall_decision(st, [], now=now, bench_job={"status": "queued"})),
+        True,
+    )
+    check(
+        "running-bench-no-stall",
+        stall_decision(st, queued_hit, now=now, bench_job={"status": "in_progress"}),
+        None,
+    )
+
     print("swarm_watchdog self-test ok" if failed == 0 else f"FAIL {failed}")
     return 1 if failed else 0
 
@@ -249,6 +289,10 @@ def main() -> int:
         f"repos/{repo}/actions/workflows/swarm-conductor-uat.yml/runs?status=waiting&per_page=10",
     ).get("workflow_runs") or []
     queued_uat.extend(waiting)
+    in_progress = api(
+        "GET",
+        f"repos/{repo}/actions/workflows/swarm-conductor-uat.yml/runs?status=in_progress&per_page=10",
+    ).get("workflow_runs") or []
 
     issues = api("GET", f"repos/{repo}/issues?state=open&per_page=50")
     for issue in issues:
@@ -275,7 +319,22 @@ def main() -> int:
             else:
                 api("POST", f"repos/{repo}/issues/{n}/comments", {"body": text})
             continue
-        decision = stall_decision(st, queued_uat, now=now)
+        bench_job = None
+        rid = run_id_from_url(st.get("run_url"))
+        if not rid and st.get("last") == "dispatched" and st.get("dispatched_at"):
+            for r in list(in_progress) + list(queued_uat):
+                created = parse_ts(r.get("created_at"))
+                if created and created >= st["dispatched_at"] - timedelta(minutes=2):
+                    rid = str(r.get("id") or "") or None
+                    if rid and not st.get("run_url"):
+                        st["run_url"] = r.get("html_url")
+                    break
+        if rid:
+            try:
+                bench_job = bench_job_for(repo, rid)
+            except Exception as e:
+                print("bench job fetch failed", rid, e)
+        decision = stall_decision(st, queued_uat, now=now, bench_job=bench_job)
         if decision:
             api(
                 "POST",
@@ -308,7 +367,7 @@ def main() -> int:
                 )
             },
         )
-    print("watchdog ok", "queued_uat", len(queued_uat))
+    print("watchdog ok", "queued_uat", len(queued_uat), "in_progress", len(in_progress))
     return 0
 
 
