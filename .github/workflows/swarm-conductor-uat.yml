@@ -134,6 +134,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
+          $t0 = Get-Date
           adb devices
           $work = Join-Path $env:RUNNER_TEMP "japanglify-uat"
           if (Test-Path $work) { Remove-Item -Recurse -Force $work }
@@ -149,6 +150,28 @@ jobs:
           adb uninstall $env:APPID 2>$null
           adb install -r $apk.FullName
           $serial = (adb devices | Select-String "device$").Line
+          $wall = [math]::Round(((Get-Date) - $t0).TotalSeconds, 3)
+          $cpu = $null
+          try {
+            $sum = (Get-Process -Name java,adb -ErrorAction SilentlyContinue | Measure-Object CPU -Sum).Sum
+            if ($sum) { $cpu = [math]::Round($sum, 3) }
+          } catch {}
+          $delta = @{ wallSec = $wall; ghBillableMin = 0 }
+          if ($null -ne $cpu) { $delta.cpuSec = $cpu }
+          $row = [ordered]@{
+            schema = 1
+            at = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+            role = "swarm-bench"
+            state = "installed"
+            source = "actions"
+            host = $env:COMPUTERNAME
+            issue = [int]$env:ISSUE
+            delta = $delta
+          }
+          $fence = "<!-- swarm-usage`n$($row | ConvertTo-Json -Compress)`n-->"
+          $human = "usage `swarm-bench` `installed` $($env:COMPUTERNAME) wall ${wall}s"
+          if ($null -ne $cpu) { $human += " · cpu ${cpu}s" }
+          $human += " · gh 0min · grok credits unknown"
           $body = @"
           <!-- swarm-bench-uat -->
           ## Swarm Bench
@@ -159,5 +182,8 @@ jobs:
           - adb ``$serial``
 
           Unlocked Pixel, long-press Japanese text, wait a few seconds. Comment on this issue what happened. Do not open a second pull request.
+
+          $fence
+          $human
           "@
           gh api -X POST "repos/$env:GH_REPO/issues/$env:ISSUE/comments" -f body="$body"
