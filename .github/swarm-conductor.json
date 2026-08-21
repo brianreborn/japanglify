@@ -4,6 +4,7 @@
   "trustedActor": "brianreborn",
   "cutoverDoc": "docs/japanglify/cutover.md",
   "instanceDoc": "docs/japanglify/instance.json",
+  "hostsDoc": "docs/japanglify/hosts.json",
   "quotas": {
     "commentsPerIssuePerHour": 10
   }
