@@ -4,7 +4,7 @@ Local starting set for **build + domain test + interactive `adb` + issue/pull-re
 
 Remote GitHub-hosted assemble is slower and cannot tap the device. **Do not wait on ubuntu-latest** for this loop.
 
-**CLI brain (paste this, not a chat dump):** [prompt-bench.md](../swarm-conductor/prompt-bench.md) ([raw](https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt-bench.md)). If this file disagrees with that one on `/quit` / `--resume` / listener, **prompt-bench wins**. Long bootstrap: [swarm-bench-kickoff.md](swarm-bench-kickoff.md). **Effort: medium** on restore unless the issue says otherwise.
+**CLI brain (paste this, not a chat dump):** [prompt-bench.md](../swarm-conductor/prompt-bench.md) ([raw](https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt-bench.md)). If this file disagrees with that one on `/quit` / `--resume` / listener, **prompt-bench wins**. Long bootstrap: [swarm-bench-kickoff.md](swarm-bench-kickoff.md). Host CLI default effort is **medium**.
 
 Lease: `scripts/swarm-lease.py --from github --write` against [hosts.json](hosts.json) (named reservations + wildcard pools).
 
@@ -23,15 +23,15 @@ Canonical table: [prompt-bench.md](../swarm-conductor/prompt-bench.md) (that fil
 **Null start:**
 
 ```text
-grok --effort medium
+grok (Get-Content -Raw docs/swarm-conductor/prompt-bench.md)
 ```
 
-No `--resume`, `-r`, `--continue`, `-c`. Then paste prompt-bench.md.
+No `--effort` (default is medium), no `--resume`, `-r`, `--continue`, `-c`.
 
 | Situation | Do |
 |---|---|
 | **Normal stop** | `/quit`. Stay logged on to Windows. Do not kill `Runner.Listener`. |
-| **Normal start** (last session was healthy) | same cwd: `grok --effort <issue> --resume` |
+| **Normal start** (last session was healthy) | same cwd: `grok --resume` — add `--effort` only if the issue is not medium |
 | **Restore** (first this logon, or you killed a bad session) | Null start. |
 | **Runner offline** on GitHub | Restore. |
 | **Log off / reboot** | HKCU Run starts the loop. Grok optional. |
@@ -52,7 +52,7 @@ Windows and Unix (Linux, macOS, FreeBSD Linuxulator) are both valid. The OS is n
 
 ```text
 cd <electrobrian-japanglify>
-grok --effort medium
+grok
 ```
 
 Tell it you are **Swarm Bench**. Point it at `docs/japanglify/cutover.md` if the bug already has a branch. USB can be unplugged; the listener must still start.

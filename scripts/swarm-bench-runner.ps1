@@ -6,6 +6,7 @@
 #   1. copies swarm-run-loop.cmd + swarm-kick-watch.ps1 to C:\actions-runner
 #   2. starts a hidden restart loop around Runner.Listener
 #   3. persists via HKCU Run (Smart App Control often blocks Scheduled Task)
+#   4. sets Grok CLI default_reasoning_effort = medium in %USERPROFILE%\.grok\config.toml
 # Proof the host is up: GitHub runner status online, or Runner.Listener.exe.
 
 $ErrorActionPreference = "Stop"
@@ -22,6 +23,36 @@ function Need-Gh {
     if ($login -ne "brianreborn") {
         Write-Warning "gh is $login — registration token needs repo admin on $Repo"
     }
+}
+
+function Ensure-GrokEffortMedium {
+    # Vendor CLI default is high. This host's default is medium. --effort on the
+    # command line still wins for a session (issue label high/xhigh).
+    # [models] belongs in user config, not project .grok/config.toml.
+    $grokHome = if ($env:GROK_HOME) { $env:GROK_HOME } else { Join-Path $env:USERPROFILE ".grok" }
+    $cfg = Join-Path $grokHome "config.toml"
+    if (-not (Test-Path $grokHome)) {
+        New-Item -ItemType Directory -Path $grokHome | Out-Null
+    }
+    $text = ""
+    if (Test-Path $cfg) {
+        $text = [System.IO.File]::ReadAllText($cfg)
+    }
+    $want = 'default_reasoning_effort = "medium"'
+    if ($text -match '(?m)^\s*default_reasoning_effort\s*=\s*"medium"\s*$') {
+        Write-Host "grok CLI default effort already medium ($cfg)"
+        return
+    }
+    if ($text -match '(?m)^\s*default_reasoning_effort\s*=') {
+        $text = [regex]::Replace($text, '(?m)^\s*default_reasoning_effort\s*=.*$', $want)
+    } elseif ($text -match '(?m)^\[models\]\s*$') {
+        $text = [regex]::Replace($text, '(?m)^\[models\]\s*$', "[models]`r`n$want")
+    } else {
+        $nl = if ($text -and -not $text.EndsWith("`n")) { "`r`n" } else { "" }
+        $text = $text + $nl + "`r`n[models]`r`n$want`r`n"
+    }
+    [System.IO.File]::WriteAllText($cfg, $text)
+    Write-Host "set grok CLI default effort medium ($cfg)"
 }
 
 function Write-RunnerEnv {
@@ -150,6 +181,7 @@ function Start-KickWatch {
 }
 
 Need-Gh
+Ensure-GrokEffortMedium
 
 if (-not (Get-Command adb -ErrorAction SilentlyContinue)) {
     Write-Warning "adb not on PATH in this session. USB UAT will fail until it is."

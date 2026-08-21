@@ -8,9 +8,11 @@ Policy: `docs/japanglify/swarm-bench.md`. Kickoff details: `docs/japanglify/swar
 
 `Runner.Listener` is **not** Grok. `/quit` must not kill it.
 
+On this host the Grok CLI default effort is **medium** (`default_reasoning_effort` in `%USERPROFILE%\.grok\config.toml`, written by `swarm-bench-runner.ps1`). Do not pass `--effort medium`. Pass `--effort` only when the **issue** is not medium.
+
 ### Null start (no transcript)
 
-`grok [OPTIONS] [PROMPT]` — `PROMPT` is the first TUI message. Slurp **this file** so you do not paste. Do not use `-p` / `--print` / `--single` (those exit). Do not pass `--resume`, `-r`, `--continue`, or `-c`.
+`grok [OPTIONS] [PROMPT]` — `PROMPT` is the first TUI message. Slurp **this file**. Do not use `-p` / `--print` / `--single` (those exit). Do not pass `--resume`, `-r`, `--continue`, `-c`, or `--effort`.
 
 From the clone that has this file (`brianreborn/japanglify` `main`):
 
@@ -18,22 +20,22 @@ PowerShell:
 
 ```text
 git pull origin main
-grok --effort medium (Get-Content -Raw docs/swarm-conductor/prompt-bench.md)
+grok (Get-Content -Raw docs/swarm-conductor/prompt-bench.md)
 ```
 
 bash / git-bash / zsh:
 
 ```text
 git pull origin main
-grok --effort medium "$(< docs/swarm-conductor/prompt-bench.md)"
+grok "$(< docs/swarm-conductor/prompt-bench.md)"
 ```
 
-`--effort medium` overrides the CLI default `high`. `low` is not this restore. Bare `grok` is a new session. `--continue` would reattach the last session for this directory.
+Bare `grok` is a new session at **medium**. `--continue` would reattach the last session for this directory.
 
 | Situation | What you type | What must stay up |
 |---|---|---|
 | **Normal stop** — work is done, session was healthy | `/quit` | Windows **logged on**. Hidden `swarm-run-loop.cmd`, `Runner.Listener`, `swarm-kick-watch.ps1` |
-| **Normal start** — continue that healthy work | same cwd: `grok --effort <issue label, else medium> --resume` | Listener. Do **not** slurp this file. Do **not** run `swarm-bench-runner.ps1` unless GitHub shows the runner **offline** |
+| **Normal start** — continue that healthy work | same cwd: `grok --resume` if the issue is medium/unlabeled; `grok --effort <issue> --resume` only if the issue is high/xhigh/low | Listener. Do **not** slurp this file. Do **not** run `swarm-bench-runner.ps1` unless GitHub shows the runner **offline** |
 | **Restore** — first start this logon, or you killed a bad session | `/quit` if a window is still open. Then **Null start** (above) | Listener starts from step “Always this logon” below |
 | **GitHub says `SHALOM-swarm-bench` offline** | Restore | Same |
 | **Log off / reboot** | Nothing in Grok. Next logon, HKCU Run starts the loop. Grok is optional. If still offline, Restore | This Windows logon (USB needs it) |
@@ -45,7 +47,7 @@ Never `taskkill` `Runner.Listener` as a “restart.” Never paste “start the 
 ## Always this logon (USB optional)
 
 1. `git pull` on the clone that has `scripts/swarm-bench-runner.ps1` (`brianreborn/japanglify` `main`).
-2. `pwsh -File scripts/swarm-bench-runner.ps1` once. Hidden listener loop + HKCU Run. **You are not the supervisor after that.**
+2. `pwsh -File scripts/swarm-bench-runner.ps1` once. Hidden listener loop + HKCU Run + Grok CLI default **medium**. **You are not the supervisor after that.**
 3. Reply one line: `Listener running yes/no`. Then **normal stop** (`/quit`).
 
 Do not require `adb devices` to start the listener. Unplugged USB is a pause, not a NAK.
@@ -59,7 +61,8 @@ Do not require `adb devices` to start the listener. Unplugged USB is a pause, no
 - a second `agent/*` or second pull request for the same bug
 - babysit `Runner.Listener` in chat
 - `--resume` / `--continue` / `-c` a session you shut down because it failed
+- `--effort medium` (that is already the default)
 
 ## Product work (only if the owner named a bug)
 
-Use **Normal start** (`--resume`) only if the last session was healthy and already loaded this file. One branch `agent/<n>-…`, one pull request into `BETA-2`. GitHub issue = scoreboard. Pixel `/uat` = Actions unless the owner says this CLI owns the phone.
+Use **Normal start** (`--resume`) only if the last session was healthy and already loaded this file. Add `--effort` only when the issue label is not medium. One branch `agent/<n>-…`, one pull request into `BETA-2`. GitHub issue = scoreboard. Pixel `/uat` = Actions unless the owner says this CLI owns the phone.

@@ -1,8 +1,6 @@
 # Swarm Bench kickoff
 
-**Effort: medium** until a named GitHub issue says otherwise.
-
-Read effort from that issue: label `effort:*`, else the `**Effort:**` line in the body, else **medium**.
+**Effort:** unlabeled = **medium** (host Grok CLI default). Read the issue: label `effort:*`, else the `**Effort:**` line, else omit `--effort`.
 
 **Role file that wins:** [prompt-bench.md](../swarm-conductor/prompt-bench.md) ([raw](https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt-bench.md)). Shutdown and restart live there. This file is the long bootstrap.
 
@@ -11,15 +9,15 @@ Read effort from that issue: label `effort:*`, else the `**Effort:**` line in th
 **Null start:**
 
 ```text
-grok --effort medium
+grok (Get-Content -Raw docs/swarm-conductor/prompt-bench.md)
 ```
 
-No `--resume`, `-r`, `--continue`, `-c`. Then paste prompt-bench.md.
+No `--effort`, `--resume`, `-r`, `--continue`, `-c`. Then this file is already the prompt.
 
 | Situation | Do |
 |---|---|
 | **Normal stop** | `/quit`. Stay logged on. Do not kill `Runner.Listener`. |
-| **Normal start** (healthy session) | same cwd: `grok --effort <issue> --resume` |
+| **Normal start** (healthy session) | same cwd: `grok --resume` — add `--effort` only if the issue is not medium |
 | **Restore** (first this logon, or you killed a bad session) | Null start. |
 | **Runner offline** | Restore. |
 
@@ -41,6 +39,7 @@ You are **Swarm Bench**: local builder + tester + `adb` **and** you start (once)
 - invent `grokCredits` (omit unless the CLI printed a number)
 - `/uat` or `adb install` from this CLI while Actions owns Pixel UAT
 - `--resume` / `--continue` / `-c` a session you shut down because it failed
+- `--effort medium` (already the host default)
 - `taskkill` `Runner.Listener` as a restart
 
 ## Bootstrap (in order, then **normal stop**)
@@ -48,13 +47,13 @@ You are **Swarm Bench**: local builder + tester + `adb` **and** you start (once)
 1. If cwd is not already `electrobrian/japanglify`, clone it and `cd` in. Reuse an existing clone. Checkout `BETA-2` unless I named an `agent/*` branch. Also keep/pull `brianreborn/japanglify` `main` for `scripts/swarm-bench-runner.ps1`.
 2. Bring the `/uat` listener online (**before** adb; USB may be unplugged):
    `pwsh -File scripts/swarm-bench-runner.ps1`
-   (If that script is missing: fetch it from `brianreborn/japanglify` `main`.) Needs `gh` as `brianreborn` once. Hidden loop + HKCU Run. Leave the **logon session** running (not a Windows service — USB).
+   (If that script is missing: fetch it from `brianreborn/japanglify` `main`.) Needs `gh` as `brianreborn` once. Hidden loop + HKCU Run + Grok default medium. Leave the **logon session** running (not a Windows service — USB).
 3. `adb devices` — want one line ending in `device` for phone UAT. If none / `unauthorized` / `offline`, **report it** and continue; do not skip the listener.
 4. If `swarm-lease.py` is missing:
    `curl -L -o swarm-lease.py https://raw.githubusercontent.com/brianreborn/japanglify/main/scripts/swarm-lease.py`
 5. `py -3 swarm-lease.py --from github --write` (or `python3`). Expect `ack` with `pool-bench-windows` or `win11-pixel` and role `swarm-bench`. On `nak` with USB unplugged: that is a pause, not a fake lease. Do not write a fake lease.
 6. Read `docs/japanglify/swarm-bench.md` and `docs/japanglify/cutover.md` from `brianreborn/japanglify` `main` if this fork does not have them yet.
-7. Reply with: lease `id`, `role`, `adb` serial or `usb-paused`, runner name/status, `git remote -v`, current branch. Then **normal stop** (`/quit`). Do not start product work in the medium bootstrap process.
+7. Reply with: lease `id`, `role`, `adb` serial or `usb-paused`, runner name/status, `git remote -v`, current branch. Then **normal stop** (`/quit`). Do not start product work in the bootstrap process.
 
 ## UAT loop (only after bootstrap, and only if Actions is not owning Pixel UAT)
 
@@ -80,4 +79,4 @@ Do not start product work. Summarize live rows from cutover (`#5` chip, `#6` liv
 
 ## If I name a bug
 
-**Normal start** only if bootstrap was healthy: `/quit` then `grok --effort <issue label> --resume`. If bootstrap had to be killed, **Null start**. Work that issue on `agent/<number>-<short-name>` from `BETA-2` (or the existing agent branch in cutover). One pull request. Pixel `/uat` stays Actions unless I say this CLI owns the phone.
+**Normal start** only if bootstrap was healthy: `/quit` then `grok --resume` (add `--effort <issue>` only if not medium). If bootstrap had to be killed, **Null start**. Work that issue on `agent/<number>-<short-name>` from `BETA-2` (or the existing agent branch in cutover). One pull request. Pixel `/uat` stays Actions unless I say this CLI owns the phone.

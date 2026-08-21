@@ -48,7 +48,7 @@ Every Japanglify Grok automation has a file in this directory. Open **Raw**, cop
 | `japanglify-uat-complete` | [prompt-uat-complete.md](prompt-uat-complete.md) | [raw](https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt-uat-complete.md) |
 | Grok CLI Swarm Bench (not an automation) | [prompt-bench.md](prompt-bench.md) | [raw](https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt-bench.md) |
 
-**Null start:** `grok --effort medium '…prompt-bench.md…'` — positional `PROMPT` is the first TUI message. Never `--resume`, `-r`, `--continue`, `-c`, `-p`. **Normal stop** is `/quit` (listener stays). **Normal start** is `grok --effort <issue> --resume`.
+**Null start:** `grok (Get-Content -Raw docs/swarm-conductor/prompt-bench.md)` — no `--effort` (host default **medium**), no `--resume`/`-c`/`-p`. **Normal stop** is `/quit`. **Normal start** is `grok --resume` plus `--effort` only if the issue is not medium.
 
 Personal automations (e.g. Weekly Twitter recap) are **not** in this repo.
 

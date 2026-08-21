@@ -1,10 +1,10 @@
 # Kickoffs
 
-Effort lives on the **GitHub issue**, not in chat.
+Effort lives on the **GitHub issue**, not in chat. On the Swarm Bench host the Grok CLI default is **medium** (`%USERPROFILE%\.grok\config.toml` `default_reasoning_effort`, written by `scripts/swarm-bench-runner.ps1`). Vendor CLI default is high; we do not live with that.
 
 1. Label `effort:low` | `effort:medium` | `effort:high` | `effort:xhigh`
 2. First line of the issue body: `**Effort: high** (`grok --effort high`)`
-3. If both missing: **medium** (do not use the CLI default `high`)
+3. If both missing: **medium** — omit `--effort` (matches the host default)
 
 Swarm Bench **shutdown and restart** (canonical): [prompt-bench.md](prompt-bench.md). Policy copy: [swarm-bench.md](../japanglify/swarm-bench.md).
 
@@ -14,34 +14,34 @@ PowerShell:
 
 ```text
 git pull origin main
-grok --effort medium (Get-Content -Raw docs/swarm-conductor/prompt-bench.md)
+grok (Get-Content -Raw docs/swarm-conductor/prompt-bench.md)
 ```
 
 bash:
 
 ```text
 git pull origin main
-grok --effort medium "$(< docs/swarm-conductor/prompt-bench.md)"
+grok "$(< docs/swarm-conductor/prompt-bench.md)"
 ```
 
-`PROMPT` is the first TUI message (the role file). Do not pass `--resume`, `-r`, `--continue`, `-c`, `-p`, or `--single`. Restore effort is **medium**, not `low`.
+No `--effort`, `--resume`, `-r`, `--continue`, `-c`, `-p`.
 
 | Situation | Do |
 |---|---|
 | **Normal stop** | `/quit`. Stay logged on. Listener stays. |
-| **Normal start** (healthy) | `grok --effort <from the issue> --resume` — same cwd |
+| **Normal start** (healthy) | `grok --resume` — same cwd. Add `--effort <issue>` only if the issue is not medium |
 | **Restore** | Null start (above) |
 
-Bootstrap is always **medium**. Do not `/effort` mid-session. `--resume` / `--continue` are only for **healthy** product work. A session you shut down because it failed must not be continued — the transcript would recur.
+Do not `/effort` mid-session. `--resume` / `--continue` are only for **healthy** product work. A session you shut down because it failed must not be continued — the transcript would recur.
 
 Conductor cloud automations use [prompt.md](prompt.md) the same way (that file **is** their context).
 
 | Level | Use |
 |---|---|
 | `low` | Mechanical one-shot |
-| `medium` | Bootstrap; domain tests |
-| `high` | Overlay / timing / a11y on device |
-| `xhigh` | Classification + fix generation when the owner sets the label |
+| `medium` | Default. Bootstrap; domain tests |
+| `high` | Overlay / timing / a11y on device — pass `--effort high` |
+| `xhigh` | Classification + fix generation when the owner sets the label — pass `--effort xhigh` |
 
 Do not debate effort in a Conductor thread. Change the label on the issue.
 

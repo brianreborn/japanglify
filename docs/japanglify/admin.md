@@ -6,6 +6,8 @@ Not for reporters. Public repo, but this page is the admin cheat sheet.
 
 CLI ritual is **not** this page. It is [prompt-bench.md](../swarm-conductor/prompt-bench.md) ([raw](https://raw.githubusercontent.com/brianreborn/japanglify/main/docs/swarm-conductor/prompt-bench.md)). This page is github.com + when to use that ritual.
 
+Grok CLI default effort on this host is **medium** (`%USERPROFILE%\.grok\config.toml`, set by `swarm-bench-runner.ps1`). Omit `--effort` unless the issue is not medium.
+
 ## Shutdown and restart
 
 **Null start** (no transcript). In the clone with `prompt-bench.md`:
@@ -14,17 +16,17 @@ PowerShell:
 
 ```text
 git pull origin main
-grok --effort medium (Get-Content -Raw docs/swarm-conductor/prompt-bench.md)
+grok (Get-Content -Raw docs/swarm-conductor/prompt-bench.md)
 ```
 
-bash: `grok --effort medium "$(< docs/swarm-conductor/prompt-bench.md)"`
+bash: `grok "$(< docs/swarm-conductor/prompt-bench.md)"`
 
-Restore effort is **medium**, not `low`. No `--resume`, `-r`, `--continue`, `-c`, `-p`.
+No `--effort`, `--resume`, `-r`, `--continue`, `-c`, `-p`.
 
 | Situation | Do | Do not |
 |---|---|---|
 | **Normal stop** | `/quit` in Swarm Bench. Stay logged on | Kill `Runner.Listener` |
-| **Normal start** | same cwd: `grok --effort <issue> --resume` | Slurp a new brain if the last session was healthy |
+| **Normal start** | same cwd: `grok --resume` (add `--effort` only if the issue is not medium) | Slurp a new brain if the last session was healthy |
 | **Restore** | Null start (above) | `--resume` / `--continue` a session you killed because it failed |
 | **Runner offline** | Restore | A second `/uat` |
 | **You** | Never type `pwsh` | The CLI runs `swarm-bench-runner.ps1` |
@@ -57,7 +59,7 @@ Bodies exactly: `/accept` `/block` `/uat` `/kick` `/clip-ok`. [How](saved-replie
 | Step | Host | You do |
 |---|---|
 | intake | `grok-cloud` | `/accept` on the issue. Do not start Grok CLI for this |
-| classify / fix | `win11-pixel` | **Normal start** at the issue’s `effort:*` (xhigh if that is the label). Restore if the last session was bad |
+| classify / fix | `win11-pixel` | **Normal start**. `--effort xhigh` only if that is the issue label |
 | uat | same box, Actions listener | `/uat` on github.com. Unlock the phone. Listener already up. No second `/uat` |
 | stall | GitHub-hosted watchdog | **UAT still queued** (~20 min): **Restore** the CLI. Do not `/uat` again |
 | done | Grok `japanglify-uat-complete` | APP_ONLY when the workflow **completes**. Issue already has installed/failed |
@@ -86,6 +88,7 @@ Re-fire via `workflow_dispatch` **only** when a `/uat` job is not queued and nev
 - Type `pwsh`
 - `/uat` or `adb install` from Grok CLI while Actions owns the phone
 - `--resume` or `--continue` a session you shut down because it failed
+- `--effort medium` (already the host default)
 - Start a second `agent/*` for #5 or #7
 - `/accept` #6 until you mean to start that work
 - Assemble on `ubuntu-latest` for yourself
