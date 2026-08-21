@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Shrink a still-heavy issue video, then put the compact file in the original spot.
 
-/clip-ok splices the compact URL into the reporter's comment (or issue body) where
-the big video was, then drops the extra bot preview. GitHub does not let us
-delete the CDN blob; the old URL may still resolve.
+Prefer reporters attaching an already-small clip. /clip-shrink no-ops under SMALL_KB.
+/clip-ok splices the compact URL into the reporter's comment. GitHub may keep the old CDN URL.
 """
 
 from __future__ import annotations
@@ -17,6 +16,7 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 
 MARKER = "<!-- swarm-clip-compact -->"
+SMALL_KB = 512
 VIDEO_RE = re.compile(
     r"https://(?:github\.com/user-attachments/assets/[A-Za-z0-9-]+|"
     r"(?:private-)?user-images\.githubusercontent\.com/[^\s)"']+)"
@@ -124,6 +124,13 @@ def cmd_shrink(n: str) -> int:
     where, url, _ = found[0]
     download(url, src)
     raw_kb = src.stat().st_size / 1024
+    if raw_kb <= SMALL_KB:
+        post(
+            n,
+            f"{MARKER}\nAlready small ({raw_kb:.0f} KB ≤ {SMALL_KB} KB) at `{where}`. "
+            f"Left in place. No shrink, no `/clip-ok`.",
+        )
+        return 0
     subprocess.check_call(
         [sys.executable, "scripts/uat-clip.py", "--from", str(src), "-o", str(small)]
     )
