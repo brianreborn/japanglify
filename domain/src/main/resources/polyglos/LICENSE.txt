@@ -1,0 +1,3 @@
+polyglos 1.0 bundled Greek/Hebrew core gloss lists are curated frequent lemmas
+for offline demo/coverage (NT/LXX + Biblical Hebrew core + modern everyday).
+Not a full lexicon. See docs/polyglos/SOURCES.md for romanization scheme notes.

@@ -54,7 +54,11 @@ data class AnnotatedSegment(
     val romajiMora: String? = null,
     val gloss: String? = null,
     val emoji: String? = null,
-    val isPhraseContinuation: Boolean = false
+    val isPhraseContinuation: Boolean = false,
+    /** Producing analyzer id (ja, grc-ancient, …), when known. */
+    val script: String? = null,
+    /** Phonetic scheme id (e.g. hepburn_modified, erasmian, sbl). */
+    val phoneticSystem: String? = null
 ) {
     val hasFurigana: Boolean get() = !furigana.isNullOrBlank()
     val hasRomaji: Boolean get() = !romaji.isNullOrBlank()

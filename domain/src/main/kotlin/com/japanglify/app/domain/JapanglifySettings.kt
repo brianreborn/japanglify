@@ -135,7 +135,23 @@ data class JapanglifySettings(
     val customImageBaseColor: Int = ImageColorScheme.STANDARD.color(ImageColorRole.BASE),
     val customImageFuriganaColor: Int = ImageColorScheme.STANDARD.color(ImageColorRole.FURIGANA),
     val customImageRomajiColor: Int = ImageColorScheme.STANDARD.color(ImageColorRole.ROMAJI),
-    val customImageGlossColor: Int = ImageColorScheme.STANDARD.color(ImageColorRole.GLOSS)
+    val customImageGlossColor: Int = ImageColorScheme.STANDARD.color(ImageColorRole.GLOSS),
+    /**
+     * Forced analyzer id ([com.japanglify.app.domain.polyglos.AnalyzerIds]), or
+     * [com.japanglify.app.domain.polyglos.AnalyzerIds.AUTO] / null for script detection.
+     */
+    val forceAnalyzerId: String? = com.japanglify.app.domain.polyglos.AnalyzerIds.AUTO,
+    /** Greek phonetic scheme (Erasmian default for ancient). */
+    val greekRomanization: com.japanglify.app.domain.polyglos.GreekRomanization =
+        com.japanglify.app.domain.polyglos.GreekRomanization.ERASMIAN,
+    /** Hebrew phonetic scheme. */
+    val hebrewRomanization: com.japanglify.app.domain.polyglos.HebrewRomanization =
+        com.japanglify.app.domain.polyglos.HebrewRomanization.ACADEMIC,
+    /**
+     * When true, modern Hebrew without niqqud still gets a best-effort phonetic;
+     * when false (default), unpointed modern Hebrew stays base-only for phonetics.
+     */
+    val hebrewPhoneticUnpointed: Boolean = false
 ) {
     /** Resolves [senseSelectionPreset] to actual weights, following [SenseSelectionPreset.CUSTOM] through to this settings object's own fields. */
     val effectiveSenseWeights: SenseWeights

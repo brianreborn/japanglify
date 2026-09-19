@@ -1,33 +1,47 @@
-package com.japanglify.app.domain
+﻿package com.japanglify.app.domain
+
+import com.japanglify.app.domain.polyglos.AnalyzerRegistry
+import com.japanglify.app.domain.polyglos.GreekAnalyzer
+import com.japanglify.app.domain.polyglos.HebrewAnalyzer
+import com.japanglify.app.domain.polyglos.JapaneseAnalyzerAdapter
+import com.japanglify.app.domain.polyglos.PolyglosEngine
 
 /**
  * Facade used by the process-text activity: annotate + render in one call.
  * Pure domain — no Android types — so it is unit-testable on the JVM.
+ *
+ * 1.0: thin wrapper around [PolyglosEngine] (Πολγζλοξ / polyglos) so existing
+ * call sites keep compiling while script detection + Greek/Hebrew analyzers land.
  */
 class JapanglifyEngine(
-    private val analyzer: JapaneseAnalyzer,
-    private val renderer: TripleScriptRenderer = TripleScriptRenderer()
+    analyzer: JapaneseAnalyzer,
+    renderer: TripleScriptRenderer = TripleScriptRenderer()
 ) {
-    fun expand(text: String, settings: JapanglifySettings): String {
-        val segments = analyzer.annotate(text, settings)
-        return renderer.render(segments, settings)
-    }
+    private val polyglos = PolyglosEngine(
+        registry = AnalyzerRegistry(
+            listOf(
+                JapaneseAnalyzerAdapter(analyzer),
+                GreekAnalyzer.ancient(),
+                GreekAnalyzer.modern(),
+                HebrewAnalyzer.ancient(),
+                HebrewAnalyzer.modern()
+            )
+        ),
+        renderer = renderer
+    )
 
-    /** Structured interlinear cells for callers laying out pixels themselves (e.g. an image). */
+    fun expand(text: String, settings: JapanglifySettings): String =
+        polyglos.expand(text, settings)
+
     fun buildInterlinearRows(
         text: String,
         settings: JapanglifySettings
-    ): List<TripleScriptRenderer.InterlinearRowData> {
-        val segments = analyzer.annotate(text, settings)
-        return renderer.buildInterlinearRows(segments, settings)
-    }
+    ): List<TripleScriptRenderer.InterlinearRowData> =
+        polyglos.buildInterlinearRows(text, settings)
 
-    /** Role-tagged interlinear lines for callers wanting rich text (e.g. a smaller furigana row). */
     fun buildInterlinearDisplayRows(
         text: String,
         settings: JapanglifySettings
-    ): List<TripleScriptRenderer.InterlinearDisplayRow> {
-        val segments = analyzer.annotate(text, settings)
-        return renderer.buildInterlinearDisplayRows(segments, settings)
-    }
+    ): List<TripleScriptRenderer.InterlinearDisplayRow> =
+        polyglos.buildInterlinearDisplayRows(text, settings)
 }

@@ -49,6 +49,15 @@ class PreferencesRepository(context: Context) {
         customImageFuriganaColor = parseColor(prefs.getString(KEY_CUSTOM_IMAGE_FURIGANA_COLOR, null), JapanglifySettings.DEFAULT.customImageFuriganaColor),
         customImageRomajiColor = parseColor(prefs.getString(KEY_CUSTOM_IMAGE_ROMAJI_COLOR, null), JapanglifySettings.DEFAULT.customImageRomajiColor),
         customImageGlossColor = parseColor(prefs.getString(KEY_CUSTOM_IMAGE_GLOSS_COLOR, null), JapanglifySettings.DEFAULT.customImageGlossColor),
+        forceAnalyzerId = prefs.getString(KEY_FORCE_ANALYZER, null)
+            ?: com.japanglify.app.domain.polyglos.AnalyzerIds.AUTO,
+        greekRomanization = com.japanglify.app.domain.polyglos.GreekRomanization.fromId(
+            prefs.getString(KEY_GREEK_ROMANIZATION, null)
+        ),
+        hebrewRomanization = com.japanglify.app.domain.polyglos.HebrewRomanization.fromId(
+            prefs.getString(KEY_HEBREW_ROMANIZATION, null)
+        ),
+        hebrewPhoneticUnpointed = prefs.getBoolean(KEY_HEBREW_PHONETIC_UNPOINTED, false),
         moraSeamStyle = MoraSeamStyle.fromId(prefs.getString(KEY_MORA_SEAM_STYLE, null)),
         maxLineWidthFullwidth = parseMaxLineWidth(prefs.getString(KEY_MAX_LINE_WIDTH, null)),
         senseSelectionPreset = SenseSelectionPreset.fromId(prefs.getString(KEY_SENSE_SELECTION_PRESET, null)),
@@ -119,6 +128,10 @@ class PreferencesRepository(context: Context) {
 
     companion object {
         const val KEY_ROMANIZATION = "romanization_system"
+        const val KEY_FORCE_ANALYZER = "force_analyzer_id"
+        const val KEY_GREEK_ROMANIZATION = "greek_romanization"
+        const val KEY_HEBREW_ROMANIZATION = "hebrew_romanization"
+        const val KEY_HEBREW_PHONETIC_UNPOINTED = "hebrew_phonetic_unpointed"
         const val KEY_ROMAJI_POSITION = "romaji_position"
         const val KEY_OUTPUT_FORMAT = "output_format"
         const val KEY_WRITING_ORIENTATION = "writing_orientation"

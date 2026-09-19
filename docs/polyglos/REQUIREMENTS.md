@@ -1,7 +1,7 @@
-﻿# Πολγζλοξ (Polyzylox) — Requirements for 1.0-RELEASE
+# Πολγζλοξ (polyglos) — Requirements for 1.0-RELEASE
 
 **Status:** Draft for implementation  
-**Product name:** Πολγζλοξ (ASCII slug / Maven coords: `polyzylox`)  
+**Product name:** Πολγζλοξ (ASCII slug / Maven coords: `polyglos`)  
 **Predecessor:** Japanglify (`com.japanglify.app`)  
 **Normative language:** RFC 2119 (`MUST`, `MUST NOT`, `SHOULD`, `MAY`)
 
@@ -51,7 +51,7 @@ This document is the acceptance contract for evolving Japanglify’s domain into
 ### 4.2 Pipeline
 
 ```
-PolyzyloxEngine.expand(text, settings)
+PolyglosEngine.expand(text, settings)
   → ScriptDetector.detect(text)            → ScriptProfile
   → AnalyzerRegistry.select(profile)       → Analyzer
   → analyzer.annotate(text, settings)      → List<AnnotatedSegment>
@@ -76,7 +76,7 @@ PolyzyloxEngine.expand(text, settings)
 interface Analyzer {
     val id: String                 // e.g. "ja", "grc-ancient", "el-modern", "hbo", "he-modern"
     fun supports(profile: ScriptProfile): Boolean
-    fun annotate(text: CharSequence, settings: PolyzyloxSettings): List<AnnotatedSegment>
+    fun annotate(text: CharSequence, settings: JapanglifySettings): List<AnnotatedSegment>
 }
 ```
 
@@ -155,7 +155,7 @@ interface Analyzer {
 - `ACTION_PROCESS_TEXT` MUST remain registered and functional.
 - Share-target and clipboard-assist / accessibility copy-hook MUST keep calling the engine facade (renamed OK).
 - Application id: `com.japanglify.app` MAY remain for upgrade continuity through 1.0; if changed, an upgrade/migration plan MUST be documented. **Default for 1.0:** keep applicationId; change **label** / About strings to Πολγζλοξ.
-- Kotlin/Java packages SHOULD migrate toward `com.polyzylox…` (or `com.polyzlox…`) with thin `com.japanglify…` typealiases deprecated, OR keep packages and only rename user-visible brand — decision recorded in §12. **Preferred:** brand + engine type names first; full package rename MAY slip post-1.0 if it blocks release.
+- Kotlin/Java packages SHOULD migrate toward `com.polyglos…` (or `com.polyzlox…`) with thin `com.japanglify…` typealiases deprecated, OR keep packages and only rename user-visible brand — decision recorded in §12. **Preferred:** brand + engine type names first; full package rename MAY slip post-1.0 if it blocks release.
 - Settings MUST expose phonetic system choices per script family without breaking existing Japanese preference keys (migrate with defaults).
 
 ### 8.1 Device UAT (QODESH Note9 validated path)
@@ -173,8 +173,8 @@ interface Analyzer {
 | Item | 1.0 requirement |
 |---|---|
 | User-visible name | Πολγζλοξ (launcher label, PROCESS_TEXT label, notifications) |
-| ASCII docs slug | `polyzylox` |
-| Engine type | `PolyzyloxEngine` (alias `JapanglifyEngine` optional) |
+| ASCII docs slug | `polyglos` |
+| Engine type | `PolyglosEngine` (alias `JapanglifyEngine` optional) |
 | Version | `1.0.0` release (not beta); `versionCode` bumped per project rules |
 | RELNOTES / README | Describe polyglot scope + script detection |
 | Light-ware / licenses | Preserve; add new dict licenses |
@@ -209,7 +209,7 @@ interface Analyzer {
 1. **applicationId** keep vs rename (default: keep).
 2. **Package rename** depth for 1.0 vs brand-only (default: brand + engine types; packages follow if low-risk).
 3. **Mixed-script** strategy (b) vs (a) for 1.0 (default: dominant + passthrough).
-4. Exact **modern Greek** and **modern Hebrew** romanization table sources (cite in `docs/polyzylox/SOURCES.md`).
+4. Exact **modern Greek** and **modern Hebrew** romanization table sources (cite in `docs/polyglos/SOURCES.md`).
 5. Whether downloadable APK bundles Greek/Hebrew cores always (default: yes, if &lt; ~2 MiB combined compressed).
 
 ---
