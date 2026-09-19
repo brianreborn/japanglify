@@ -214,6 +214,15 @@ interface Analyzer {
 
 ---
 
+
+## 12a. Forward design (not in 1.0 implementation scope yet)
+
+Voice input, unified ingress→expand→present cleanup, language-pack priority, and cold-start non-blocking behavior are specified in **[VOICE_AND_PIPELINE.md](./VOICE_AND_PIPELINE.md)**.
+
+- That document is **normative for planning**.
+- **Implementation is deferred** until higher-priority 1.0 work finishes (unless an item is explicitly pulled forward — cold-start mitigations MAY ship early).
+- Do not treat voice as a parallel stack: it MUST feed the same re-render/`expand` path as PROCESS_TEXT and clipboard.
+
 ## 13. Document history
 
 | Date | Change |
