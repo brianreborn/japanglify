@@ -229,11 +229,12 @@ units (`displayWidth`, `cjkDisplayWidthUnits`).
 
 **PROCESS_TEXT**
 The Android intent that puts an app's action in the text-selection menu
-("Japanglify" alongside Copy/Share). The ideal entry point — but some hosts
-(e.g. X) don't offer it, which is why the **Copy assist** fallback exists.
+("Japanglify" / Πολγζλοξ alongside Copy/Share). Together with **Share**, this
+is a 1.0 **ingress**. Hosts that hide it (e.g. X) use Share, an optional
+selection chip, or later live-call voice — not clipboard poll.
 
 **Copy assist**
-Japanglify's accessibility-service path for apps without PROCESS_TEXT: it detects
-Copy (and optionally Cut) and expands the clipboard text, showing a result
-notification. Depends on the accessibility service / clipboard listener being
-enabled.
+Legacy accessibility path that detected Copy/Cut and expanded clipboard
+**input**. That is **not** an ingress going forward. Clipboard **output** of a
+finished expand (text / optional PNG) remains. The floating chip, if kept, is
+selection UX only — not clipboard surveillance.

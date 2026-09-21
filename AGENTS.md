@@ -35,12 +35,16 @@ it, and commits both the code and any new operational knowledge.
 
 ## Product direction
 
-1. The accessibility chip is the primary quick interaction.
-2. Share is the secondary path and can expose item-specific output choices
-   without accessibility permission.
-3. Clipboard/cut/copy observation is a fallback and should remain visually and
-   conceptually subordinate.
-4. Text output must stay fast. Image/PDF work must be requested explicitly or
+1. **Share** (`ACTION_SEND`) and **`PROCESS_TEXT`** are the 1.0 ingresses.
+2. **Live-call voice** is a later ingress (design until a milestone); finals
+   MUST feed the same expand path. Do not land VoiceInteractionService, TTS,
+   or an in-app mic as 1.0 product code.
+3. The accessibility **chip** MAY remain as optional **selection** UX. It MUST
+   NOT become clipboard surveillance.
+4. Clipboard **output** (text / optional PNG after expand) is allowed.
+   Clipboard **input** (copy-hook, FGS poll, cut/copy observation) is not an
+   ingress and MUST NOT be revived.
+5. Text output must stay fast. Image/PDF work must be requested explicitly or
    be opt-in, cancellable background work.
 
 ## Handoff contract

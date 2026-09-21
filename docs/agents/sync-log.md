@@ -120,3 +120,38 @@ copies durable facts; no new features, no voice APIs, no TTS, no new analyzers.
 ### DEFER (unchanged)
 
 Voice implementation, TTS, Play/AAB, new analyzers, unspaced mixed-run split (§7 SHOULD later), full `com.polyglos…` package rename if it blocks 1.0.
+
+## 2026-09-21 — round 3 (sibling skim + playbook hierarchy)
+
+Worktree still `…/worktrees/refinement-sync` on `agent/polyglos-refinement-sync`.
+Shared `agent/polyglos-1.0-core` remains `d35b8c8` (ahead 1 of origin). This
+round does **not** merge into core.
+
+### Sibling worktrees (`QODESH/swarm-bench/worktrees/`)
+
+| Tree / branch | HEAD | Dirty? | What they have | Mergeable? | Conflict vs this sync |
+|---|---|---|---|---|---|
+| **design-researcher** `agent/polyglos-design-20260921` | `c757301` | clean | `docs/agents/design-research-notes.md` only (R1–R14 reverse-hard risks). Correct facts: drop clipboard input, chip as selection, keep applicationId, auto-ancient, mixed-word passthrough. Notes still *say* REQUIREMENTS §1.5/§8/§12.3 are stale — that was true at `d35b8c8`; **7b16c75 already closed those**. | **Yes** (notes file). Treat the “REQUIREMENTS still stale” paragraph as a snapshot, not a reason to reopen §12.3. | None (different files). |
+| **linguist** `agent/polyglos-linguist-20260921` | `d35b8c8` | **uncommitted** | Inbox reply (engine-gated mixed; romanizers still force-read if called directly); `SOURCES.md` 1.0 facts (Latin is not a mix partner; Erasmian/SBL letter-map limits; unpointed `he-modern`); new `MixedScriptPassthroughTest.kt`. | **Not ready** until they commit. Then **yes**: inbox + SOURCES + extra test. Idle coverage, not a new analyzer. Inbox still asks sync to close §12.3 — already done here. | None expected vs sync files. Do **not** let linguist re-edit REQUIREMENTS or `AnalyzerRegistry`. |
+| **voice-ingress** `agent/polyglos-voice-20260921` | `d35b8c8` | **uncommitted** | `VOICE_AND_PIPELINE.md` retcon (clipboard not ingress; live call not in-app mic); `VOICE_CALL.md` expanded; `docs/polyglos/README.md` +1 line; protocol types under `domain/…/polyglos/voice/` (`IngressSource` PROCESS_TEXT/SHARE/VOICE only, state machine, platform profile) + tests. No `VoiceInteractionService` / ASR impl in the untracked tree. | **Not ready** until they commit. Then **mergeable as design + protocol types** after conductor confirms no app/manifest registration. | None vs sync files. Voice owns VOICE_*; we did not touch them. Protocol Kotlin is new paths. |
+| **refinement-sync** (this) | `7b16c75`+ | this round | REQUIREMENTS, registry KDoc, now AGENTS/DEVELOPMENT/GLOSSARY hierarchy. | Merge **after** core stays at mixed-input. | — |
+
+### Playbook nits this round (this worktree)
+
+- `AGENTS.md` / `DEVELOPMENT.md`: hierarchy is Share + PROCESS_TEXT, later live-call, optional selection chip, clipboard **output** only.
+- `docs/GLOSSARY.md`: PROCESS_TEXT / Copy assist definitions match.
+- `ARCHITECTURE.md` / root `README.md` still describe **current app code** (copy-hook exists). Left as implementation description until a coder deletes clipboard-input; playbooks no longer rank it as product direction.
+
+### Proposed merge order (conductor only — do not land here)
+
+1. **Keep** `agent/polyglos-1.0-core` at **`d35b8c8`** as the integration base. Mixed-input is already there; do not re-apply engine/tokenizer patches.
+2. **This sync branch** (`agent/polyglos-refinement-sync`, `7b16c75` + this commit): REQUIREMENTS, `AnalyzerRegistry` KDoc, AGENTS/DEVELOPMENT/GLOSSARY, sync-log. Lowest overlap; gives linguist/design a closed §12.3 to read.
+3. **Design** `c757301` (`design-research-notes.md`). Fast, one file. Optional follow-up: one sentence that REQUIREMENTS drift was closed by sync — not required to merge.
+4. **Linguist** after they **commit**: `linguist-inbox.md`, `SOURCES.md`, `MixedScriptPassthroughTest.kt`. Run `:domain:test` once on the merge tree (not a second daemon on `dev/` while another is running).
+5. **Voice** after they **commit**: VOICE docs + `domain/…/polyglos/voice/` protocol. Last among specialists so pipeline language is checked against REQUIREMENTS §4.2 / §8. Reject if the commit grows a service, RECORD_AUDIO, or TTS.
+
+If linguist and voice commit in parallel, they still do not share files; order 4 then 5 is review convenience, not a git constraint.
+
+### DEFER (unchanged)
+
+Voice **implementation** (session/service/ASR), TTS, Play/AAB, new analyzers, clipboard-input **code** deletion (coder), unspaced mixed-run split, full package rename.

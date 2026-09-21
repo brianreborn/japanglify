@@ -21,9 +21,11 @@ Still keep a primary output file so merges are easy:
 
 ## Collision already in flight
 
-Conductor already has uncommitted edits on the mixed-input path. Linguist
-and sync were prompted in ways that could retouch those files. They must
-stop at docs/inbox if they have not written code yet.
+Mixed-input is **committed** on `agent/polyglos-1.0-core` at `d35b8c8`.
+Specialists stay in isolated worktrees; conductor merges. Do not re-edit
+`PolyglosEngine` / tokenizer for mixed-input. Sync may align docs in its
+worktree. Voice protocol types (`domain/…/polyglos/voice/`) are voice-owned
+design; no `VoiceInteractionService` / ASR implementation.
 
 ## Gradle
 

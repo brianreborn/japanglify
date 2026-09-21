@@ -4,6 +4,16 @@ This is the durable context shared across issue-driven agent runs. Add concise,
 dated entries when work discovers a reproducible environment constraint,
 validation result, architectural decision, or follow-up risk.
 
+## 2026-09-21 — Πολγζλοξ 1.0 ingress hierarchy
+
+- Ingress: Share + `PROCESS_TEXT` + later live-call voice. Accessibility chip
+  is optional **selection** UX, not clipboard surveillance.
+- Clipboard **output** (text / optional PNG after expand) stays. Clipboard
+  **input** (copy-hook / FGS poll) is not an ingress; app code still has it
+  until a coder deletes it.
+- Mixed **input** (separate words) is accepted; mixed-script **words** are
+  base-only passthrough (`d35b8c8`). Playbook: `AGENTS.md` / `DEVELOPMENT.md`.
+
 ## 2026-08-19 — Windows/Codex baseline
 
 - Validated local toolchain target: JDK 22 and Android API/build-tools 35.

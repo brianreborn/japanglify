@@ -94,11 +94,17 @@ It contains a temporary GitHub token and must not be committed.
 
 The interaction hierarchy is intentional:
 
-1. The accessibility **chip** is the primary fast path.
-2. The Android **Share** target is the secondary workflow and can offer
-   per-item output choices without accessibility permission.
-3. Copy/cut/clipboard observation is a legacy fallback and belongs below the
-   primary controls in the settings UI.
+1. **Share** (`ACTION_SEND`) and **`PROCESS_TEXT`** are the 1.0 ingresses.
+   Share can offer per-item output choices without accessibility permission.
+2. **Live-call voice** is a later ingress (design until a milestone). It MUST
+   feed the same expand path; do not implement VoiceInteractionService / TTS /
+   in-app mic as 1.0 product code.
+3. The accessibility **chip** MAY remain as optional **selection** UX. It is
+   not the primary path and MUST NOT become clipboard surveillance.
+4. Clipboard **output** (text / optional PNG after expand) is allowed.
+   Copy/cut/clipboard **observation** is not an ingress. App copy-hook / FGS
+   poll still exists in code; do not document or UI-rank it as a fallback
+   ingress — a coder removes it; do not revive it.
 
 Avoid generating an image on the fast textual path unless the user explicitly
 requests image output. Optional background image preparation is off by default
