@@ -91,3 +91,32 @@ Next sync round after conductor commit: copy facts 1–4 into
 REQUIREMENTS (clipboard ingress language, close §12.3, per-token
 pipeline) and ask voice to patch VOICE_AND_PIPELINE ingress + mixed
 policy lines.
+
+## 2026-09-21 — round 2 (isolated worktree; mixed-input committed)
+
+Base: `d35b8c8` (`feat(polyglos): mixed-script word passthrough and specialist briefs`).
+Worktree: `QODESH/swarm-bench/worktrees/refinement-sync` on `agent/polyglos-refinement-sync`.
+Conductor lock on §7 / engine mixed-input is **lifted** (code is on HEAD). This round
+copies durable facts; no new features, no voice APIs, no TTS, no new analyzers.
+
+### Aligned in this worktree
+
+| Item | Where |
+|---|---|
+| Mixed **input** vs mixed-script **word** | §7 already correct at `d35b8c8`. **§12.3 closed** (was “dominant + passthrough”). |
+| Per-token pipeline | **§4.2** rewritten; §3 Engine row now tokenize → per-token detect → analyze. |
+| Clipboard is **output only** | §1.5, §8, §8.1 UAT (Share + PROCESS_TEXT, not copy-hook poll), §11.3, §12a. |
+| `AnalyzerRegistry` KDoc | No longer “dominant wins (passthrough for other runs)”. Engine owns mixed-word passthrough before `select`. |
+
+### Still not this worker
+
+- **Voice:** `VOICE_AND_PIPELINE.md` still lists clipboard assist as ingress and mixed line as dominant+passthrough. `VOICE_CALL.md` already matches (Share + PROCESS_TEXT + voice; clipboard not ingress). Voice worker should retcon `VOICE_AND_PIPELINE.md` §§1, 4, 5, 7.2.6, 10, 12.5 — design only.
+- **Clipboard-input removal in app code** (`ClipboardProcessor.containsJapanese`, FGS poll). Spec now forbids it; implementation is a coder task, not a new analyzer.
+- **AGENTS.md / DEVELOPMENT.md** still rank copy-observation as fallback ingress. Align when clipboard-input code is deleted.
+- **SOURCES.md** still planned/candidate.
+- Linguist coverage remains in `PolyglosSettingsRoutingTest`; no extra test file from sync.
+- Gradle `:domain:test` not launched here (KDoc + docs only).
+
+### DEFER (unchanged)
+
+Voice implementation, TTS, Play/AAB, new analyzers, unspaced mixed-run split (§7 SHOULD later), full `com.polyglos…` package rename if it blocks 1.0.

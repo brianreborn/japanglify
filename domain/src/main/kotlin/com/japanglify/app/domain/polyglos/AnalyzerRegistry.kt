@@ -2,7 +2,12 @@ package com.japanglify.app.domain.polyglos
 
 /**
  * Selects an [Analyzer] from a [ScriptProfile] and optional force override.
- * Mixed-script 1.0: dominant script wins (passthrough for other runs).
+ *
+ * Mixed-script *words* are not selected here: [PolyglosEngine] passthroughs a
+ * token when [ScriptProfile.mixed] is true, then calls [select] only for
+ * monolingual tokens. Auto-detect uses registry order + [Analyzer.supports]
+ * on that token's dominant script (Greek → [AnalyzerIds.GRC_ANCIENT], Hebrew →
+ * [AnalyzerIds.HBO] unless [select] is given a force id).
  */
 class AnalyzerRegistry(
     private val analyzers: List<Analyzer>

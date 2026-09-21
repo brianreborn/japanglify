@@ -15,7 +15,7 @@ This document is the acceptance contract for evolving Japanglify’s domain into
 2. **One generalized triple-script renderer** that consumes analyzer output as **base / phonetic / gloss** layers (today’s surface / furigana+romaji / gloss+emoji generalized).
 3. **Offline dictionaries** sufficient for polytonic Greek and Hebrew with niqqud, plus Erasmian and SBL romanizations (and existing Japanese romaji systems).
 4. **Script detection** so mixed or unknown selections route to the right analyzer(s) without a mandatory settings toggle for everyday use.
-5. **Rename** the package/engine brand to Πολγζλοξ while **preserving** `ACTION_PROCESS_TEXT`, share-target, and clipboard-assist entry points.
+5. **Rename** the package/engine brand to Πολγζλοξ while **preserving** `ACTION_PROCESS_TEXT` and share-target **ingress**. Clipboard assist is **output only** (text / optional PNG after expand) — not an input path.
 6. Ship as **`1.0-RELEASE`** (version naming must follow the project’s existing scheme; today that is SemVer + `versionCode` in Gradle).
 
 ## 2. Non-goals (1.0-RELEASE)
@@ -35,7 +35,7 @@ This document is the acceptance contract for evolving Japanglify’s domain into
 | **Gloss** | Short target-language gloss (default English), optionally with emoji when the existing emoji pipeline applies. |
 | **Analyzer** | Pure-JVM component: `CharSequence` + settings → `List<AnnotatedSegment>` (or successor type). |
 | **Renderer** | Pure-JVM component: segments + settings → flat string and/or structured interlinear rows. |
-| **Engine** | Facade: detect → analyze → (optional gloss/emoji) → render. |
+| **Engine** | Facade: tokenize → per-token detect → analyze → (optional gloss/emoji) → render. |
 | **Shell** | Android `app` module entry points that call the engine; no linguistics inside Activities/Services beyond wiring. |
 
 ---
@@ -50,15 +50,24 @@ This document is the acceptance contract for evolving Japanglify’s domain into
 
 ### 4.2 Pipeline
 
+Analyze is **per whitespace/punctuation token**, not one analyzer for the whole selection.
+
 ```
 PolyglosEngine.expand(text, settings)
-  → ScriptDetector.detect(text)            → ScriptProfile
-  → AnalyzerRegistry.select(profile)       → Analyzer
-  → analyzer.annotate(text, settings)      → List<AnnotatedSegment>
+  → WhitespaceTokenizer.tokenize(text)
+  → for each token:
+       if not a word → passthrough (base-only segment)
+       else ScriptDetector.detect(token)     → ScriptProfile
+            if profile.mixed                 → passthrough (mixed-script *word*)
+            else AnalyzerRegistry.select(profile, forceAnalyzerId)
+                 analyzer.annotate(token)    → segments  (or passthrough if none)
+  → concatenate token segments
   → (optional) GlossAnnotator / EmojiAnnotator
-  → TripleScriptRenderer.render(...)       → String
+  → TripleScriptRenderer.render(...)         → String
 ```
 
+- Mixed **input** (several monolingual words in one selection) is this loop: each word is detected and routed independently. See §7.
+- Document-level `ScriptDetector.detect(text)` remains available for diagnostics; it MUST NOT pick a single analyzer for the whole expand.
 - The engine MUST keep the three entry points Japanglify has today: `expand`, `buildInterlinearRows`, `buildInterlinearDisplayRows` (names MAY be renamed with deprecation aliases through one minor if needed; 1.0-RELEASE SHOULD expose Πολγζλοξ names as primary).
 - Analyzers MUST NOT call the renderer. Gloss/emoji enrichment MUST remain a post-analyze pass (as today) so languages without gloss dictionaries still render base+phonetic.
 
@@ -148,14 +157,16 @@ interface Analyzer {
 - Mixed-script **words** MUST NOT be interpreted. If characters from two or more of {Japanese, Greek, Hebrew} appear inside a single word (whitespace/punctuation-delimited token), that word MUST be emitted base-only — the same passthrough used for anything the engine does not grasp. MUST NOT pick a dominant script and force-romanize the foreign letters in that word.
 - Clean concatenation of long script runs without spaces is a SHOULD for later; 1.0 MAY treat an unspaced mixed token as a mixed word (passthrough).
 - Explicit user override in Settings MUST be available (`forceAnalyzer`: auto / ja / grc-ancient / el-modern / hbo / he-modern).
-- Latin-only selections MUST remain a no-op for clipboard assist (same as today: do not spam notifications).
+- Latin-only tokens MUST remain a no-op (passthrough; do not spam notifications). Clipboard is not an ingress — see §8.
 
 ---
 
 ## 8. Android shell requirements
 
 - `ACTION_PROCESS_TEXT` MUST remain registered and functional.
-- Share-target and clipboard-assist / accessibility copy-hook MUST keep calling the engine facade (renamed OK).
+- Share-target MUST keep calling the engine facade (renamed OK).
+- Clipboard assist is **not** an ingress. Do not poll, observe, or auto-expand clipboard **input**. Clipboard **output** (plain text and optional interlinear PNG after expand) MUST remain.
+- Accessibility selection chip MAY remain as a selection UX; it MUST NOT become clipboard surveillance.
 - Application id: `com.japanglify.app` MAY remain for upgrade continuity through 1.0; if changed, an upgrade/migration plan MUST be documented. **Default for 1.0:** keep applicationId; change **label** / About strings to Πολγζλοξ.
 - Kotlin/Java packages SHOULD migrate toward `com.polyglos…` (or `com.polyzlox…`) with thin `com.japanglify…` typealiases deprecated, OR keep packages and only rename user-visible brand — decision recorded in §12. **Preferred:** brand + engine type names first; full package rename MAY slip post-1.0 if it blocks release.
 - Settings MUST expose phonetic system choices per script family without breaking existing Japanese preference keys (migrate with defaults).
@@ -163,9 +174,9 @@ interface Analyzer {
 ### 8.1 Device UAT (QODESH Note9 validated path)
 
 - Manual UAT MUST include Note9-class API 29 device via swarm-bench `/uat` or local adb:
-  - Japanese PROCESS_TEXT or copy-hook smoke (existing).
-  - Paste/process a polytonic Greek sample → phonetic visible.
-  - Paste/process a niqqud Hebrew sample → phonetic visible.
+  - Japanese Share and/or `PROCESS_TEXT` smoke (not clipboard poll).
+  - Share/`PROCESS_TEXT` a polytonic Greek sample → phonetic visible.
+  - Share/`PROCESS_TEXT` a niqqud Hebrew sample → phonetic visible.
 - Debug iteration (adb install -r, force-stop, launch, logcat) MUST remain viable on the pool-bench host.
 
 ---
@@ -199,7 +210,7 @@ interface Analyzer {
 
 1. Engine + renderer + five analyzers land behind script detection with Settings override.
 2. Offline Erasmian + SBL + Hebrew romanization tables + core gloss assets documented and loaded without network.
-3. Japanese regression suite green; PROCESS_TEXT + copy-hook still work on device.
+3. Japanese regression suite green; PROCESS_TEXT + Share still work on device. Clipboard is output-only.
 4. README / RELNOTES describe Πολγζλοξ polyglot 1.0; About credits updated.
 5. Tagged GitHub Release `1.0.0` (or project-equivalent) with downloadable APK(s), not a beta prerelease.
 6. Open Japanglify issues #5/#6/#7 are **not** reopened as duplicates; only touched if required for the refactor.
@@ -210,7 +221,7 @@ interface Analyzer {
 
 1. **applicationId** keep vs rename (default: keep).
 2. **Package rename** depth for 1.0 vs brand-only (default: brand + engine types; packages follow if low-risk).
-3. **Mixed-script** strategy (b) vs (a) for 1.0 (default: dominant + passthrough).
+3. **Mixed-script** — **closed.** Mixed **input** (separate words) is accepted and routed per token (§4.2, §7). Mixed-script **words** pass through base-only. Not “dominant + passthrough for other runs.”
 4. Exact **modern Greek** and **modern Hebrew** romanization table sources (cite in `docs/polyglos/SOURCES.md`).
 5. Whether downloadable APK bundles Greek/Hebrew cores always (default: yes, if &lt; ~2 MiB combined compressed).
 
@@ -223,10 +234,11 @@ Voice input, unified ingress→expand→present cleanup, language-pack priority,
 
 - That document is **normative for planning**.
 - **Implementation is deferred** until higher-priority 1.0 work finishes (unless an item is explicitly pulled forward — cold-start mitigations MAY ship early).
-- Do not treat voice as a parallel stack: it MUST feed the same re-render/`expand` path as PROCESS_TEXT and clipboard.
+- Do not treat voice as a parallel stack: it MUST feed the same re-render/`expand` path as Share and `PROCESS_TEXT`. Clipboard is output-only, not an ingress.
 
 ## 13. Document history
 
 | Date | Change |
 |---|---|
+| 2026-09-21 | Closed mixed-input vs mixed-word (§7, §12.3); per-token pipeline (§4.2); clipboard assist is output-only, not ingress (§1.5, §8, §8.1, §11, §12a). |
 | 2026-09-19 | Initial requirements from polyglot evolve brief + current Japanglify architecture (`JapaneseAnalyzer` → `TripleScriptRenderer` pipeline). |

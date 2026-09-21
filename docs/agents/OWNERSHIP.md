@@ -13,7 +13,7 @@ Still keep a primary output file so merges are easy:
 | **Linguist** | `linguist-inbox.md`, `SOURCES.md` (facts only), optional *new* test file `MixedScriptPassthroughTest.kt` if a bug is not already covered | Engine/registry/tokenizer already edited by conductor; `REQUIREMENTS.md`; `VOICE_*`; `app/` |
 | **Voice** | `VOICE_AND_PIPELINE.md`, optional `docs/polyglos/VOICE_CALL.md`, `voice-inbox.md` | `domain/…/polyglos/*Engine*`, clipboard, Settings |
 | **Design researcher** | `design-research-notes.md` only | Any `.kt`, `REQUIREMENTS.md`, inboxes of others |
-| **Refinement sync** | `sync-log.md` only this round | Do **not** “align” by editing REQUIREMENTS or engine while conductor still holds them |
+| **Refinement sync** | Isolated worktree: `sync-log.md`, REQUIREMENTS alignment after mixed-input commit (`d35b8c8`), `AnalyzerRegistry` KDoc only | Engine/tokenizer/settings tests; voice design; logo assets |
 
 ## Shared reads
 

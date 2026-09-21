@@ -11,7 +11,7 @@ Circulate refinements. **Do not add significant new features.**
 
 **Shared state (authoritative today)**
 1. Mixed **input** is accepted; mixed-script **words** pass through.
-2. Clipboard **input** is being removed; clipboard **output** stays.
+2. Clipboard **input** is not an ingress; clipboard **output** stays.
 3. Ingress: Share, PROCESS_TEXT, later voice-as-live-call.
 4. Every 1.0 language must work (ja, grc-ancient, el-modern, hbo, he-modern).
 5. Devices: Note9, 9185W, GrapheneOS Pixel 8.
