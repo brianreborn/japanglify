@@ -3,7 +3,8 @@
 **Role:** eventual (2–5 year) product/system traps, ranked by how hard they
 are to reverse. Not Gradle, adb, or this week’s hangs.
 
-**Pass:** 2026-09-21 (replaces kickoff stub). Docs only.
+**Pass:** 2026-09-21 (kickoff stub replaced; pass 2 appends ingress
+contract, SOURCES checklist, #13 brand, sibling skim). Docs only.
 
 **Read:** `docs/polyglos/{REQUIREMENTS,VOICE_AND_PIPELINE,VOICE_CALL,SOURCES}.md`,
 `ARCHITECTURE.md`, `AGENTS.md`, `DEVELOPMENT.md`, `docs/agents/*`, GitHub
@@ -339,5 +340,138 @@ swap point.
 - Do not treat Play Store as a 1.0 goal (still a 5-year distribution
   question: sideload + GrapheneOS is coherent; empty SOURCES is not).
 
+---
+
+## 2026-09-21 — pass 2
+
+R2+R3, R4, and issue #13 turned into ship-time artifacts. Sibling
+worktrees skimmed; not merged.
+
+### 1.0 ingress contract (from R2 + R3)
+
+One page. This is the GrapheneOS-safe shape. Clipboard **output** is a
+presenter, not a way in.
+
+| Role | Channel | 1.0 |
+|---|---|---|
+| **Ingress** | Share (`ACTION_SEND` `text/plain`) | Required. `ShareTargetActivity`. |
+| **Ingress** | `ACTION_PROCESS_TEXT` | Required. Selection toolbar; editable replace is Japanese-era (see R7 for Greek/Hebrew). |
+| **Ingress** | Live-call voice | Protocol only until an explicit voice milestone. Beats: start / partials / final / hang up. **Finals** (non-blank) → same `PolyglosEngine.expand(text)` as Share / PROCESS_TEXT. Partials never expand, never notify, never touch the clipboard. |
+| **Ingress (optional)** | Selection chip (issue #5) | MAY stay as **this-selection** chrome. MUST NOT observe Copy/Cut, MUST NOT poll `ClipboardManager`, MUST NOT read other apps’ text except the selection the user is pointing at. |
+| **Not ingress** | Clipboard assist / copy-hook / FGS poll | Removed. Do not put `CLIPBOARD` on `IngressSource`. |
+| **Presenter** | Clipboard **output** | Allowed after a finished expand (text / optional PNG). Never required; never for partials. |
+| **Presenter** | Notification / overlay / in-call text / Share-back | Need at least one non-clipboard path (R11). |
+| **Not a product** | Try-it card | Host of the same expand path, not a fourth ingress. |
+
+**GrapheneOS Pixel 8 — MUST NEVER grant at 1.0**
+
+These are the three grants that freeze the app as a surveillance
+assistant. Do not prompt, do not pre-check, do not “just for Discord.”
+
+1. **Full accessibility copy-hook.** The system dialog is “full control
+   of the device.” That is the Copy assist / `JapanglifyAccessibilityService`
+   clipboard path. 1.0 MUST NOT require it for expand. If the optional
+   chip still needs overlay permission, that is a **narrow** a11y use
+   (draw over **this** selection). It is not an excuse to keep
+   `ClipboardAssistService` or copy-event listeners. GrapheneOS users
+   who deny a11y MUST still Share and PROCESS_TEXT.
+2. **`ROLE_ASSISTANT` on by default.** Do not register
+   `VoiceInteractionService` / `BIND_VOICE_INTERACTION` in the 1.0
+   manifest. Do not auto-prompt Digital assistant. In-app call host
+   (when voice is unblocked) MUST work with Bixby/none holding the
+   slot. Optional role offer is a later Settings action after the
+   service actually exists (voice P4).
+3. **Screenshot / `AssistStructure` assist.** `onHandleAssist` /
+   `onHandleScreenshot` are out. The call is the user’s **own speech**,
+   not the screen. GrapheneOS hardened profiles may deny screenshots
+   anyway; scraping would also reintroduce R2 under a friendlier name.
+
+**Note9 / 9185W:** same contract. Note9 cannot be the default assistant
+anyway (Bixby). Voice, if present, is the call protocol + classic
+`SpeechRecognizer` or an app model — not a11y-as-mic, not clipboard
+as voice.
+
+**Closed hosts (Discord/X):** no PROCESS_TEXT. After clipboard-input
+death, remaining paths are Share, optional selection chip, or speaking
+the call. Losing the chip without Share-education is how those hosts
+disappear (R2). Copy-hook is not the answer.
+
+### SOURCES naming checklist (from R4)
+
+`docs/polyglos/SOURCES.md` is still “planned / candidate.” Linguist
+(uncommitted in their worktree) added **behavior** facts (υ `u`/`y`,
+no diphthongs, unpointed `he-modern`) — not citations. This checklist
+is what MUST be **named** in that file before 1.0-RELEASE (§11.2, §12.4).
+Do **not** invent a handbook citation. If the row is a project letter
+map, say so.
+
+Japanese About credits already in `pref_about_credits_summary` (copy
+them into SOURCES; do not re-derive):
+
+- Kuromoji/IPADIC — Apache License 2.0
+- JMdict/EDICT (EDRDG) — CC BY-SA 4.0
+- Unicode CLDR emoji names — Unicode-3.0
+- Princeton WordNet 3.0 — WordNet License
+
+| MUST name before ship | In-tree today | Gap (do not fill with a guess) |
+|---|---|---|
+| **Erasmian** letter map (`GreekRomanizer.ERASMIAN`, Settings “Erasmian (ancient default)”) | KDoc: letter-level; SOURCES candidate: “public pedagogical charts” | **No chart, edition, or author named.** MUST say “project table” until a real source is attached. |
+| **SBL** letter map (`GreekRomanization.SBL`, Settings “SBL academic”) | Documented 1.0 switch is υ → `y` vs Erasmian `u` (κύριος). Linguist: combining marks stripped (no rough-breathing `h-`); no diphthong/gamma-nasal; SBL ου is `oy`, not handbook `ou`. | **MUST NOT claim “SBL Handbook of Style.”** MUST name it as a **project letter map** using SBL-like letter choices, with the ου/`oy` limit written down. Actual handbook mapping: **gap**. |
+| **Modern phonemic Greek** (`MODERN_PHONEMIC`) | Enum exists; REQUIREMENTS §12.4 still open | **No table source named.** Gap. |
+| **Hebrew academic** (`HebrewRomanization.ACADEMIC`, `HebrewRomanizer`) | KDoc: “consonants + common niqqud”; cantillation skipped; dagesh/shin-dot ignored (ב=`b`, ש=`š`); `hbo` romanizes unpointed skeleton | **No SBL/academic handbook named.** Candidate line is “SBL-like.” Gap. |
+| **Modern Hebrew phonetic** (`hebrewPhoneticUnpointed`) | Unpointed `he-modern` suppresses phonetic unless the setting is on | **No modern-Israeli scheme named.** Gap (§12.4). |
+| **`greek_core.tsv`** | Resource SOURCES: “curated frequent NT/LXX + everyday modern lemmas”; rows include λόγος, θεός, Ἰησοῦς, Χριστός | **Not cited as Dodson, Strong’s, or any list.** MUST stay “project subset” until a license-compatible source is recorded. Inventing “Dodson” here would be a false credit (R10). |
+| **`hebrew_core.tsv`** | “curated Biblical + everyday modern lemmas”; rows include אֱלֹהִים, יְהוָה | Same: **no Strong’s/open-lexeme citation.** Gap. |
+| **Japanese stack** | About string names licenses (above). SOURCES.md only says “Already credited.” | **MUST copy license + project names into SOURCES.** Still **gap:** Kuromoji/JMdict **versions / snapshot dates**. |
+| **About / Credits UI** | JA/EL/HE tables not in `pref_about_credits` yet | MUST add a line per shipped Greek/Hebrew asset once named. Empty credits + shipped TSV = R10. |
+
+**Ship rule:** 1.0-RELEASE does not wait for handbook completeness
+(REQUIREMENTS already allows pedagogical tables). It **does** wait for
+every shipped map/TSV to have a SOURCES row that is either a real
+citation or an explicit “project table, no external source.” Settings
+labels that say “SBL academic” while the map is not the handbook are
+R4 lock-in: rename the label when naming the gap, or users will cite
+Πολγζλοξ as SBL.
+
+### Issue #13 — Japan-only launcher is a brand lock (from R9)
+
+The DUT screenshot `docs/screenshots/all-apps-japanglify.png` is the
+1.0 identity as shipped: launcher label **Japanglify**, mark **ことば /
+kotoba** on black. That is a Japanese-dictionary glyph. On GrapheneOS
+Pixel 8 (and on Note9’s app drawer) it sits next to Keep, Kindle,
+KeePass — one tap target, one story. Issue #13 exists because Polyglos
+prefs already landed under that mark.
+
+If 1.0-RELEASE keeps that icon (or only changes the About string to
+Πολγζλοξ), the polyglot claim is a Settings footnote. PROCESS_TEXT
+overflow, notification small-icon, and “unknown source” install
+prompts will all still say Japan. Hebrew/Greek users will not look
+for ことば; GrapheneOS reviewers will file it as a JA tool with extra
+tables. Adaptive-icon + 24px PROCESS_TEXT affordance then ossify the
+wrong silhouette (R1 keeps `applicationId`, so this icon is what
+upgrades keep). A later “real” triple-script mark is a store-listing
+event, not a drawable swap — people have already learned which blob
+to tap. Issue #13’s Settings cruft pass (Polyglos first-class, Try-it
+and Copy assist not the hero) is the in-app half of the same lock:
+a Japan-only launcher plus a clipboard-assist-first home screen
+teaches R2 even if the ingress contract above is written down.
+
+### Sibling worktrees (skim; do not merge)
+
+Base for all four: conductor `d35b8c8`. This tree: `c757301` notes.
+Siblings as of this pass:
+
+| Tree | Unique vs `d35b8c8` | vs these risks |
+|---|---|---|
+| **linguist** `…/worktrees/linguist` `agent/polyglos-linguist-20260921` | **No unique commit.** Uncommitted: inbox reply, SOURCES behavior facts, untracked `MixedScriptPassthroughTest.kt`. | **Aligns R8:** engine-gated passthrough; `forceAnalyzerId` cannot romanize a mixed word; Latin is not a mix partner. **Aligns R4 as a warning:** Settings “SBL” is not handbook SBL (`oy` vs `ou`). **Soft tension with R5:** inbox treats Ἰησοῦς / יְהוָה TSV rows as intentional lemmas, not issue #7. Compatible if emoji stays off those analyzers; still a gloss-ethics fact for R5, not a names-dictionary. Does **not** close the SOURCES citation gaps above. |
+| **voice-ingress** `…/worktrees/voice-ingress` `agent/polyglos-voice-20260921` | **No unique commit.** Uncommitted docs retcon + untracked `domain/…/polyglos/voice/` protocol types/tests (`IngressSource` has no `CLIPBOARD`). | **Aligns R2/R3 contract:** Share + PROCESS_TEXT + live call; no clipboard ingress; no manifest VIS; GrapheneOS needs app `RecognitionService`. **Conflicts:** `VOICE_AND_PIPELINE` §6.1 still **prefers platform `SpeechRecognizer` first** (fails stock GrapheneOS) and mentions a **Play Feature Module** for Whisper (Play is a non-goal; GrapheneOS will not have it). That fights R3/R13. Protocol types are the agreed seam, not a 1.0 assistant export — do not merge as “voice shipped.” |
+| **refinement-sync** `…/worktrees/refinement-sync` `7b16c75` | **Committed:** REQUIREMENTS clipboard → output-only; §4.2 per-token; §12.3 closed; `AnalyzerRegistry` KDoc; sync-log round 2. | **Aligns R2, R8, this ingress contract.** Their REQUIREMENTS §8 already matches Share / PROCESS_TEXT / optional chip / no copy-hook. **Stale vs us:** sync-log still says design researcher is kickoff-only; SOURCES still planned. **Do not merge their REQUIREMENTS from here** (this worker does not own that file). Conductor should take `7b16c75` docs + this notes file as two patches. Their KDoc fix is not in *this* worktree (`AnalyzerRegistry` here still says “dominant wins”). |
+
+**AGENTS.md / DEVELOPMENT.md** (all trees, including this one) still
+rank the a11y chip first and copy observation as fallback. That is
+product-hierarchy drift vs the ingress contract. Align when
+clipboard-input code is deleted — not in this notes-only commit.
+
 **Lock (this file only):** no `.kt`, no REQUIREMENTS edits, no other
-inboxes.
+inboxes, no merge of sibling worktrees.
+
