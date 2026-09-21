@@ -11,6 +11,36 @@ import org.junit.Test
 class PolyglosSettingsRoutingTest {
     private val engine = PolyglosEngine.withJapanese(JapaneseAnalyzer())
 
+    @Test fun mixedInputSeparateWordsEachLanguageAnalyzed() {
+        val segs = engine.annotate(
+            "\u03bb\u03cc\u03b3\u03bf\u03c2 \u65e5\u672c\u8a9e",
+            JapanglifySettings(includeRomaji = true)
+        )
+        val greek = segs.first { it.surface.contains("\u03bb") }
+        val japanese = segs.first { it.surface.contains("\u65e5") }
+        assertEquals(AnalyzerIds.GRC_ANCIENT, greek.script)
+        assertTrue(greek.hasRomaji)
+        assertEquals(AnalyzerIds.JA, japanese.script)
+        assertTrue(japanese.hasFurigana || japanese.hasRomaji)
+    }
+
+    @Test fun mixedScriptWordIsPassthrough() {
+        // CJK + Greek + CJK in one token: do not romanize or furigana.
+        val word = "\u65e5\u03b1\u8a9e"
+        val segs = engine.annotate(word, JapanglifySettings(includeRomaji = true))
+        assertEquals(1, segs.size)
+        assertEquals(word, segs[0].surface)
+        assertFalse(segs[0].hasRomaji)
+        assertFalse(segs[0].hasFurigana)
+        assertEquals(null, segs[0].script)
+    }
+
+    @Test fun unknownLatinWordIsPassthrough() {
+        val segs = engine.annotate("hello", JapanglifySettings(includeRomaji = true))
+        assertEquals("hello", segs.single().surface)
+        assertFalse(segs.single().hasRomaji)
+    }
+
     @Test fun forceAncientGreekOnLatinNoiseStillGreekWhenForced() {
         // Forced analyzer wins over detection.
         val segs = engine.annotate(

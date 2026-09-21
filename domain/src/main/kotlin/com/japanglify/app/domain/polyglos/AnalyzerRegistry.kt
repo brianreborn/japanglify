@@ -20,7 +20,7 @@ class AnalyzerRegistry(
                 ScriptKind.JAPANESE -> byId[AnalyzerIds.JA]
                 ScriptKind.GREEK -> byId[AnalyzerIds.GRC_ANCIENT]
                 ScriptKind.HEBREW -> byId[AnalyzerIds.HBO]
-                else -> byId[AnalyzerIds.JA]
+                else -> null
             }
     }
 }

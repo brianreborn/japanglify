@@ -17,10 +17,27 @@ class PolyglosEngine(
 
     fun annotate(text: String, settings: JapanglifySettings): List<AnnotatedSegment> {
         if (text.isEmpty()) return emptyList()
-        val profile = ScriptDetector.detect(text)
-        val analyzer = registry.select(profile, settings.forceAnalyzerId)
-            ?: return listOf(AnnotatedSegment(surface = text))
-        return analyzer.annotate(text, settings)
+        val out = ArrayList<AnnotatedSegment>()
+        for (tok in WhitespaceTokenizer.tokenize(text)) {
+            if (!tok.isWord) {
+                out += AnnotatedSegment(surface = tok.surface)
+                continue
+            }
+            val profile = ScriptDetector.detect(tok.surface)
+            // Mixed-script *word* (ja/el/he letters in one token): pass through.
+            // Mixed *input* (separate words) is handled by routing each token.
+            if (profile.mixed) {
+                out += AnnotatedSegment(surface = tok.surface)
+                continue
+            }
+            val analyzer = registry.select(profile, settings.forceAnalyzerId)
+            if (analyzer == null) {
+                out += AnnotatedSegment(surface = tok.surface)
+            } else {
+                out += analyzer.annotate(tok.surface, settings)
+            }
+        }
+        return out
     }
 
     fun expand(text: String, settings: JapanglifySettings): String {

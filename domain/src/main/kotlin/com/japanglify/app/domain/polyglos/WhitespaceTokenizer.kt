@@ -29,7 +29,18 @@ internal object WhitespaceTokenizer {
             val isWordChar = Character.isLetter(cp) || Character.isDigit(cp) || isMark
 
             when {
-                isSpace -> flush()
+                isSpace -> {
+                    flush()
+                    val start = i
+                    i += len
+                    while (i < nfc.length) {
+                        val ncp = Character.codePointAt(nfc, i)
+                        if (!Character.isWhitespace(ncp)) break
+                        i += Character.charCount(ncp)
+                    }
+                    result.add(Token(nfc.substring(start, i), false))
+                    continue
+                }
                 !isWordChar && !isMark -> {
                     flush()
                     result.add(Token(String(Character.toChars(cp)), false))

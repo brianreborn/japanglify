@@ -144,7 +144,9 @@ interface Analyzer {
 
 - `ScriptDetector` MUST classify a selection into a `ScriptProfile` using Unicode blocks / script runs (Hiragana, Katakana, Han, Greek, Hebrew, Common/Inherited).
 - When a single dominant script is present, the matching analyzer MUST be selected automatically.
-- Mixed Japanese+Greek/Hebrew in one selection: MUST either (a) split runs and analyze per run, or (b) pick dominant script and leave other runs as passthrough base-only segments. 1.0 MUST implement at least (b); (a) is SHOULD.
+- Mixed **input** (one selection containing several languages as separate words) MUST be accepted. Each monolingual word is routed to its analyzer.
+- Mixed-script **words** MUST NOT be interpreted. If characters from two or more of {Japanese, Greek, Hebrew} appear inside a single word (whitespace/punctuation-delimited token), that word MUST be emitted base-only — the same passthrough used for anything the engine does not grasp. MUST NOT pick a dominant script and force-romanize the foreign letters in that word.
+- Clean concatenation of long script runs without spaces is a SHOULD for later; 1.0 MAY treat an unspaced mixed token as a mixed word (passthrough).
 - Explicit user override in Settings MUST be available (`forceAnalyzer`: auto / ja / grc-ancient / el-modern / hbo / he-modern).
 - Latin-only selections MUST remain a no-op for clipboard assist (same as today: do not spam notifications).
 
