@@ -3,7 +3,7 @@
 **Status:** Design / requirements (normative for planning)  
 **Implementation:** **Deferred** until higher-priority 1.0 features land (analyzers, settings, device UAT). This document MUST be kept current; code MUST NOT start until an explicit implementation ticket/milestone unblocks it.  
 **ASCII slug:** `polyglos`  
-**Related:** [REQUIREMENTS.md](./REQUIREMENTS.md), PR #11 core engine
+**Related:** [REQUIREMENTS.md](./REQUIREMENTS.md), [VOICE_CALL.md](./VOICE_CALL.md), PR #11 core engine
 
 Normative language: RFC 2119 (`MUST`, `MUST NOT`, `SHOULD`, `MAY`).
 
@@ -11,7 +11,9 @@ Normative language: RFC 2119 (`MUST`, `MUST NOT`, `SHOULD`, `MAY`).
 
 ## 1. Purpose
 
-Add an **offline-first voice capture** path that turns a live speech stream into text, then feeds the **same** polyglos expand / re-render pipeline used by PROCESS_TEXT, share, clipboard assist, and selection overlay — so voice is not a parallel product, just another ingress.
+Add an **offline-first live voice call** that turns a speech session (start / partials / final / hang up) into text, then feeds the **same** polyglos expand / re-render pipeline used by Share and `PROCESS_TEXT` — so voice is not a parallel product, just another ingress.
+
+Clipboard **input** (copy-hook / clipboard assist as a source of text) is **being removed** and MUST NOT be treated as an ingress. Clipboard **output** of a finished expand remains allowed.
 
 Also: tighten the existing ingress → expand → present flow so it feels like one natural loop, and specify how to eliminate **cold-start hangs** that block normal use today.
 
@@ -25,7 +27,7 @@ Also: tighten the existing ingress → expand → present flow so it feels like 
 4. **Mixed-but-mostly-one language** — natural speech is usually one primary language with occasional borrowings; routing MUST favor that reality while allowing run-level switches.
 5. **User language pack control** — enable / disable / priority-order languages (and ASR locales) to raise accuracy and cut model work.
 6. **Single re-render spine** — voice results MUST enter the same `PolyglosEngine` / `JapanglifyEngine.expand` + present path as text selections.
-7. **Naturalize ingress** — reduce duplicate “process clipboard / process selection / share / PROCESS_TEXT” UX forks over time.
+7. **Naturalize ingress** — Share, `PROCESS_TEXT`, and the live voice call are the three ingresses. Do not keep a “process clipboard” mental model.
 8. **Cold-start non-blocking** — first expand after process start MUST NOT freeze the UI or miss the user’s gesture; warmup MUST be explicit and cancelable.
 
 ---
@@ -43,7 +45,7 @@ Also: tighten the existing ingress → expand → present flow so it feels like 
 
 | Term | Meaning |
 |---|---|
-| **Ingress** | How text arrives: PROCESS_TEXT, share, clipboard assist, selection overlay, **voice**, Try-it, etc. |
+| **Ingress** | How text arrives: Share (`ACTION_SEND`), `PROCESS_TEXT`, **live voice call**. Try-it is a test host of the same expand path, not a fourth product. |
 | **Transcript** | Raw ASR text (and optional per-token timing / confidence). |
 | **Expand** | `engine.expand` / interlinear builders — analyzers + renderer. |
 | **Present** | Clipboard write, notification, overlay, image render, share sheet result — anything that shows expand output. |
@@ -56,38 +58,39 @@ Also: tighten the existing ingress → expand → present flow so it feels like 
 ## 5. End-to-end pipeline (normative)
 
 ```
-[Mic / IME voice stream]
-        │
+[Live call host]
+  VoiceInteractionSession / in-app Start / later assistant role
+        │  VoiceCallEvent.Started | Partial | Final | HungUp
         ▼
- VoiceCaptureController  (app)     — permission, session, partials
-        │  Audio frames / system recognizer callbacks
+ VoiceCallStateMachine  (domain)   — LIVE across many finals; hang up ends the call
+        │  Final (non-blank) only
         ▼
  AsrBackend (app, offline)         — locale hint from LanguagePackPolicy
         │  Transcript (+ optional word timings)
         ▼
- IngressNormalizer                 — same shape as clipboard/selection text
-        │  IngressEvent { source=VOICE, text, localeHint?, packsSnapshot }
+ IngressEvent { source=VOICE, text, localeHint? }
+        │  same shape as Share / PROCESS_TEXT (no CLIPBOARD source)
         ▼
- PolyglosEngine / JapanglifyEngine.expand   (domain)
+ PolyglosEngine.expand(text, settings)   (domain; ignores source)
         │  ScriptDetector ∩ enabled packs ∩ priority
         ▼
- Presenter (existing)              — clipboard / notif / overlay / image
+ Presenter (existing)              — clipboard *output* / notif / overlay / image
 ```
 
 ### 5.1 Feed into re-render
 
-- Voice completion MUST produce an `IngressEvent` (name MAY differ) that is **indistinguishable in expand/present** from a successful selection/clipboard process, aside from telemetry `source=VOICE`.
-- Partial ASR results MAY update a lightweight preview UI; they MUST NOT spam clipboard or notifications. Only **final** (or user-confirmed) transcripts MUST trigger the full present path by default.
+- Voice **finals** MUST produce an `IngressEvent` that is **indistinguishable in expand/present** from Share / `PROCESS_TEXT`, aside from telemetry `source=VOICE`. See [VOICE_CALL.md](./VOICE_CALL.md).
+- Partial ASR results MAY update a lightweight in-call preview UI; they MUST NOT spam clipboard or notifications. Only **final** (or user-confirmed) transcripts MUST trigger the full present path by default.
 - Settings that affect expand (force analyzer, Greek Erasmian/SBL, gloss/emoji, output format) MUST apply to voice the same way they apply to PROCESS_TEXT.
 
 ### 5.2 Cleanup / naturalization of existing paths (design debt to burn down)
 
-Today multiple call sites invoke `engine.expand` directly (`ClipboardProcessor`, accessibility overlay, image cache, etc.). Requirements for cleanup (implement when touching those areas, not blocked on voice code):
+Today multiple call sites invoke `engine.expand` directly (`ShareTargetActivity`, `ProcessTextActivity`, leftover clipboard/a11y helpers, image cache, etc.). Requirements for cleanup (implement when touching those areas, not blocked on voice code):
 
 1. **One expand gateway** — app-layer SHOULD route all ingress through a single facade (e.g. `ExpandSession` / `IngressProcessor`) that: loads settings once, applies size limits, dedupes, calls engine, then presents.
-2. **Japanese-only guards** — e.g. `containsJapanese` short-circuits MUST become **pack-aware** (enabled languages / script detection), not hard-coded JA.
+2. **Japanese-only guards** — e.g. leftover `containsJapanese` short-circuits MUST become **pack-aware** (enabled languages / script detection), not hard-coded JA. Clipboard-input removal owns deleting copy-hook pollers; voice MUST NOT revive them.
 3. **User-facing verbs** — Prefer one primary action (“Expand” / brand name) across PROCESS_TEXT label, notifications, and voice end-state; avoid “process clipboard” vs “japanglify selection” vs “voice convert” as three mental models.
-4. **Try-it card** — SHOULD accept pasted **or** last voice transcript for parity testing without leaving Settings.
+4. **Try-it card** — SHOULD accept pasted **or** last voice transcript for parity testing without leaving Settings. Try-it is a host, not a distinct ingress.
 
 ---
 
@@ -111,11 +114,12 @@ interface AsrBackend {
   2. **Bundled / user-downloaded on-device model** (e.g. Whisper.cpp / similar) via a Play Feature Module or explicit download screen — still offline at recognition time.
 - If no offline backend is available for the user’s **highest-priority enabled** ASR locale, the UI MUST explain that and offer language-pack / download options — MUST NOT silently fall back to network ASR unless the user opts into an explicit “Allow online speech recognition” setting (default OFF).
 
-### 6.2 Streaming UX
+### 6.2 Streaming UX (live call)
 
-- Behavior SHOULD match familiar voice-input patterns: hold-to-talk and/or tap-to-toggle, partial text, cancel, retry.
-- Capture MAY live as: in-app mic on Try-it / result screen; optional later: `VoiceInteractionSession` / IME-adjacent entry. First milestone SHOULD be **in-app** to avoid IME store complexity.
-- `RECORD_AUDIO` only when starting capture; rationale string MUST mention offline on-device recognition.
+- The session is a **call**: start / partials / final / hang up. Hold-to-talk MAY be a later control *inside* a live call; it is not the product shape.
+- First host MAY be in-app (Try-it / a session activity) implementing `VoiceCallController`. That host MUST use the same protocol as later `VoiceInteractionSession` / GrapheneOS assistant-role entry. Do not ship a one-shot mic that bypasses the state machine.
+- IME-store voice input is out of scope for 1.0.
+- `RECORD_AUDIO` only when starting the call; rationale string MUST mention offline on-device recognition.
 
 ### 6.3 Transcript quality bar
 
@@ -148,7 +152,7 @@ On each final transcript:
 3. Else if detector finds a dominant script among enabled packs → that analyzer.
 4. Else use **speech locale hint** from AsrBackend mapped through pack table.
 5. Else fall back to highest-priority enabled pack.
-6. Mixed script runs: same policy as REQUIREMENTS §7 (dominant + passthrough for 1.0; per-run split SHOULD).
+6. Mixed **input** (separate words) and mixed-script **words**: same policy as REQUIREMENTS §7 (per-token analyzer; mixed ja/el/he letters in one token = base-only passthrough). Unspaced mixed-run split remains SHOULD later.
 
 ### 7.3 Accuracy levers (why priority/remove matters)
 
@@ -160,13 +164,13 @@ On each final transcript:
 
 ## 8. Cold-start & hangs (normative design)
 
-Observed risk today: `JapanglifyApp.onCreate` constructs `KuromojiReadingProvider` and `rebuildEngine()` on the main path; first `expand` from accessibility/clipboard can hitch when dictionaries/emoji DBs initialize.
+Observed risk today: `JapanglifyApp.onCreate` constructs `KuromojiReadingProvider` and `rebuildEngine()` on the main path; first `expand` from Share / PROCESS_TEXT (or a later voice final) can hitch when dictionaries/emoji DBs initialize.
 
 ### 8.1 Requirements
 
 1. **UI thread MUST NOT** perform Kuromoji constructor, large asset unpack, or glossary DB open.
 2. **Deferred warmup** — After `Application.onCreate`, schedule engine/dict warmup on a background executor; expose `EngineState { COLD, WARMING, READY, FAILED }`.
-3. **First gesture** — If user triggers expand while `WARMING`, UI MUST show non-blocking progress (notif or overlay) and complete when READY; MUST NOT ANR. Prefer queueing one expand rather than parallel warmups.
+3. **First gesture** — If user triggers expand (Share / PROCESS_TEXT / voice final) while `WARMING`, UI MUST show non-blocking progress (notif or overlay) and complete when READY; MUST NOT ANR. Prefer queueing one expand rather than parallel warmups.
 4. **Timeouts** — Warmup SHOULD bound wait (e.g. notify failure after N seconds) with retry.
 5. **Voice-specific** — ASR model load MUST also be background; mic UI can open immediately with “Preparing recognition…” if needed.
 6. **Idle reclaim** — MAY unload heavy models after idle; next use re-enters WARMING (same UX).
@@ -194,10 +198,10 @@ These cold-start requirements MAY be implemented **before** voice (they help all
 ## 10. Testing requirements (when implementation starts)
 
 - Unit: LanguagePackPolicy priority / disable / forceAnalyzer interaction with ScriptDetector fixtures.
-- Unit: IngressEvent from VOICE vs CLIPBOARD hits same expand gateway mock.
+- Unit: IngressEvent from VOICE vs SHARE / PROCESS_TEXT hits same expand gateway mock. MUST NOT introduce a CLIPBOARD ingress source.
 - Instrumented: offline flag true → no network permission used during a recognition session (or mock backend).
 - Manual UAT: airplane mode, JA voice → expand; Greek pack enabled + locale; disabled pack not used; cold start expand shows warmup not freeze.
-- Regression: PROCESS_TEXT / clipboard still work with gateway refactor.
+- Regression: PROCESS_TEXT / Share still work with gateway refactor. Clipboard **output** of expand remains; clipboard **input** MUST stay gone.
 
 ---
 
@@ -209,8 +213,8 @@ These cold-start requirements MAY be implemented **before** voice (they help all
 | **P0b — cold-start** | EngineState + off-main warmup | Allowed early; unblocks all ingress |
 | **P1 — gateway cleanup** | Single expand/present facade; pack-aware guards | Natural UX; prep for voice |
 | **P2 — language packs UI** | Enable/priority settings | Builds on force-analyzer prefs |
-| **P3 — voice MVP** | In-app capture + offline ASR + IngressEvent | After P0b–P2 as needed |
-| **P4 — polish** | Partials preview, downloads module, optional IME entry | |
+| **P3 — voice MVP** | Live-call protocol host + offline ASR + `IngressEvent(VOICE)` | In-app host first is OK; it MUST be the call, not a one-shot mic. See [VOICE_CALL.md](./VOICE_CALL.md) |
+| **P4 — polish** | Exported `VoiceInteractionSession`, optional assistant role, downloads module | IME entry remains out of 1.0 |
 
 ---
 
@@ -219,8 +223,8 @@ These cold-start requirements MAY be implemented **before** voice (they help all
 1. Default enabled packs on fresh install (JA-only vs JA+el+he).
 2. Ancient Greek / Biblical Hebrew ASR locale mapping (modern locale + analyzer force vs dedicated models).
 3. Bundled vs downloadable Whisper-class models (APK size vs first-run download).
-4. Whether hold-to-talk lives on notification, Try-it, or both for MVP.
-5. Exact `EngineState` timeout values and whether clipboard assist auto-retries after READY.
+4. Whether the first call host is Try-it, a dedicated session activity, or both (same protocol either way).
+5. Exact `EngineState` timeout values and whether a voice final queued during WARMING auto-retries after READY.
 
 ---
 
@@ -229,3 +233,4 @@ These cold-start requirements MAY be implemented **before** voice (they help all
 | Date | Change |
 |---|---|
 | 2026-09-19 | Initial design: voice ingress, unified re-render spine, language packs, cold-start; implementation deferred |
+| 2026-09-21 | Ingress = Share + PROCESS_TEXT + live call (not clipboard input / not in-app-mic-as-MVP); mixed-input policy matches REQUIREMENTS §7 |
