@@ -108,6 +108,31 @@
             app:title="@string/pref_romaji_position"
             app:useSimpleSummaryProvider="true" />
     </PreferenceCategory>
+    <PreferenceCategory app:title="@string/pref_category_polyglos">
+        <ListPreference
+            app:defaultValue="auto"
+            app:key="force_analyzer_id"
+            app:summary="@string/pref_force_analyzer_summary"
+            app:title="@string/pref_force_analyzer"
+            app:useSimpleSummaryProvider="true" />
+        <ListPreference
+            app:defaultValue="erasmian"
+            app:key="greek_romanization"
+            app:summary="@string/pref_greek_romanization_summary"
+            app:title="@string/pref_greek_romanization"
+            app:useSimpleSummaryProvider="true" />
+        <ListPreference
+            app:defaultValue="hebrew_academic"
+            app:key="hebrew_romanization"
+            app:summary="@string/pref_hebrew_romanization_summary"
+            app:title="@string/pref_hebrew_romanization"
+            app:useSimpleSummaryProvider="true" />
+        <SwitchPreferenceCompat
+            app:defaultValue="false"
+            app:key="hebrew_phonetic_unpointed"
+            app:summary="@string/pref_hebrew_phonetic_unpointed_summary"
+            app:title="@string/pref_hebrew_phonetic_unpointed" />
+    </PreferenceCategory>
 
     <PreferenceCategory app:title="@string/pref_category_rendering">
         <ListPreference

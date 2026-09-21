@@ -44,6 +44,15 @@
     <string name="pref_custom_image_gloss_color">Custom: gloss color</string>
     <string name="pref_mora_seam_style">Bound copula/auxiliary separator</string>
 
+    <string name="pref_category_polyglos">Polyglos (Greek / Hebrew)</string>
+    <string name="pref_force_analyzer">Forced language analyzer</string>
+    <string name="pref_force_analyzer_summary">Auto detects script. Force only when mixed text mis-routes.</string>
+    <string name="pref_greek_romanization">Greek romanization</string>
+    <string name="pref_greek_romanization_summary">Erasmian (ancient default), SBL, or modern phonemic</string>
+    <string name="pref_hebrew_romanization">Hebrew romanization</string>
+    <string name="pref_hebrew_romanization_summary">Academic scheme for the phonetic layer</string>
+    <string name="pref_hebrew_phonetic_unpointed">Phonetics for unpointed modern Hebrew</string>
+    <string name="pref_hebrew_phonetic_unpointed_summary">Off by default: unpointed modern Hebrew stays base-only</string>
     <string name="pref_category_phonetics">Phoneticization</string>
     <string name="pref_romanization">Romanization system</string>
     <string name="pref_romaji_position">Romaji position</string>

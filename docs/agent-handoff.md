@@ -78,6 +78,19 @@ validation result, architectural decision, or follow-up risk.
   before Gradle assembly. This is the established CI recipe; it never accesses
   a release keystore.
 
+## 2026-09-21 — Polyglos Settings UI (Grok Build resume)
+
+- Settings now exposes Polyglos controls: `force_analyzer_id`,
+  `greek_romanization`, `hebrew_romanization`, `hebrew_phonetic_unpointed`.
+  Preference keys already existed in `PreferencesRepository`; this wires the
+  XML + `bindList` entries and `displayName` on the romanization enums.
+- Japanese strings live in `values-ja`. Analyzer labels in the ListPreference
+  entries are English (same pattern as other `bindList` display names).
+- `:domain:test -PincludeApp=false` passed on QODESH (JDK 17). App assemble
+  and dual-device UAT were not re-run in this resume turn. Note9
+  (`27841130ae1c7ece`) was on USB adb; 9185W wireless was not attached.
+- Voice implementation remains deferred (`docs/polyglos/VOICE_AND_PIPELINE.md`).
+
 ## 2026-08-20 — Preemptive image default regression guard
 
 - The app module does not yet have a configured unit-test dependency. Issue #5

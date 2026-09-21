@@ -22,6 +22,16 @@
     <string name="pref_romanization">ローマ字方式</string>
     <string name="pref_romaji_position">ローマ字の位置</string>
 
+    <string name="pref_category_polyglos">Polyglos（ギリシャ語 / ヘブライ語）</string>
+    <string name="pref_force_analyzer">言語アナライザを固定</string>
+    <string name="pref_force_analyzer_summary">既定は文字種の自動判定。混在テキストの誤判定時だけ固定します。</string>
+    <string name="pref_greek_romanization">ギリシャ語のローマ字化</string>
+    <string name="pref_greek_romanization_summary">古代は Erasmian、SBL、または現代音素表記</string>
+    <string name="pref_hebrew_romanization">ヘブライ語のローマ字化</string>
+    <string name="pref_hebrew_romanization_summary">音声層の学術ローマ字化</string>
+    <string name="pref_hebrew_phonetic_unpointed">無ニクード現代ヘブライ語にも音声を付ける</string>
+    <string name="pref_hebrew_phonetic_unpointed_summary">既定オフ。オフのときは無ニクード現代ヘブライ語は基層のみ</string>
+
     <string name="pref_category_rendering">表示形式</string>
     <string name="pref_output_format">出力フォーマット</string>
     <string name="pref_max_line_width">画像幅（全角文字数）</string>

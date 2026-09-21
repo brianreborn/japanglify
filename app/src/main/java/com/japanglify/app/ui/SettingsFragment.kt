@@ -95,6 +95,25 @@ class SettingsFragment : PreferenceFragmentCompat() {
             com.japanglify.app.domain.RomanizationSystem.entries.map { it.id to it.displayName }
         )
         bindList(
+            PreferencesRepository.KEY_FORCE_ANALYZER,
+            listOf(
+                com.japanglify.app.domain.polyglos.AnalyzerIds.AUTO to "Auto (detect script)",
+                com.japanglify.app.domain.polyglos.AnalyzerIds.JA to "Japanese",
+                com.japanglify.app.domain.polyglos.AnalyzerIds.GRC_ANCIENT to "Ancient Greek",
+                com.japanglify.app.domain.polyglos.AnalyzerIds.EL_MODERN to "Modern Greek",
+                com.japanglify.app.domain.polyglos.AnalyzerIds.HBO to "Biblical Hebrew",
+                com.japanglify.app.domain.polyglos.AnalyzerIds.HE_MODERN to "Modern Hebrew"
+            )
+        )
+        bindList(
+            PreferencesRepository.KEY_GREEK_ROMANIZATION,
+            com.japanglify.app.domain.polyglos.GreekRomanization.entries.map { it.id to it.displayName }
+        )
+        bindList(
+            PreferencesRepository.KEY_HEBREW_ROMANIZATION,
+            com.japanglify.app.domain.polyglos.HebrewRomanization.entries.map { it.id to it.displayName }
+        )
+        bindList(
             PreferencesRepository.KEY_ROMAJI_POSITION,
             com.japanglify.app.domain.RomajiPosition.entries.map { it.id to it.displayName }
         )

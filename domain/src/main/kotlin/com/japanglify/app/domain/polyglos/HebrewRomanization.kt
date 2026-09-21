@@ -1,8 +1,8 @@
 package com.japanglify.app.domain.polyglos
 
 /** Academic romanization for Biblical / modern Hebrew phonetic layer. */
-enum class HebrewRomanization(val id: String) {
-    ACADEMIC("hebrew_academic");
+enum class HebrewRomanization(val id: String, val displayName: String) {
+    ACADEMIC("hebrew_academic", "Academic");
 
     companion object {
         fun fromId(id: String?): HebrewRomanization =
