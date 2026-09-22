@@ -19,7 +19,7 @@
     <string name="pref_license_title">License</string>
     <string name="pref_license_summary">Light-ware — view on GitHub</string>
 
-    <string name="pref_category_scripts">Scripts</string>
+    <string name="pref_category_scripts">Japanese</string>
     <string name="pref_include_furigana">Include furigana</string>
     <string name="pref_include_furigana_summary">Hiragana readings over kanji (ruby basis)</string>
     <string name="pref_include_romaji">Include romaji</string>
@@ -44,7 +44,7 @@
     <string name="pref_custom_image_gloss_color">Custom: gloss color</string>
     <string name="pref_mora_seam_style">Bound copula/auxiliary separator</string>
 
-    <string name="pref_category_polyglos">Polyglos (Greek / Hebrew)</string>
+    <string name="pref_category_polyglos">Languages</string>
     <string name="pref_force_analyzer">Forced language analyzer</string>
     <string name="pref_force_analyzer_summary">Auto detects script. Force only when mixed text mis-routes.</string>
     <string name="pref_greek_romanization">Greek romanization</string>

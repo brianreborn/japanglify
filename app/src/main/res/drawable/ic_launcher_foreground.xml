@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Triple-script mark: three bars (Japanese / Greek / Hebrew), not a Japan-only glyph. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#F4EFE6"
+        android:pathData="M28,30h14c2.2,0 4,1.8 4,4v40c0,2.2 -1.8,4 -4,4H28c-2.2,0 -4,-1.8 -4,-4V34c0,-2.2 1.8,-4 4,-4z" />
+    <path
+        android:fillColor="#C4A35A"
+        android:pathData="M47,30h14c2.2,0 4,1.8 4,4v40c0,2.2 -1.8,4 -4,4H47c-2.2,0 -4,-1.8 -4,-4V34c0,-2.2 1.8,-4 4,-4z" />
+    <path
+        android:fillColor="#7A9BB8"
+        android:pathData="M66,30h14c2.2,0 4,1.8 4,4v40c0,2.2 -1.8,4 -4,4H66c-2.2,0 -4,-1.8 -4,-4V34c0,-2.2 1.8,-4 4,-4z" />
+</vector>

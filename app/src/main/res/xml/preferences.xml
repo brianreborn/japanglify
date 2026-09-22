@@ -3,11 +3,41 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
-    <com.japanglify.app.ui.TryItCardPreference
-        app:key="try_it_card"
-        app:selectable="false" />
+    <PreferenceCategory
+        app:iconSpaceReserved="false"
+        app:title="@string/pref_category_polyglos">
+        <ListPreference
+            app:defaultValue="auto"
+            app:iconSpaceReserved="false"
+            app:key="force_analyzer_id"
+            app:summary="@string/pref_force_analyzer_summary"
+            app:title="@string/pref_force_analyzer"
+            app:useSimpleSummaryProvider="true" />
+        <ListPreference
+            app:defaultValue="erasmian"
+            app:iconSpaceReserved="false"
+            app:key="greek_romanization"
+            app:summary="@string/pref_greek_romanization_summary"
+            app:title="@string/pref_greek_romanization"
+            app:useSimpleSummaryProvider="true" />
+        <ListPreference
+            app:defaultValue="hebrew_academic"
+            app:iconSpaceReserved="false"
+            app:key="hebrew_romanization"
+            app:summary="@string/pref_hebrew_romanization_summary"
+            app:title="@string/pref_hebrew_romanization"
+            app:useSimpleSummaryProvider="true" />
+        <SwitchPreferenceCompat
+            app:defaultValue="false"
+            app:iconSpaceReserved="false"
+            app:key="hebrew_phonetic_unpointed"
+            app:summary="@string/pref_hebrew_phonetic_unpointed_summary"
+            app:title="@string/pref_hebrew_phonetic_unpointed" />
+    </PreferenceCategory>
 
-    <PreferenceCategory app:title="@string/pref_category_selection_chip">
+    <PreferenceCategory
+        app:iconSpaceReserved="false"
+        app:title="@string/pref_category_selection_chip">
         <SwitchPreferenceCompat
             app:defaultValue="true"
             app:key="clipboard_assist"
@@ -107,31 +137,6 @@
             app:key="romaji_position"
             app:title="@string/pref_romaji_position"
             app:useSimpleSummaryProvider="true" />
-    </PreferenceCategory>
-    <PreferenceCategory app:title="@string/pref_category_polyglos">
-        <ListPreference
-            app:defaultValue="auto"
-            app:key="force_analyzer_id"
-            app:summary="@string/pref_force_analyzer_summary"
-            app:title="@string/pref_force_analyzer"
-            app:useSimpleSummaryProvider="true" />
-        <ListPreference
-            app:defaultValue="erasmian"
-            app:key="greek_romanization"
-            app:summary="@string/pref_greek_romanization_summary"
-            app:title="@string/pref_greek_romanization"
-            app:useSimpleSummaryProvider="true" />
-        <ListPreference
-            app:defaultValue="hebrew_academic"
-            app:key="hebrew_romanization"
-            app:summary="@string/pref_hebrew_romanization_summary"
-            app:title="@string/pref_hebrew_romanization"
-            app:useSimpleSummaryProvider="true" />
-        <SwitchPreferenceCompat
-            app:defaultValue="false"
-            app:key="hebrew_phonetic_unpointed"
-            app:summary="@string/pref_hebrew_phonetic_unpointed_summary"
-            app:title="@string/pref_hebrew_phonetic_unpointed" />
     </PreferenceCategory>
 
     <PreferenceCategory app:title="@string/pref_category_rendering">
@@ -286,6 +291,10 @@
             app:summary="@string/pref_emoji_pos_scope_summary"
             app:title="@string/pref_emoji_pos_scope" />
     </PreferenceCategory>
+
+    <com.japanglify.app.ui.TryItCardPreference
+        app:key="try_it_card"
+        app:selectable="false" />
 
     <PreferenceCategory app:title="@string/pref_category_clipboard">
         <SwitchPreferenceCompat

@@ -7,7 +7,7 @@
     <string name="copied_to_clipboard">変換結果をクリップボードにコピーしました</string>
     <string name="error_processing">変換に失敗しました: %1$s</string>
 
-    <string name="pref_category_scripts">表記</string>
+    <string name="pref_category_scripts">日本語</string>
     <string name="pref_include_furigana">ふりがなを付ける</string>
     <string name="pref_include_furigana_summary">漢字にひらがなの読みを付与</string>
     <string name="pref_include_romaji">ローマ字を付ける</string>
@@ -22,7 +22,7 @@
     <string name="pref_romanization">ローマ字方式</string>
     <string name="pref_romaji_position">ローマ字の位置</string>
 
-    <string name="pref_category_polyglos">Polyglos（ギリシャ語 / ヘブライ語）</string>
+    <string name="pref_category_polyglos">言語</string>
     <string name="pref_force_analyzer">言語アナライザを固定</string>
     <string name="pref_force_analyzer_summary">既定は文字種の自動判定。混在テキストの誤判定時だけ固定します。</string>
     <string name="pref_greek_romanization">ギリシャ語のローマ字化</string>
