@@ -34,6 +34,11 @@ Use the downloadable debug flavor while iterating:
 adb install -r app\build\outputs\apk\downloadable\debug\app-downloadable-debug.apk
 ```
 
+When several agents share Note9 / Revvl Tab 2 / Pixel 8, wrap every adb UAT
+invocation in `scripts/adb-uat-lock.sh` (or `.ps1`) with `ADBUUID` set to that
+host's serial. Lock file is `$HOME/$ADBUUID` via Unix `lockf`. See
+`docs/agents/adb-uat-lock.md`.
+
 The core-domain test command above is a fast, useful check when an Android
 build cannot run due to an IDE/Codex sandbox restriction. It does **not** prove
 the Android app compiles. In restricted sessions, AGP can fail while accessing

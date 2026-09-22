@@ -10,6 +10,8 @@ the matching inbox; idle work is defined in each brief.
 | Design researcher | [design-researcher.md](./design-researcher.md) | [design-research-notes.md](./design-research-notes.md) | High-effort review of eventual issues, not near-term bugs |
 | Refinement sync | [refinement-sync.md](./refinement-sync.md) | [sync-log.md](./sync-log.md) | Align workers; polish only, no new features |
 
+ADB UAT hosts: take `lockf` on `$HOME/$ADBUUID` before using a phone — see [adb-uat-lock.md](./adb-uat-lock.md).
+
 Do not implement from an inbox note until a coder (or the user) asks.
 The linguist does not land code unless a table/test is the smallest
 proof of a linguistic bug.

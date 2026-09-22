@@ -4,6 +4,23 @@ This is the durable context shared across issue-driven agent runs. Add concise,
 dated entries when work discovers a reproducible environment constraint,
 validation result, architectural decision, or follow-up risk.
 
+## 2026-09-21 — Settings / launcher (#13)
+
+- Settings open on **Languages** (analyzer + Greek/Hebrew romanization), not the
+  Try-it card. Try-it and the status card sit below dictionary/emoji.
+- Japanese furigana/romaji category retitled from "Scripts".
+- Adaptive icon: ink background + three-bar foreground (JA / EL / HE), not
+  the hinomaru-only mark. `ic_launcher.xml` points at the vector drawable.
+
+## 2026-09-21 — ADB UAT host lockf
+
+- Shared DUT protocol: exclusive `lockf` on **`$HOME/$ADBUUID`**.
+  `ADBUUID` is the ADB serial. Wrapper: `scripts/adb-uat-lock.sh` (Unix
+  `lockf(1)` / `fcntl.lockf`) and `scripts/adb-uat-lock.ps1` (same file,
+  `msvcrt.locking` on Windows). Doc: `docs/agents/adb-uat-lock.md`.
+- Two workers may UAT two different serials at once. They must not share a
+  serial without this lock. Do not delete the lock file while a holder lives.
+
 ## 2026-08-19 — Windows/Codex baseline
 
 - Validated local toolchain target: JDK 22 and Android API/build-tools 35.
