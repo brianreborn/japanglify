@@ -1,42 +1,45 @@
 # Πολγζλοξ — Live voice call
 
 **Status:** Design addendum to [VOICE_AND_PIPELINE.md](./VOICE_AND_PIPELINE.md)  
-**Allowed code:** protocol types only (`IngressEvent`, `VoiceCallEvent`, `VoiceCallStateMachine`, `VoicePlatformProfile`). No `VoiceInteractionService` registration, no mic UI, no ASR model.  
+**Allowed code (this change):** protocol types + JVM tests only. No `VoiceInteractionService` class, no manifest `BIND_VOICE_INTERACTION`, no mic UI, no ASR model.  
 **ASCII slug:** `polyglos`
 
 Normative language: RFC 2119.
+
+Hosts later: `VoiceInteractionSession`, on-device `SpeechRecognizer` / app `RecognitionService`, GrapheneOS / AOSP assistant role, live-caption-*style* continuous recognition. Those hosts MUST speak this protocol. They MUST NOT invent a second expand path.
 
 ---
 
 ## 1. Shape: a call, not a mic button
 
-Voice is a **session** with the same four beats as a phone call:
+Voice is a **session** with the same four beats as a phone call. A final is one committed utterance, not hang-up. The call MAY stay live across many finals (live-caption style).
 
-| Beat | Protocol event | Android host (later) | ASR |
+| Beat | Protocol event | Later Android host | ASR |
 |---|---|---|---|
-| Start | `VoiceCallEvent.Started` | `VoiceInteractionSession.onShow` | `startListening` |
+| Start | `VoiceCallEvent.Started` | `VoiceInteractionSession.onShow` / in-app Start | `startListening` |
 | Partials | `VoiceCallEvent.Partial` | session UI text only | `onPartialResults` |
 | Final | `VoiceCallEvent.Final` | commit utterance | `onResults` / segmented end |
 | Hang up | `VoiceCallEvent.HungUp` | `onHide` / `finish` | `stopListening` / `cancel` |
 
-The session MAY stay **live** across several finals (continuous / live-caption style). Hang up ends the call. A final is one committed utterance, not the end of the call.
-
 ```
 IDLE ──Started──► LIVE ──HungUp──► HUNG_UP
                     │
-                    ├── Partial (preview only)
-                    ├── Final   → IngressEvent(source=VOICE) → expand → present
+                    ├── Partial (preview only; MUST NOT expand)
+                    ├── Final   → IngressEvent(source=VOICE) → expand(text) → present
                     └── Failed  → FAILED
+FAILED / HUNG_UP ──Started──► LIVE   (new call)
 ```
 
 ### 1.1 What MUST / MUST NOT happen
 
-- **MUST** feed **final** (or user-confirmed) transcripts into the same `PolyglosEngine.expand` path as Share and `PROCESS_TEXT`.
+- **MUST** feed **final** (or user-confirmed) transcripts into the same `PolyglosEngine.expand(text, settings)` path as Share and `PROCESS_TEXT`.
+- **MUST NOT** add `PolyglosEngine.expand(IngressEvent, …)`. Linguistics ignore ingress source. Hosts unwrap `event.text` (and MAY log `event.source`).
 - **MUST NOT** call `expand` or any presenter on partials.
 - **MUST NOT** write partials to the clipboard or fire result notifications.
 - **MUST NOT** read the clipboard as voice input (clipboard **input** is being removed). Clipboard **output** of a finished expand remains allowed — same as read-only `PROCESS_TEXT`.
 - **MUST NOT** require TTS, cloud ASR, or Accessibility as the speech path.
 - Accessibility MAY only be a fallback for *showing* the user’s own call UI, never for capturing other apps’ text as “voice”.
+- Empty `Final.text` MUST NOT produce an `IngressEvent`.
 
 ### 1.2 Ingresses (authoritative)
 
@@ -46,29 +49,91 @@ IDLE ──Started──► LIVE ──HungUp──► HUNG_UP
 | `PROCESS_TEXT` | selection toolbar | `ProcessTextActivity` |
 | Voice | `VoiceCallEvent.Final` → `IngressEvent` | protocol types only |
 
-Clipboard assist / copy-hook is **not** an ingress going forward. Do not add `CLIPBOARD` to `IngressSource`.
+Clipboard assist / copy-hook is **not** an ingress going forward. `IngressSource` MUST NOT contain `CLIPBOARD`.
 
 ---
 
-## 2. Smallest OS-hostable call
+## 2. Protocol types (domain, pure JVM)
 
-Later Android assistive software hosts this same protocol. The in-app Try-it mic (when it lands) is a **host**, not a second product.
+Package: `com.japanglify.app.domain.polyglos.voice`. No `android.*` imports.
 
-### 2.1 `VoiceInteractionService` / `VoiceInteractionSession`
+### 2.1 Ingress
 
-When implementation is unblocked, register a `VoiceInteractionService` whose session **is** the call:
+```
+enum class IngressSource { PROCESS_TEXT, SHARE, VOICE }
 
-1. User invokes the assistant (long-press home / nav corner / RoleManager assistant / in-app Start).
-2. `VoiceInteractionSession.onShow` → `Started` (show a small live UI: listening, partial text, hang up).
+data class IngressEvent(
+  source: IngressSource,
+  text: String,
+  localeHint: String?   // BCP-47 from ASR or null
+)
+```
+
+`VoiceCall.toIngressEvent(Final)` is the only voice → ingress converter. Share / `PROCESS_TEXT` MAY construct `IngressEvent` when those activities are next touched; this change MUST NOT rewrite them.
+
+### 2.2 Call events and phase
+
+```
+sealed class VoiceCallEvent {
+  data object Started
+  data class Partial(text: String)
+  data class Final(text: String, localeHint: String? = null)
+  data object HungUp
+  data class Failed(reason: String)
+}
+
+enum class VoiceCallPhase { IDLE, LIVE, HUNG_UP, FAILED }
+```
+
+### 2.3 State machine
+
+`VoiceCallStateMachine.apply(event)` is the single transition function later hosts call.
+
+| From | Event | To | Side effect |
+|---|---|---|---|
+| `IDLE`, `HUNG_UP`, `FAILED` | `Started` | `LIVE` | none (host starts ASR) |
+| `LIVE` | `Partial` | `LIVE` | `previewText` only |
+| `LIVE` | `Final` (non-blank) | `LIVE` | `ingress = IngressEvent(VOICE, text, localeHint)` |
+| `LIVE` | `Final` (blank) | `LIVE` | no ingress |
+| `LIVE` | `HungUp` | `HUNG_UP` | host stops ASR; no present |
+| `LIVE` | `Failed` | `FAILED` | `failureReason`; no ingress |
+| `IDLE` / `FAILED` | `HungUp` | `HUNG_UP` | idempotent hang-up |
+| any other | * | unchanged | `accepted = false` |
+
+`Started` while already `LIVE` is rejected (do not nest calls). Partials/finals outside `LIVE` are rejected.
+
+### 2.4 Host seams (stubs, still JVM)
+
+Later Android classes implement these. They are interfaces only:
+
+- `VoiceCallController` — start / hang up / fail / ASR callbacks into the machine.
+- `VoiceCallHost` — listening / partial / idle / failed UI.
+- `VoiceExpandSink` — receives `IngressEvent` for expand+present.
+- `AsrBackend` / `AsrListener` — offline recognizer behind the controller.
+
+No `Service` subclass in this change.
+
+---
+
+## 3. Smallest OS-hostable call
+
+The in-app Try-it mic (when it lands) is a **host** of this protocol, not a second product. `VoiceInteractionSession` is the later-OS host of the **same** call.
+
+### 3.1 `VoiceInteractionService` / `VoiceInteractionSession` (later)
+
+When implementation is unblocked (P4):
+
+1. User invokes the assistant (long-press home / nav corner / `RoleManager` assistant / in-app Start).
+2. `VoiceInteractionSession.onShow` → `Started` (small live UI: listening, partial text, hang up).
 3. Partials update that UI.
-4. Each `Final` becomes `IngressEvent(VOICE)` and runs expand + present (notification / clipboard **output** / overlay — existing presenter).
+4. Each accepted `Final` → `IngressEvent(VOICE)` → `engine.expand(text, settings)` → existing presenter (notification / clipboard **output** / overlay).
 5. Hang up → `onHide` / `finish`; cancel recognition; no extra present.
 
 Assist `AssistStructure` / screenshot (`onHandleAssist`, `onHandleScreenshot`) is **out of the first call**. Those are later-OS “what is on screen” assists. The 1.0 voice job is the user’s **own speech**, not scraping the host app.
 
-Do **not** register the service in the manifest until the voice milestone: exporting `BIND_VOICE_INTERACTION` makes Πολγζλοξ an assistant candidate on GrapheneOS and fights Bixby on Note9.
+Do **not** register the service in the manifest until P4: exporting `BIND_VOICE_INTERACTION` makes Πολγζλοξ an assistant candidate on GrapheneOS and fights Bixby on Note9. This document MUST NOT dump a full `VoiceInteractionService` registration (intent filters, `voice_interaction.xml`, recognition-service meta-data).
 
-### 2.2 On-device `SpeechRecognizer` / `RecognitionService`
+### 3.2 On-device `SpeechRecognizer` / `RecognitionService`
 
 Preferred backends (first that is **offline** for the active locale):
 
@@ -78,7 +143,7 @@ Preferred backends (first that is **offline** for the active locale):
 
 `VoicePlatformProfile.forSdk(sdk)` gates APIs that do not exist on Note9. Capability **API** ≠ capability **present**: GrapheneOS Pixel 8 has the API 31+ methods and still has no Google `RecognitionService`.
 
-### 2.3 Live-caption style (continuous)
+### 3.3 Live-caption style (continuous)
 
 This means **our** call stays in `LIVE` and keeps emitting partials + finals, like Live Caption’s UX. It does **not** mean hooking the system Live Caption pipeline (not a public app API).
 
@@ -87,9 +152,9 @@ This means **our** call stays in `LIVE` and keeps emitting partials + finals, li
 | 33+ | `RecognizerIntent.EXTRA_SEGMENTED_SESSION` (and related extras) when the backend supports it |
 | 29 (Note9) | After each `onResults`, if still `LIVE`, `startListening` again. Treat `onEndOfSpeech` as a pause, not hang up |
 
-Restart-on-final is the Note9-compatible continuous call. Segmented session is an optimization on later OS.
+Restart-on-final is the Note9-compatible continuous call. Segmented session is an optimization on later OS. `VoicePlatformProfile.restartListeningAfterFinal` is `true` when `sdk < 33`.
 
-### 2.4 Assistant role (later OS)
+### 3.4 Assistant role (later OS)
 
 - API 29+: `RoleManager.ROLE_ASSISTANT` exists (Note9 included).
 - GrapheneOS / AOSP: Settings → default digital assistant can be a third-party `VoiceInteractionService`.
@@ -98,26 +163,17 @@ Restart-on-final is the Note9-compatible continuous call. Segmented session is a
 
 ---
 
-## 3. Code seam (what exists now)
+## 4. Device constraints (Note9 / 9185W / GrapheneOS Pixel 8)
 
-Pure JVM in `domain` (no Android types):
+`minSdk = 26`, `targetSdk = 35`, `compileSdk = 35`.
 
-- `IngressSource` — `PROCESS_TEXT`, `SHARE`, `VOICE`
-- `IngressEvent` — `{ source, text, localeHint? }`
-- `PolyglosEngine.expand(event, settings)` — **ignores** `source` for linguistics; presenters MAY log it
-- `VoiceCallEvent` / `VoiceCallPhase` / `VoiceCallStateMachine` — start / partial / final / hang up
-- `VoiceCall.toIngressEvent(Final)` — only finals become ingress
-- `VoicePlatformProfile.forSdk` — API 29 vs 31 vs 33 gates
+UAT pool:
 
-App (`com.japanglify.app.voice`): `VoiceCallHost` / `VoiceCallController` / `VoiceExpandSink` interfaces. No `Service` subclass, no manifest.
-
-Share and `PROCESS_TEXT` MAY wrap `IngressEvent` when those files are next touched. This change MUST NOT rewrite those activities.
-
----
-
-## 4. Device constraints (Note9 / 9185W / GrapheneOS)
-
-`minSdk = 26`, `targetSdk = 35`, `compileSdk = 35`. Pool: Galaxy Note9 (API 29, USB serial `27841130ae1c7ece`), 9185W (wireless-debug pool device), GrapheneOS Pixel 8.
+| Device | OS / SDK | How attached | Voice implication |
+|---|---|---|---|
+| Galaxy Note9 (`SM-N960U`) | **API 29** (Android 10) | USB | Classic `SpeechRecognizer` only; restart-on-final; no mic FGS type |
+| 9185W | **Android 15 / API 35** | wireless debug (drops) | APIs exist; OEM `RecognitionService` unknown; prefer USB for first voice UAT |
+| GrapheneOS Pixel 8 | **AOSP 15-class / API 35** | USB (when present) | APIs exist; stock profile has **no** Google recognizer |
 
 ### 4.1 Galaxy Note9 — API 29 — what it **cannot** do
 
@@ -140,15 +196,18 @@ Also Note9-specific (not just API level):
 
 `RoleManager.ROLE_ASSISTANT` **does** exist on API 29. Winning it on Samsung is optional and MUST NOT be required for the call.
 
-### 4.2 9185W (wireless pool)
+`VoicePlatformProfile.forSdk(29)`: no on-device recognizer API, no recognition-support API, no segmented session, no microphone FGS type, `restartListeningAfterFinal = true`, `roleAssistantApi = true`.
 
-Used as the wireless-debug DUT in UAT (`docs/agent-handoff.md`). Exact `ro.build.version.sdk` is **not** recorded in-tree as of this addendum.
+### 4.2 9185W — Android 15 wireless DUT
 
-Until a UAT note records SDK + whether a `RecognitionService` is installed:
+9185W is the wireless-debug pool device (`docs/agent-handoff.md`). It runs **Android 15** (API 35), so `VoicePlatformProfile.forSdk(35)` matches GrapheneOS Pixel 8 for **API gates**.
 
-- MUST NOT assume API 31+ on-device recognizer APIs.
-- MUST run the same `VoicePlatformProfile.forSdk` branch as Note9 when `sdk < 31`.
+Until a UAT note records whether a `RecognitionService` is installed:
+
+- MUST NOT assume a working on-device recognizer just because the API 31+ methods exist.
+- MUST still feature-detect at runtime (`isOnDeviceRecognitionAvailable` / `createOnDeviceSpeechRecognizer` failure → `Failed`).
 - Wireless debugging drops; voice UAT SHOULD prefer USB for the first call milestone.
+- OEM / carrier image (not GrapheneOS). Online Samsung/Google STT MAY be present; the default path is still offline-first with no silent network fallback.
 
 ### 4.3 GrapheneOS Pixel 8 (AOSP 15-class)
 
@@ -168,6 +227,8 @@ APIs **exist** (`createOnDeviceSpeechRecognizer`, segmented session, `ROLE_ASSIS
 
 Compile/target 35 allows later-OS assist (assistant role, segmented recognition, on-device recognizer APIs). None of those APIs may be called without an SDK guard: Note9 is API 29. Live Caption remains a **system** feature; we copy its continuous-partial UX, not its process.
 
+`VoicePlatformProfile.forSdk(35)`: on-device recognizer API, recognition-support API, segmented session, microphone FGS type, `restartListeningAfterFinal = false`, `roleAssistantApi = true`. Hosts MUST still handle segmented extras being ignored by the backend (fall back to restart-on-final).
+
 ---
 
 ## 5. Present after a final
@@ -180,14 +241,16 @@ Same presenters as Share / read-only `PROCESS_TEXT`:
 
 `source=VOICE` is telemetry and UX copy (“Expand” still, not “voice convert”). Linguistics ignore it.
 
+Gateway (when P1 lands): `VoiceExpandSink` → `IngressProcessor` / `ExpandSession` → `PolyglosEngine.expand(text, settings)`. Until then, a host MAY call `expand` directly with the final text, same as `ProcessTextActivity` does today.
+
 ---
 
 ## 6. Phasing (voice-specific)
 
 | Phase | Deliverable |
 |---|---|
-| **Now** | This doc + protocol types + domain tests |
-| **P3a** | In-app host implementing `VoiceCallController` (Try-it / a session activity) |
+| **Now** | This doc + protocol types + domain tests; `VOICE_AND_PIPELINE.md` retconned to live-call ingress |
+| **P3a** | In-app host implementing `VoiceCallController` (Try-it / a session activity) — same protocol as the later session |
 | **P3b** | Offline ASR backend behind `AsrBackend`; GrapheneOS-usable `RecognitionService` |
 | **P4** | Exported `VoiceInteractionService` + session UI; optional `ROLE_ASSISTANT` |
 | **Not Note9** | `createOnDeviceSpeechRecognizer`, segmented extras, microphone FGS — gated, never required |
@@ -201,3 +264,4 @@ Full feature code stays deferred until an explicit ticket unblocks P3a. The prot
 | Date | Change |
 |---|---|
 | 2026-09-21 | Live-call addendum: VoiceInteractionSession mapping, offline ASR, GrapheneOS / Note9 / 9185W gates |
+| 2026-09-21 | Finish protocol: state machine, ingress (no clipboard), 9185W = Android 15 vs Note9 API 29 vs GrapheneOS Pixel 8; types in `domain` |
